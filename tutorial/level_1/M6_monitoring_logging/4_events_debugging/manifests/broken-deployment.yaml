@@ -1,0 +1,28 @@
+# Deliberately broken deployment -- references a non-existent image.
+# Used to practice debugging ImagePullBackOff errors.
+# Compare with working-deployment.yaml to see the difference.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broken-app
+  labels:
+    app: broken-app
+    tutorial-level: "1"
+    tutorial-module: "M6"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: broken-app
+  template:
+    metadata:
+      labels:
+        app: broken-app
+        tutorial-level: "1"
+        tutorial-module: "M6"
+    spec:
+      containers:
+        - name: broken-app
+          image: quay.io/does-not-exist/fake-image:latest
+          ports:
+            - containerPort: 8080

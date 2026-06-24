@@ -1,0 +1,50 @@
+# CheCluster Custom Resource
+# Defines the Dev Spaces instance configuration
+# This creates the entire Dev Spaces deployment (Che server, dashboard, plug-in registry, etc.)
+apiVersion: org.eclipse.che/v2
+kind: CheCluster
+metadata:
+  name: devspaces
+  namespace: openshift-devspaces
+  labels:
+    app: devspaces
+    tutorial-level: "2"
+    tutorial-module: "M6"
+spec:
+  components:
+    cheServer:
+      debug: false
+      logLevel: INFO
+    dashboard: {}
+    devfileRegistry: {}
+    imagePuller:
+      enable: false
+    metrics:
+      enable: true
+    pluginRegistry: {}
+  containerRegistry: {}
+  devEnvironments:
+    startTimeoutSeconds: 300
+    secondsOfRunBeforeIdling: -1
+    maxNumberOfWorkspacesPerUser: -1
+    storage:
+      pvcStrategy: per-user
+    defaultNamespace:
+      autoProvision: true
+      template: <username>-devspaces
+    defaultEditor: che-incubator/che-code/latest
+    defaultComponents:
+      - name: dev-tools
+        container:
+          image: registry.redhat.io/devspaces/udi-rhel8:latest
+          memoryLimit: 2Gi
+          cpuLimit: "1"
+          memoryRequest: 512Mi
+          cpuRequest: 250m
+  gitServices: {}
+  networking:
+    auth:
+      gateway:
+        configLabels:
+          app: che
+          component: che-gateway-config

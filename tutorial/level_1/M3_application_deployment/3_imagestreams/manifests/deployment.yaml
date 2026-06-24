@@ -1,0 +1,42 @@
+# Deployment that references an ImageStream tag instead of a direct
+# registry URL. The image.openshift.io/triggers annotation tells
+# OpenShift to watch the ImageStream and automatically roll out a new
+# version whenever the referenced tag changes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-app
+  labels:
+    app: nginx-app
+    tutorial-level: "1"
+    tutorial-module: "M3"
+  annotations:
+    image.openshift.io/triggers: >-
+      [
+        {
+          "from": {
+            "kind": "ImageStreamTag",
+            "name": "my-nginx:1.25"
+          },
+          "fieldPath": "spec.template.spec.containers[?(@.name==\"nginx\")].image"
+        }
+      ]
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-app
+  template:
+    metadata:
+      labels:
+        app: nginx-app
+        tutorial-level: "1"
+        tutorial-module: "M3"
+    spec:
+      containers:
+        - name: nginx
+          # This placeholder is replaced at runtime by OpenShift's
+          # image trigger controller with the resolved ImageStream digest.
+          image: " "
+          ports:
+            - containerPort: 8080

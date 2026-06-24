@@ -1,0 +1,17 @@
+# Sample application Route — expose the app outside the cluster
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: gitops-sample-app
+  labels:
+    app: gitops-sample-app
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  to:
+    kind: Service
+    name: gitops-sample-app
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge

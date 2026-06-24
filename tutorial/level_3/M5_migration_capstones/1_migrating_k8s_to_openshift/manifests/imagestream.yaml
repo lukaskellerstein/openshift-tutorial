@@ -1,0 +1,26 @@
+# ImageStream -- OpenShift image abstraction
+# Decouples image references from Deployments and enables:
+#   - Image change triggers (auto-redeploy on image update)
+#   - Scheduled imports from external registries
+#   - Image pull-through caching
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: demo-app
+  labels:
+    app: demo-app
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    - name: latest
+      from:
+        kind: DockerImage
+        name: registry.access.redhat.com/ubi9/nginx-122:latest
+      importPolicy:
+        scheduled: true
+        importMode: Legacy
+      referencePolicy:
+        type: Local

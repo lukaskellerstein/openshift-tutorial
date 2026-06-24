@@ -1,0 +1,34 @@
+# Batch deployment using the batch-low PriorityClass
+# These pods will be preempted first under resource pressure
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: batch-job-runner
+  labels:
+    app: batch-job-runner
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: batch-job-runner
+  template:
+    metadata:
+      labels:
+        app: batch-job-runner
+        tutorial-level: "3"
+        tutorial-module: "M1"
+    spec:
+      priorityClassName: batch-low
+      containers:
+        - name: worker
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command: ["sleep", "infinity"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

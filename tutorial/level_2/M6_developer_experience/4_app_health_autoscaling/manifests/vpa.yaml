@@ -1,0 +1,35 @@
+# Vertical Pod Autoscaler — collects resource usage data and provides
+# right-sizing recommendations. Set to "Off" mode so it only recommends
+# without modifying the deployment (safe to use alongside HPA).
+#
+# Requires the VerticalPodAutoscaler operator installed from OperatorHub.
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: probe-demo-vpa
+  labels:
+    app: probe-demo
+    tutorial-level: "2"
+    tutorial-module: "M6"
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: probe-demo
+  updatePolicy:
+    # "Off" = recommendation-only mode — does not modify pods.
+    # Safe to run alongside HPA since it takes no action.
+    # Other modes: "Auto", "Recreate", "Initial"
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: nginx
+        minAllowed:
+          cpu: 10m
+          memory: 32Mi
+        maxAllowed:
+          cpu: 500m
+          memory: 512Mi
+        controlledResources:
+          - cpu
+          - memory

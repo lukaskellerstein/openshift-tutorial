@@ -1,0 +1,23 @@
+# On-demand Velero backup of the dr-test namespace.
+# Captures all namespaced resources and PVC data.
+# TTL of 720h (30 days) before automatic cleanup.
+apiVersion: velero.io/v1
+kind: Backup
+metadata:
+  name: dr-test-backup
+  namespace: openshift-adp
+  labels:
+    app: dr-test-app
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  includedNamespaces:
+    - dr-test
+  storageLocation: dr-dpa-1
+  ttl: 720h
+  snapshotMoveData: true
+  defaultVolumesToFsBackup: true
+  metadata:
+    labels:
+      backup-type: on-demand
+      tutorial-level: "3"

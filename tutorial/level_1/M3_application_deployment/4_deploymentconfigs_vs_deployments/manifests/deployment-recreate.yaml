@@ -1,0 +1,41 @@
+# Deployment with Recreate strategy.
+# All existing pods are terminated before new ones are created.
+# Results in brief downtime but guarantees no two versions run simultaneously.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-recreate
+  labels:
+    app: deploy-strategies
+    tutorial-level: "1"
+    tutorial-module: "M3"
+  annotations:
+    kubernetes.io/change-cause: "initial deployment"
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: deploy-strategies
+      variant: recreate
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: deploy-strategies
+        variant: recreate
+        tutorial-level: "1"
+        tutorial-module: "M3"
+    spec:
+      containers:
+        - name: nginx
+          image: registry.access.redhat.com/ubi9/nginx-122:latest
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5

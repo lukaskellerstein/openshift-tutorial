@@ -1,0 +1,8 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: demo-app
+  labels:
+    app: demo-app
+    tutorial-level: "2"
+    tutorial-module: "M1"

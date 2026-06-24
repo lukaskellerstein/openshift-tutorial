@@ -1,0 +1,14 @@
+# MetalLB instance — deploys the controller and speaker pods
+apiVersion: metallb.io/v1beta1
+kind: MetalLB
+metadata:
+  name: metallb
+  namespace: metallb-system
+  labels:
+    app: metallb
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  logLevel: info
+  speakerNodeSelector:
+    node-role.kubernetes.io/worker: ""

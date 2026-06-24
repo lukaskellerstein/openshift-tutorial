@@ -1,0 +1,99 @@
+# CronJob that takes automated etcd snapshots every 4 hours.
+# Runs on a control-plane node using the OpenShift-provided
+# cluster-backup.sh script. Retains 7 days of backups.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: etcd-backup-pvc
+  namespace: etcd-backup
+  labels:
+    app: etcd-backup
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-backup
+  namespace: etcd-backup
+  labels:
+    app: etcd-backup
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  schedule: "0 */4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        app: etcd-backup
+        tutorial-level: "3"
+        tutorial-module: "M3"
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: etcd-backup
+            tutorial-level: "3"
+            tutorial-module: "M3"
+        spec:
+          serviceAccountName: etcd-backup-sa
+          containers:
+            - name: etcd-backup
+              image: registry.redhat.io/openshift4/ose-tools-rhel9:latest
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+                  BACKUP_DIR="/backup/etcd-$(date +%Y%m%d-%H%M%S)"
+                  echo "[INFO] Starting etcd backup to ${BACKUP_DIR}"
+
+                  # Run the OpenShift-provided backup script
+                  /usr/local/bin/cluster-backup.sh "${BACKUP_DIR}"
+
+                  # Verify the snapshot is valid
+                  SNAPSHOT_FILE=$(find "${BACKUP_DIR}" -name "snapshot_*.db" | head -1)
+                  if [ -z "${SNAPSHOT_FILE}" ]; then
+                    echo "[ERROR] No snapshot file found in ${BACKUP_DIR}"
+                    exit 1
+                  fi
+                  etcdctl snapshot status "${SNAPSHOT_FILE}" --write-out=table
+
+                  # Retain only last 7 days of backups
+                  echo "[INFO] Cleaning up backups older than 7 days"
+                  find /backup -maxdepth 1 -type d -name "etcd-*" -mtime +7 -exec rm -rf {} +
+
+                  echo "[INFO] etcd backup completed successfully"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              volumeMounts:
+                - name: backup-volume
+                  mountPath: /backup
+          volumes:
+            - name: backup-volume
+              persistentVolumeClaim:
+                claimName: etcd-backup-pvc
+          restartPolicy: OnFailure
+          nodeSelector:
+            node-role.kubernetes.io/master: ""
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              effect: NoSchedule
+          terminationGracePeriodSeconds: 30

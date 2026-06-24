@@ -1,0 +1,56 @@
+# Tekton Task — clone a Git repo and list its contents
+# Demonstrates Workspaces, params, and multi-step Tasks
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: clone-and-list
+  labels:
+    app: tekton-tutorial
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  params:
+    - name: repo-url
+      type: string
+      description: The Git repository URL to clone
+    - name: revision
+      type: string
+      default: main
+      description: The Git revision (branch, tag, or commit) to checkout
+  workspaces:
+    - name: source
+      description: Workspace to clone the repository into
+  steps:
+    - name: clone
+      image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "Cloning $(params.repo-url) @ $(params.revision)..."
+        git clone --depth 1 --branch $(params.revision) \
+          $(params.repo-url) $(workspaces.source.path)/repo
+        echo "Clone complete."
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+    - name: list-files
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "Repository contents:"
+        echo "---"
+        ls -la $(workspaces.source.path)/repo
+        echo "---"
+        echo "Total files: $(find $(workspaces.source.path)/repo -type f | wc -l)"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi

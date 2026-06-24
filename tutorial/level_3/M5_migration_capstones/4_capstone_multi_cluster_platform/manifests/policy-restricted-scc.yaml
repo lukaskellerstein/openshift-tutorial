@@ -1,0 +1,67 @@
+# Policy: Enforce restricted SCC on all managed clusters
+# Ensures no workloads run with elevated privileges without explicit approval
+# Builds on SCC concepts from L1-M2.4
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: policy-restricted-scc
+  namespace: platform-policies
+  labels:
+    app: capstone-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+    policy-category: security
+  annotations:
+    policy.open-cluster-management.io/categories: SC System and Communications Protection
+    policy.open-cluster-management.io/controls: SC-4 Information In Shared Resources
+    policy.open-cluster-management.io/standards: NIST SP 800-53
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: restricted-scc-check
+        spec:
+          remediationAction: inform
+          severity: high
+          namespaceSelector:
+            exclude:
+              - kube-*
+              - openshift-*
+              - open-cluster-management*
+            include:
+              - "*"
+          object-templates:
+            - complianceType: mustnothave
+              objectDefinition:
+                apiVersion: security.openshift.io/v1
+                kind: SecurityContextConstraints
+                metadata:
+                  name: custom-privileged
+                allowPrivilegedContainer: true
+                runAsUser:
+                  type: RunAsAny
+                seLinuxContext:
+                  type: RunAsAny
+---
+# PlacementBinding links the policy to a placement rule
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: binding-policy-restricted-scc
+  namespace: platform-policies
+  labels:
+    app: capstone-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+placementRef:
+  name: placement-production-clusters
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+subjects:
+  - name: policy-restricted-scc
+    apiGroup: policy.open-cluster-management.io
+    kind: Policy

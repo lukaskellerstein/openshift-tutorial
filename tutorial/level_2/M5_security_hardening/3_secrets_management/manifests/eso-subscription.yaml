@@ -1,0 +1,16 @@
+# External Secrets Operator — install via OLM
+# This creates a Subscription that installs the operator from OperatorHub
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: external-secrets-operator
+  namespace: openshift-operators
+  labels:
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: external-secrets-operator
+  source: community-operators
+  sourceNamespace: openshift-marketplace

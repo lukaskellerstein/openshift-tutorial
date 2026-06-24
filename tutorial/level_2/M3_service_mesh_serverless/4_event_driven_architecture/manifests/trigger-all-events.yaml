@@ -1,0 +1,17 @@
+# Trigger with no filter -- routes ALL events from the Broker to event-display
+# Demonstrates the "catch-all" pattern for event logging/debugging
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: all-events
+  labels:
+    app: event-routing
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  broker: default
+  subscriber:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: event-display

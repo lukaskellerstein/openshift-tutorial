@@ -1,0 +1,36 @@
+# MachineConfig for infra node kernel tuning
+# Increases TCP backlog and connection limits for nodes handling
+# high-traffic routing (ingress controller) workloads.
+# WARNING: Applying this triggers a rolling reboot of infra nodes.
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: 99-infra-kernel-tuning
+  labels:
+    machineconfiguration.openshift.io/role: infra
+    app: node-management
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  kernelArguments:
+    - "net.core.somaxconn=32768"
+    - "net.ipv4.tcp_max_syn_backlog=32768"
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      files:
+        - path: /etc/sysctl.d/99-infra-tuning.conf
+          mode: 0644
+          overwrite: true
+          contents:
+            source: data:text/plain;charset=utf-8;base64,IyBJbmZyYSBub2RlIGtlcm5lbCB0dW5pbmcgZm9yIGhpZ2gtdHJhZmZpYyByb3V0aW5nCm5ldC5jb3JlLnNvbWF4Y29ubj0zMjc2OApuZXQuaXB2NC50Y3BfbWF4X3N5bl9iYWNrbG9nPTMyNzY4Cm5ldC5jb3JlLm5ldGRldl9tYXhfYmFja2xvZz01MDAwCm5ldC5pcHY0LnRjcF9maW5fdGltZW91dD0xNQpuZXQuaXB2NC50Y3Bfa2VlcGFsaXZlX3RpbWU9NjAwCm5ldC5pcHY0LnRjcF9rZWVwYWxpdmVfaW50dmw9MTUKbmV0LmlwdjQudGNwX2tlZXBhbGl2ZV9wcm9iZXM9NQo=
+            # Decoded content:
+            # # Infra node kernel tuning for high-traffic routing
+            # net.core.somaxconn=32768
+            # net.ipv4.tcp_max_syn_backlog=32768
+            # net.core.netdev_max_backlog=5000
+            # net.ipv4.tcp_fin_timeout=15
+            # net.ipv4.tcp_keepalive_time=600
+            # net.ipv4.tcp_keepalive_intvl=15
+            # net.ipv4.tcp_keepalive_probes=5

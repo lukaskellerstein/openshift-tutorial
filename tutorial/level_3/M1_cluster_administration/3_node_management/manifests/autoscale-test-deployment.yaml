@@ -1,0 +1,36 @@
+# Test deployment to trigger the Cluster Autoscaler
+# Creates pods requesting enough resources to exceed current node capacity,
+# forcing the autoscaler to provision new nodes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: autoscale-test
+  labels:
+    app: autoscale-test
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  replicas: 20
+  selector:
+    matchLabels:
+      app: autoscale-test
+  template:
+    metadata:
+      labels:
+        app: autoscale-test
+    spec:
+      terminationGracePeriodSeconds: 0
+      containers:
+        - name: resource-consumer
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      tolerations:
+        - key: workload-type
+          value: general
+          effect: PreferNoSchedule

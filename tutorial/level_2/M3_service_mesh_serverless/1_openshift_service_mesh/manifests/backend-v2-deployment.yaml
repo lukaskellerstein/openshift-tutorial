@@ -1,0 +1,65 @@
+# Backend service v2 — returns version info in responses
+# Same application as v1 but with version: v2 label
+# Used to demonstrate traffic splitting with VirtualService
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-v2
+  labels:
+    app: backend
+    version: v2
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: backend
+        version: v2
+      annotations:
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+        - name: backend
+          image: registry.access.redhat.com/ubi9/httpd-24:latest
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          env:
+            - name: APP_VERSION
+              value: "v2"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              cat > /var/www/html/index.html << 'HTMLEOF'
+              {"source": "backend", "version": "v2"}
+              HTMLEOF
+              cat > /var/www/html/.htaccess << 'HTEOF'
+              AddType application/json .html
+              HTEOF
+              exec httpd -D FOREGROUND
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15

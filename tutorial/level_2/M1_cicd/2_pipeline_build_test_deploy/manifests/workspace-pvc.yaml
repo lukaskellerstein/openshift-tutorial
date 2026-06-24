@@ -1,0 +1,16 @@
+# PersistentVolumeClaim for shared pipeline workspace
+# This PVC provides shared storage across all Tasks in the Pipeline
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pipeline-workspace-pvc
+  labels:
+    app: pipeline-demo
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

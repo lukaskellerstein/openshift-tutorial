@@ -1,0 +1,72 @@
+# Policy: Ensure resource quotas exist on all user namespaces
+# Prevents unbounded resource consumption on managed clusters
+# Builds on quota concepts from L3-M1.5
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: policy-resource-quotas
+  namespace: platform-policies
+  labels:
+    app: capstone-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+    policy-category: resource-management
+  annotations:
+    policy.open-cluster-management.io/categories: SC System and Communications Protection
+    policy.open-cluster-management.io/controls: SC-6 Resource Availability
+    policy.open-cluster-management.io/standards: NIST SP 800-53
+spec:
+  # Set to "inform" -- quotas should be reviewed, not auto-enforced
+  # Enforcing arbitrary quotas could break existing workloads
+  remediationAction: inform
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: resource-quota-check
+        spec:
+          remediationAction: inform
+          severity: low
+          namespaceSelector:
+            exclude:
+              - kube-*
+              - openshift-*
+              - open-cluster-management*
+              - default
+            include:
+              - "*"
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ResourceQuota
+                metadata:
+                  name: default-quota
+                spec:
+                  hard:
+                    requests.cpu: "4"
+                    requests.memory: 8Gi
+                    limits.cpu: "8"
+                    limits.memory: 16Gi
+                    persistentvolumeclaims: "10"
+                    pods: "50"
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: binding-policy-resource-quotas
+  namespace: platform-policies
+  labels:
+    app: capstone-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+placementRef:
+  name: placement-production-clusters
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+subjects:
+  - name: policy-resource-quotas
+    apiGroup: policy.open-cluster-management.io
+    kind: Policy

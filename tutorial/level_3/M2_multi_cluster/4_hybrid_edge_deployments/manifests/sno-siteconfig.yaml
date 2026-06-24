@@ -1,0 +1,90 @@
+# SiteConfig CR for Zero Touch Provisioning of a Single Node OpenShift cluster
+# This CR is consumed by RHACM's assisted installer service.
+# Commit this to your ZTP Git repo; ArgoCD applies it to the hub cluster.
+apiVersion: ran.openshift.io/v2
+kind: SiteConfig
+metadata:
+  name: store-001
+  namespace: store-001
+  labels:
+    app: ztp-site
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  baseDomain: edge.example.com
+  pullSecretRef:
+    name: assisted-deployment-pull-secret
+  clusterImageSetNameRef: openshift-v4.14
+  sshPublicKey: "ssh-rsa AAAA..."
+  clusters:
+    - clusterName: store-001
+      networkType: OVNKubernetes
+      clusterLabels:
+        common: "true"
+        group-du-sno: ""
+        sites: store-001
+        vendor: OpenShift
+        tutorial-level: "3"
+        tutorial-module: "M2"
+      clusterNetwork:
+        - cidr: 10.128.0.0/14
+          hostPrefix: 23
+      machineNetwork:
+        - cidr: 192.168.10.0/24
+      serviceNetwork:
+        - 172.30.0.0/16
+      additionalNTPSources:
+        - ntp.edge.example.com
+      # Workload partitioning: reserve CPUs 0-3 for platform
+      cpuset: "0-3"
+      nodes:
+        - hostName: sno-store-001.edge.example.com
+          role: master
+          bmcAddress: redfish-virtualmedia://192.168.10.10:443/redfish/v1/Systems/1
+          bmcCredentialsName:
+            name: store-001-bmc-secret
+          bootMACAddress: "AA:BB:CC:DD:EE:01"
+          bootMode: UEFI
+          rootDeviceHints:
+            deviceName: /dev/sda
+          nodeNetwork:
+            interfaces:
+              - name: eno1
+                macAddress: "AA:BB:CC:DD:EE:01"
+            config:
+              interfaces:
+                - name: eno1
+                  type: ethernet
+                  state: up
+                  ipv4:
+                    enabled: true
+                    address:
+                      - ip: 192.168.10.100
+                        prefix-length: 24
+                    dhcp: false
+              dns-resolver:
+                config:
+                  server:
+                    - 192.168.10.1
+              routes:
+                config:
+                  - destination: 0.0.0.0/0
+                    next-hop-address: 192.168.10.1
+                    next-hop-interface: eno1
+                    table-id: 254
+---
+# BMC credentials Secret
+# In production, use SealedSecrets or External Secrets Operator
+apiVersion: v1
+kind: Secret
+metadata:
+  name: store-001-bmc-secret
+  namespace: store-001
+  labels:
+    app: ztp-site
+    tutorial-level: "3"
+    tutorial-module: "M2"
+type: Opaque
+stringData:
+  username: admin
+  password: "<bmc-password>"

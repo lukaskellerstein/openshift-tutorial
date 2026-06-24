@@ -1,0 +1,19 @@
+# Strimzi-managed Kafka topic for throughput testing.
+# The Topic Operator watches these CRs and creates/updates
+# the actual Kafka topics on the cluster.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: test-throughput
+  labels:
+    strimzi.io/cluster: kafka-production
+    app: kafka-production
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 604800000
+    segment.bytes: 1073741824
+    min.insync.replicas: 2

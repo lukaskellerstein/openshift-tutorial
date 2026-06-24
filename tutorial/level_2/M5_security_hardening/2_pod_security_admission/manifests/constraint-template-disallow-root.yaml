@@ -1,0 +1,60 @@
+# Gatekeeper ConstraintTemplate: disallow containers running as root.
+# Checks that runAsNonRoot is true and runAsUser is not 0.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sdisallowroot
+  labels:
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sDisallowRoot
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            message:
+              type: string
+              description: "Custom denial message"
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sdisallowroot
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          has_field(container, "securityContext")
+          has_field(container.securityContext, "runAsUser")
+          container.securityContext.runAsUser == 0
+          msg := sprintf(
+            "Container \"%v\" is attempting to run as root (runAsUser: 0). Set runAsNonRoot: true and use a non-zero runAsUser.",
+            [container.name]
+          )
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not has_run_as_non_root(container)
+          not has_run_as_non_root_pod(input.review.object.spec)
+          msg := sprintf(
+            "Container \"%v\" does not set runAsNonRoot: true. All containers must explicitly opt out of running as root.",
+            [container.name]
+          )
+        }
+
+        has_run_as_non_root(container) {
+          has_field(container, "securityContext")
+          container.securityContext.runAsNonRoot == true
+        }
+
+        has_run_as_non_root_pod(podSpec) {
+          has_field(podSpec, "securityContext")
+          podSpec.securityContext.runAsNonRoot == true
+        }
+
+        has_field(obj, field) {
+          obj[field]
+        }

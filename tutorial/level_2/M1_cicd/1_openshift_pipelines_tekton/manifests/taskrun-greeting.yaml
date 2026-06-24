@@ -1,0 +1,17 @@
+# TaskRun — executes the greeting Task
+# Used to test individual Tasks before wiring them into a Pipeline
+apiVersion: tekton.dev/v1
+kind: TaskRun
+metadata:
+  generateName: greeting-run-
+  labels:
+    app: tekton-tutorial
+    tutorial-level: "2"
+    tutorial-module: "M1"
+    tekton.dev/task: greeting
+spec:
+  taskRef:
+    name: greeting
+  params:
+    - name: message
+      value: "Hello from OpenShift Pipelines!"

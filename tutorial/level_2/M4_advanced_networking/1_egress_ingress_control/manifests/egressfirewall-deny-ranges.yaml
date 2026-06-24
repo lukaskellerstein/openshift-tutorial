@@ -1,0 +1,24 @@
+# EgressFirewall — Block traffic to specific CIDR ranges
+# Use case: prevent pods from reaching internal corporate networks or metadata services
+apiVersion: k8s.ovn.org/v1
+kind: EgressFirewall
+metadata:
+  name: default
+  labels:
+    app: egress-demo
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  egress:
+    # Block cloud provider metadata service (security best practice)
+    - type: Deny
+      to:
+        cidrSelector: 169.254.169.254/32
+    # Block internal corporate range
+    - type: Deny
+      to:
+        cidrSelector: 10.0.0.0/8
+    # Allow everything else
+    - type: Allow
+      to:
+        cidrSelector: 0.0.0.0/0

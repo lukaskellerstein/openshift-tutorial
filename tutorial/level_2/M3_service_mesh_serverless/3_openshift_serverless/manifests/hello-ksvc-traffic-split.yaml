@@ -1,0 +1,40 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: hello
+  namespace: serverless-tutorial
+  labels:
+    app: hello
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  template:
+    metadata:
+      labels:
+        app: hello
+        tutorial-level: "2"
+        tutorial-module: "M3"
+      annotations:
+        autoscaling.knative.dev/target: "10"
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "5"
+    spec:
+      containers:
+        - image: gcr.io/knative-samples/helloworld-go
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TARGET
+              value: "OpenShift Serverless v2"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+  traffic:
+    - revisionName: hello-00002
+      percent: 80
+    - revisionName: hello-00001
+      percent: 20

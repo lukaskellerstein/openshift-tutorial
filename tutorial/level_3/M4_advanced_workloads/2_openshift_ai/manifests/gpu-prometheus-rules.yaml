@@ -1,0 +1,85 @@
+# PrometheusRule for GPU monitoring alerts
+# Requires the NVIDIA DCGM Exporter (deployed by the GPU Operator)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gpu-alerts
+  namespace: nvidia-gpu-operator
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  groups:
+    - name: gpu.alerts
+      rules:
+        # Alert when GPU temperature exceeds safe threshold
+        - alert: GPUTemperatureHigh
+          expr: DCGM_FI_DEV_GPU_TEMP > 85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "GPU temperature high on {{ $labels.instance }}"
+            description: "GPU {{ $labels.gpu }} on node {{ $labels.instance }} has temperature {{ $value }}C (threshold: 85C)"
+
+        # Alert when GPU temperature is critical
+        - alert: GPUTemperatureCritical
+          expr: DCGM_FI_DEV_GPU_TEMP > 95
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "GPU temperature critical on {{ $labels.instance }}"
+            description: "GPU {{ $labels.gpu }} on node {{ $labels.instance }} has temperature {{ $value }}C. Immediate investigation required."
+
+        # Alert when GPU memory is nearly exhausted
+        - alert: GPUMemoryExhausted
+          expr: (DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE)) * 100 > 95
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "GPU memory nearly exhausted on {{ $labels.instance }}"
+            description: "GPU {{ $labels.gpu }} memory usage is {{ $value | humanize }}%. Models may fail to load."
+
+        # Alert when GPU is underutilized (cost optimization)
+        - alert: GPUUnderutilized
+          expr: DCGM_FI_DEV_GPU_UTIL < 10
+          for: 1h
+          labels:
+            severity: info
+          annotations:
+            summary: "GPU underutilized on {{ $labels.instance }}"
+            description: "GPU {{ $labels.gpu }} utilization is {{ $value }}% for over 1 hour. Consider releasing the GPU resource."
+
+        # Alert when GPU XID errors occur (hardware issues)
+        - alert: GPUXidErrors
+          expr: increase(DCGM_FI_DEV_XID_ERRORS[5m]) > 0
+          labels:
+            severity: critical
+          annotations:
+            summary: "GPU XID error detected on {{ $labels.instance }}"
+            description: "GPU {{ $labels.gpu }} reported XID error. This may indicate a hardware fault. Check dmesg and GPU driver logs."
+
+    - name: rhoai.alerts
+      rules:
+        # Alert when notebook has been idle too long
+        - alert: NotebookIdleTooLong
+          expr: time() - notebook_last_activity_timestamp > 3600
+          for: 5m
+          labels:
+            severity: info
+          annotations:
+            summary: "Idle notebook detected in {{ $labels.namespace }}"
+            description: "Notebook {{ $labels.notebook_name }} has been idle for over 1 hour. Consider stopping it to free resources."
+
+        # Alert when inference latency is high
+        - alert: InferenceLatencyHigh
+          expr: histogram_quantile(0.99, rate(kserve_request_latency_seconds_bucket[5m])) > 5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High inference latency for {{ $labels.model_name }}"
+            description: "p99 inference latency for model {{ $labels.model_name }} is {{ $value | humanize }}s (threshold: 5s)"

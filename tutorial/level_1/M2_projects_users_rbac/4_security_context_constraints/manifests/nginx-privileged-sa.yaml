@@ -1,0 +1,11 @@
+# Dedicated service account for workloads that need the anyuid SCC.
+# Best practice: never grant elevated SCCs to the default service account.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nginx-anyuid
+  namespace: scc-demo
+  labels:
+    app: nginx-anyuid
+    tutorial-level: "1"
+    tutorial-module: "M2"

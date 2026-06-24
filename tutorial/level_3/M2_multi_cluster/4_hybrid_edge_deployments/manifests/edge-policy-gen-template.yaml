@@ -1,0 +1,94 @@
+# PolicyGenTemplate for configuring edge SNO clusters via ZTP
+# This template generates RHACM policies that are applied to clusters
+# matching the specified labels.
+#
+# The PolicyGenTemplate is consumed by the policy-generator-plugin
+# in the ZTP GitOps pipeline.
+apiVersion: ran.openshift.io/v1
+kind: PolicyGenTemplate
+metadata:
+  name: group-du-sno
+  namespace: ztp-group
+  labels:
+    app: ztp-policy
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  bindingRules:
+    group-du-sno: ""
+  mcp: master
+  sourceFiles:
+    # --- Performance Profile ---
+    # Isolate CPUs for application workloads, reserve CPUs for platform
+    - fileName: PerformanceProfile.yaml
+      policyName: group-du-sno-perf
+      metadata:
+        name: sno-performance-profile
+      spec:
+        cpu:
+          # Platform components pinned to cores 0-3
+          reserved: "0-3"
+          # Application workloads get cores 4-15
+          isolated: "4-15"
+        hugepages:
+          defaultHugepagesSize: 1G
+          pages:
+            - size: 1G
+              count: 4
+              node: 0
+        realTimeKernel:
+          enabled: false
+        numa:
+          topologyPolicy: single-numa-node
+        net:
+          userLevelNetworking: true
+
+    # --- SR-IOV Network Configuration ---
+    # For high-performance network I/O at edge sites
+    - fileName: SriovNetwork.yaml
+      policyName: group-du-sno-sriov
+      metadata:
+        name: sriov-network
+      spec:
+        resourceName: du_sriov
+        vlan: 100
+        networkNamespace: edge-apps
+
+    # --- Operator Subscriptions ---
+    # Install required operators on all edge clusters
+    - fileName: SriovSubscription.yaml
+      policyName: group-du-sno-operators
+
+    - fileName: LocalStorageSubscription.yaml
+      policyName: group-du-sno-operators
+
+    # --- Cluster Logging ---
+    # Forward logs to central aggregator
+    - fileName: ClusterLogForwarder.yaml
+      policyName: group-du-sno-logging
+      spec:
+        outputs:
+          - name: central-logging
+            type: kafka
+            url: tls://kafka.central.example.com:9093/edge-logs
+        pipelines:
+          - name: forward-to-central
+            inputRefs:
+              - infrastructure
+              - application
+            outputRefs:
+              - central-logging
+
+    # --- Storage Configuration ---
+    # Local storage for edge workloads
+    - fileName: StorageClass.yaml
+      policyName: group-du-sno-storage
+      metadata:
+        name: local-ssd
+        annotations:
+          storageclass.kubernetes.io/is-default-class: "true"
+
+    # --- Cluster Network Configuration ---
+    # Disable default catalogsources for disconnected environments
+    - fileName: DisableDefaultCatalogSource.yaml
+      policyName: group-du-sno-config

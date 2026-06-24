@@ -1,0 +1,20 @@
+# ImageTagMirrorSet — redirects Docker Hub image references to an internal Quay mirror
+# This ensures all image pulls go through your trusted, pre-scanned registry
+# even when developers specify Docker Hub images in their manifests
+#
+# Requires cluster-admin privileges to apply
+# Replace quay.example.com with your actual Quay mirror hostname
+apiVersion: config.openshift.io/v1
+kind: ImageTagMirrorSet
+metadata:
+  name: docker-hub-mirror
+spec:
+  imageTagMirrors:
+    - mirrors:
+        - quay.example.com/dockerhub-mirror
+      source: docker.io/library
+      mirrorSourcePolicy: AllowContactingSource
+    - mirrors:
+        - quay.example.com/dockerhub-mirror
+      source: docker.io
+      mirrorSourcePolicy: AllowContactingSource

@@ -1,0 +1,115 @@
+# DataSciencePipelinesApplication -- deploys a Kubeflow Pipelines server
+# per project (namespace-scoped). Creates: API server, persistence agent,
+# scheduled workflow controller, MariaDB (metadata), and Minio (artifacts).
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1alpha1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: ds-pipeline-dspa
+  namespace: ds-project
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  apiServer:
+    applyTektonCustomResource: true
+    archiveLogs: false
+    autoUpdatePipelineDefaultVersion: true
+    collectMetrics: true
+    dbConfigConMaxLifetimeSec: 120
+    deploy: true
+    enableOauth: true
+    enableSamplePipeline: true
+    injectDefaultScript: true
+    resources:
+      requests:
+        cpu: "250m"
+        memory: 500Mi
+      limits:
+        cpu: "500m"
+        memory: 1Gi
+    stripEOF: true
+    terminateStatus: Cancelled
+    trackArtifacts: true
+  database:
+    # MariaDB for pipeline metadata storage
+    mariaDB:
+      deploy: true
+      pipelineDBName: mlpipeline
+      pvcSize: 10Gi
+      resources:
+        requests:
+          cpu: "250m"
+          memory: 256Mi
+        limits:
+          cpu: "500m"
+          memory: 512Mi
+      username: mlpipeline
+      passwordSecret:
+        name: ds-pipeline-db-secret
+        key: password
+  objectStorage:
+    # Minio for pipeline artifact storage (use external S3 in production)
+    minio:
+      deploy: true
+      image: quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance
+      pvcSize: 20Gi
+      bucket: mlpipeline
+      resources:
+        requests:
+          cpu: "250m"
+          memory: 256Mi
+        limits:
+          cpu: "500m"
+          memory: 512Mi
+      s3CredentialsSecret:
+        accessKey: AWS_ACCESS_KEY_ID
+        secretKey: AWS_SECRET_ACCESS_KEY
+        secretName: ds-pipeline-s3-secret
+  persistenceAgent:
+    deploy: true
+    resources:
+      requests:
+        cpu: "120m"
+        memory: 256Mi
+      limits:
+        cpu: "250m"
+        memory: 512Mi
+  scheduledWorkflow:
+    deploy: true
+    resources:
+      requests:
+        cpu: "120m"
+        memory: 256Mi
+      limits:
+        cpu: "250m"
+        memory: 512Mi
+---
+# Database password secret for the pipeline MariaDB
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ds-pipeline-db-secret
+  namespace: ds-project
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+type: Opaque
+stringData:
+  password: "pipeline-db-password"
+---
+# S3 credentials secret for the pipeline artifact store
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ds-pipeline-s3-secret
+  namespace: ds-project
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: "minio-pipeline-key"
+  AWS_SECRET_ACCESS_KEY: "minio-pipeline-secret"

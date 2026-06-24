@@ -1,0 +1,16 @@
+# Sample application Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitops-sample-app
+  labels:
+    app: gitops-sample-app
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  selector:
+    app: gitops-sample-app
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

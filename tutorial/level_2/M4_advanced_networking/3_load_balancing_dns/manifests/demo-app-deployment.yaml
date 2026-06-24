@@ -1,0 +1,47 @@
+# Demo application Deployment — simple HTTP server for testing MetalLB
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  namespace: l2-m4-lb-demo
+  labels:
+    app: demo-app
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        tutorial-level: "2"
+        tutorial-module: "M4"
+    spec:
+      containers:
+        - name: demo-app
+          image: registry.access.redhat.com/ubi9/httpd-24:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30

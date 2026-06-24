@@ -1,0 +1,30 @@
+# Knative Service that logs all received CloudEvents
+# Used as the "catch-all" event consumer in this lesson
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: event-display
+  labels:
+    app: event-display
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/min-scale: "0"
+        autoscaling.knative.dev/max-scale: "5"
+    spec:
+      containers:
+        - image: gcr.io/knative-releases/knative.dev/eventing/cmd/event_display
+          name: event-display
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          ports:
+            - containerPort: 8080
+              protocol: TCP

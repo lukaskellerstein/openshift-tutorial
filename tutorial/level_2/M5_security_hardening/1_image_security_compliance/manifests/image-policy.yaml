@@ -1,0 +1,27 @@
+# Cluster-wide image policy — restricts which registries can be used
+# This uses the OpenShift Image config resource to define allowed registries
+# Any image from a registry NOT on this list will be rejected at pull time
+#
+# Requires cluster-admin privileges to apply
+# WARNING: This affects ALL projects in the cluster
+apiVersion: config.openshift.io/v1
+kind: Image
+metadata:
+  name: cluster
+spec:
+  registrySources:
+    allowedRegistries:
+      # Red Hat official registries
+      - registry.access.redhat.com
+      - registry.redhat.io
+      # Quay.io — Red Hat's public registry (includes community images)
+      - quay.io
+      # OpenShift internal registry — required for S2I builds and ImageStreams
+      - image-registry.openshift-image-registry.svc:5000
+      # CRC local registry
+      - registry.crc.testing:5000
+    # Alternative: use blockedRegistries to deny specific registries
+    # while allowing everything else (less restrictive approach)
+    # blockedRegistries:
+    #   - docker.io
+    #   - ghcr.io

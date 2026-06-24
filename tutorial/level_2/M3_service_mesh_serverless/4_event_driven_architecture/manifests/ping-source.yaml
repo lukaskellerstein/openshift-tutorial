@@ -1,0 +1,19 @@
+# PingSource -- generates CloudEvents on a cron schedule
+# Sends a heartbeat event to the Broker every minute
+apiVersion: sources.knative.dev/v1
+kind: PingSource
+metadata:
+  name: heartbeat
+  labels:
+    app: event-source
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  schedule: "*/1 * * * *"
+  contentType: "application/json"
+  data: '{"message": "heartbeat ping", "severity": "info"}'
+  sink:
+    ref:
+      apiVersion: eventing.knative.dev/v1
+      kind: Broker
+      name: default

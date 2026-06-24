@@ -1,0 +1,46 @@
+# Kubernetes Deployment -- typical K8s manifest with root user and Docker Hub image
+# This is what a K8s app looks like BEFORE migration to OpenShift
+# Compare with openshift-deployment.yaml for the migrated version
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  labels:
+    app: demo-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+    spec:
+      containers:
+        - name: demo-app
+          image: nginx:1.25
+          ports:
+            - containerPort: 80
+          # Typical K8s pattern: run as root (will FAIL on OpenShift)
+          securityContext:
+            runAsUser: 0
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30

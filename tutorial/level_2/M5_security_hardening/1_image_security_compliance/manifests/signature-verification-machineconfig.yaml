@@ -1,0 +1,47 @@
+# MachineConfig for image signature verification
+# This configures /etc/containers/policy.json on all worker nodes to:
+#   - REJECT all images by default (deny-by-default posture)
+#   - REQUIRE GPG signatures for registry.access.redhat.com and registry.redhat.io
+#   - ALLOW unsigned images from the internal OpenShift registry (needed for S2I builds)
+#
+# Requires cluster-admin privileges to apply
+# WARNING: Applying this will trigger a node reboot on CRC (~5-10 min)
+#
+# The decoded policy.json content:
+# {
+#   "default": [{ "type": "reject" }],
+#   "transports": {
+#     "docker": {
+#       "registry.access.redhat.com": [{
+#         "type": "signedBy",
+#         "keyType": "GPGKeys",
+#         "keyPath": "/etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release"
+#       }],
+#       "registry.redhat.io": [{
+#         "type": "signedBy",
+#         "keyType": "GPGKeys",
+#         "keyPath": "/etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release"
+#       }],
+#       "image-registry.openshift-image-registry.svc:5000": [{
+#         "type": "insecureAcceptAnything"
+#       }]
+#     }
+#   }
+# }
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: 50-image-signature-policy
+  labels:
+    machineconfiguration.openshift.io/role: worker
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      files:
+        - path: /etc/containers/policy.json
+          mode: 0644
+          overwrite: true
+          contents:
+            source: data:text/plain;charset=utf-8;base64,ewogICJkZWZhdWx0IjogWwogICAgewogICAgICAidHlwZSI6ICJyZWplY3QiCiAgICB9CiAgXSwKICAidHJhbnNwb3J0cyI6IHsKICAgICJkb2NrZXIiOiB7CiAgICAgICJyZWdpc3RyeS5hY2Nlc3MucmVkaGF0LmNvbSI6IFsKICAgICAgICB7CiAgICAgICAgICAidHlwZSI6ICJzaWduZWRCeSIsCiAgICAgICAgICAia2V5VHlwZSI6ICJHUEdLZXlzIiwKICAgICAgICAgICJrZXlQYXRoIjogIi9ldGMvcGtpL3JwbS1ncGcvUlBNLUdQRy1LRVktcmVkaGF0LXJlbGVhc2UiCiAgICAgICAgfQogICAgICBdLAogICAgICAicmVnaXN0cnkucmVkaGF0LmlvIjogWwogICAgICAgIHsKICAgICAgICAgICJ0eXBlIjogInNpZ25lZEJ5IiwKICAgICAgICAgICJrZXlUeXBlIjogIkdQR0tleXMiLAogICAgICAgICAgImtleVBhdGgiOiAiL2V0Yy9wa2kvcnBtLWdwZy9SUE0tR1BHLUtFWS1yZWRoYXQtcmVsZWFzZSIKICAgICAgICB9CiAgICAgIF0sCiAgICAgICJpbWFnZS1yZWdpc3RyeS5vcGVuc2hpZnQtaW1hZ2UtcmVnaXN0cnkuc3ZjOjUwMDAiOiBbCiAgICAgICAgewogICAgICAgICAgInR5cGUiOiAiaW5zZWN1cmVBY2NlcHRBbnl0aGluZyIKICAgICAgICB9CiAgICAgIF0KICAgIH0KICB9Cn0=

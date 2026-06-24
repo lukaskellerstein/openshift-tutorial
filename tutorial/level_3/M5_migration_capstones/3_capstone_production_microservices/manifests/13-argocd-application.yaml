@@ -1,0 +1,63 @@
+# ArgoCD Application for GitOps-based deployment.
+#
+# In Kubernetes, you install ArgoCD manually via Helm.
+# In OpenShift, the GitOps Operator installs and manages ArgoCD.
+#
+# This Application CR tells ArgoCD to watch a Git repo and
+# automatically sync the manifests to the cluster. Combined with
+# the Tekton pipeline (which updates the Git repo after builds),
+# this creates a full GitOps CI/CD flow:
+#
+#   Tekton builds image -> updates Git repo -> ArgoCD syncs cluster
+#
+# Prerequisite: OpenShift GitOps Operator installed (L2-M1.3)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: capstone-microservices
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: capstone-microservices
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # Point to your Git repo containing the manifests
+    repoURL: https://github.com/your-org/capstone-microservices.git
+    targetRevision: main
+    path: manifests
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: capstone-microservices
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  # Health checks for custom resources
+  ignoreDifferences:
+    - group: route.openshift.io
+      kind: Route
+      jsonPointers:
+        - /spec/host
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

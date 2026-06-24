@@ -1,0 +1,18 @@
+# GitOps repo manifest — Route for the demo app.
+# Lives in the GitOps repository alongside the Deployment and Service.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: demo-app
+  labels:
+    app: demo-app
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  to:
+    kind: Service
+    name: demo-app
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge

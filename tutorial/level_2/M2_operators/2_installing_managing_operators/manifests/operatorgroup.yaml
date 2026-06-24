@@ -1,0 +1,14 @@
+# OperatorGroup scoped to the etcd-demo namespace (OwnNamespace mode)
+# This ensures the etcd operator only watches resources in etcd-demo
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: etcd-demo-og
+  namespace: etcd-demo
+  labels:
+    app: etcd-demo
+    tutorial-level: "2"
+    tutorial-module: "M2"
+spec:
+  targetNamespaces:
+    - etcd-demo

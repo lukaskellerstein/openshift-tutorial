@@ -1,0 +1,48 @@
+# ResourceQuota to limit batch workload resource consumption
+# Prevents runaway Jobs from consuming the entire cluster
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: batch-workload-quota
+  labels:
+    app: batch-workloads
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  hard:
+    requests.cpu: "8"
+    requests.memory: 16Gi
+    limits.cpu: "16"
+    limits.memory: 32Gi
+    count/jobs.batch: "20"
+    count/cronjobs.batch: "10"
+    pods: "50"
+---
+# LimitRange to set defaults and caps on individual pods
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: batch-limit-range
+  labels:
+    app: batch-workloads
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 256Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 64Mi
+      max:
+        cpu: "4"
+        memory: 8Gi
+      min:
+        cpu: 50m
+        memory: 32Mi
+    - type: Pod
+      max:
+        cpu: "8"
+        memory: 16Gi

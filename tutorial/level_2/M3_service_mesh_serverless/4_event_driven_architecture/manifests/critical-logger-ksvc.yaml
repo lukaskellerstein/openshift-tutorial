@@ -1,0 +1,30 @@
+# Knative Service that receives only critical events
+# Filtered by the "critical-only" Trigger (type: com.example.critical)
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: critical-logger
+  labels:
+    app: critical-logger
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/min-scale: "0"
+        autoscaling.knative.dev/max-scale: "3"
+    spec:
+      containers:
+        - image: gcr.io/knative-releases/knative.dev/eventing/cmd/event_display
+          name: critical-logger
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          ports:
+            - containerPort: 8080
+              protocol: TCP

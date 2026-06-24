@@ -1,0 +1,22 @@
+# BGPPeer — configures a BGP peering session with a network router
+# PRODUCTION ONLY — requires a BGP-capable router on your network
+# Do NOT apply on CRC — BGP mode needs real network infrastructure
+#
+# Compare with l2advertisement.yaml for the simpler Layer 2 approach
+apiVersion: metallb.io/v1beta2
+kind: BGPPeer
+metadata:
+  name: upstream-router
+  namespace: metallb-system
+  labels:
+    app: metallb
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  myASN: 64500
+  peerASN: 64501
+  peerAddress: 10.0.0.1
+  password: ""
+  keepaliveTime: 30s
+  holdTime: 90s
+  routerID: ""

@@ -1,0 +1,40 @@
+# DestinationRule with circuit breaker and outlier detection settings.
+# Replaces the basic destination-rule.yaml with production-grade resilience.
+#
+# connectionPool: limits concurrent connections and pending requests
+#   to prevent a single client from overwhelming the service.
+# outlierDetection: ejects unhealthy hosts from the load balancing pool
+#   based on consecutive errors, giving them time to recover.
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: canary-demo
+  labels:
+    app: canary-demo
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  host: canary-demo.bookinfo-mesh.svc.cluster.local
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+    - name: v2
+      labels:
+        version: v2
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        h2UpgradePolicy: DEFAULT
+        http1MaxPendingRequests: 10
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 30

@@ -1,0 +1,29 @@
+# Kubernetes NetworkPolicy — egress restriction for comparison
+# This is what you would use in vanilla K8s to restrict outbound traffic
+# Limited compared to OpenShift's EgressFirewall: no DNS-name filtering,
+# no per-port CIDR rules in many CNI implementations
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restrict-egress
+  labels:
+    app: egress-demo
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  podSelector:
+    matchLabels:
+      app: egress-test
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow HTTPS to any destination
+    - ports:
+        - protocol: TCP
+          port: 443

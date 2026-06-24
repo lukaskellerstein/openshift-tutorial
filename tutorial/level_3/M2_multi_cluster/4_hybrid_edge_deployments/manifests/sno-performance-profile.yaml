@@ -1,0 +1,50 @@
+# PerformanceProfile for Single Node OpenShift with workload partitioning
+# Ensures platform components do not starve application workloads of CPU.
+#
+# This profile:
+# - Reserves CPUs 0-3 for OpenShift platform (API server, etcd, kubelet, etc.)
+# - Isolates CPUs 4-15 for application workloads
+# - Configures 4x 1GB huge pages for DPDK or database workloads
+# - Enables userspace networking for latency-sensitive apps
+apiVersion: performance.openshift.io/v2
+kind: PerformanceProfile
+metadata:
+  name: sno-edge-profile
+  labels:
+    app: sno-performance
+    tutorial-level: "3"
+    tutorial-module: "M2"
+  annotations:
+    # Enable workload partitioning for SNO
+    # This ensures management workloads (CVO, MCO, etc.) are pinned
+    # to reserved CPUs and do not interfere with application workloads
+    ran.openshift.io/reference-configuration: "ran-du.sno"
+spec:
+  cpu:
+    # CPUs reserved for OpenShift platform components
+    # On a 16-core system, this is 4 cores (including hyperthreads)
+    reserved: "0-3"
+    # CPUs available for application workloads
+    # These cores are isolated from kernel scheduler balancing
+    isolated: "4-15"
+  hugepages:
+    defaultHugepagesSize: 1G
+    pages:
+      - size: 1G
+        count: 4
+        node: 0
+  realTimeKernel:
+    # Set to true for telco/industrial workloads requiring deterministic latency
+    # Requires the RT kernel to be installed on the node
+    enabled: false
+  numa:
+    # Ensure pods are scheduled on a single NUMA node
+    # Critical for latency-sensitive workloads
+    topologyPolicy: single-numa-node
+  net:
+    # Enable userspace networking for DPDK applications
+    userLevelNetworking: true
+  nodeSelector:
+    node-role.kubernetes.io/master: ""
+  machineConfigPoolSelector:
+    pools.operator.machineconfiguration.openshift.io/master: ""

@@ -1,0 +1,33 @@
+# BuildConfig for binary (lift-and-shift) deployment
+# Accepts a pre-built WAR file and packages it into a Tomcat-based image
+# Usage: oc start-build legacy-java-app --from-file=target/myapp.war --follow
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: legacy-java-app
+  labels:
+    app: legacy-java-app
+    tutorial-level: "3"
+    tutorial-module: "M5"
+    migration-strategy: lift-and-shift
+spec:
+  source:
+    type: Binary
+  strategy:
+    type: Source
+    sourceStrategy:
+      from:
+        kind: ImageStreamTag
+        namespace: openshift
+        name: jboss-webserver56-openjdk11-tomcat9-openshift-ubi8:latest
+  output:
+    to:
+      kind: ImageStreamTag
+      name: legacy-java-app:latest
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-sdn
+  labels:
+    app: hello-sdn
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  type: ClusterIP
+  selector:
+    app: hello-sdn
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

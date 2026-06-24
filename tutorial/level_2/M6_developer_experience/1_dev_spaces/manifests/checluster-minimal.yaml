@@ -1,0 +1,42 @@
+# Minimal CheCluster Custom Resource
+# Suitable for CRC environments with limited resources
+apiVersion: org.eclipse.che/v2
+kind: CheCluster
+metadata:
+  name: devspaces
+  namespace: openshift-devspaces
+  labels:
+    app: devspaces
+    tutorial-level: "2"
+    tutorial-module: "M6"
+spec:
+  components:
+    cheServer:
+      debug: false
+      logLevel: INFO
+    dashboard: {}
+    devfileRegistry: {}
+    imagePuller:
+      enable: false
+    metrics:
+      enable: false
+    pluginRegistry: {}
+  devEnvironments:
+    startTimeoutSeconds: 600
+    secondsOfRunBeforeIdling: 1800
+    maxNumberOfWorkspacesPerUser: 2
+    storage:
+      pvcStrategy: per-user
+    defaultNamespace:
+      autoProvision: true
+      template: <username>-devspaces
+    defaultEditor: che-incubator/che-code/latest
+    defaultComponents:
+      - name: dev-tools
+        container:
+          image: registry.redhat.io/devspaces/udi-rhel8:latest
+          memoryLimit: 1Gi
+          cpuLimit: 500m
+          memoryRequest: 256Mi
+          cpuRequest: 100m
+  networking: {}

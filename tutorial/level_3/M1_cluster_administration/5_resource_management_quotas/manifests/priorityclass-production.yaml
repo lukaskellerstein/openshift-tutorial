@@ -1,0 +1,18 @@
+# PriorityClass for production-critical workloads
+# Pods with this class will preempt lower-priority pods when
+# the cluster is under resource pressure
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: production-critical
+  labels:
+    app: quota-demo
+    tutorial-level: "3"
+    tutorial-module: "M1"
+value: 1000000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >-
+  Production-critical workloads. These pods will preempt batch
+  and standard-priority pods when the cluster is under pressure.
+  Use only for customer-facing production services.

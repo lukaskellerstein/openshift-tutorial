@@ -1,0 +1,49 @@
+# ClusterPolicy -- configures the NVIDIA GPU Operator components
+# This CR tells the operator which components to deploy and how
+apiVersion: nvidia.com/v1
+kind: ClusterPolicy
+metadata:
+  name: gpu-cluster-policy
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  operator:
+    defaultRuntime: crio
+    use_ocp_driver_toolkit: true
+  # NVIDIA driver container -- installs GPU drivers without host modification
+  driver:
+    enabled: true
+    use_ocp_driver_toolkit: true
+    upgradePolicy:
+      autoUpgrade: true
+      maxParallelUpgrades: 1
+      maxUnavailable: "25%"
+  # Device plugin -- exposes nvidia.com/gpu resources to the K8s scheduler
+  devicePlugin:
+    enabled: true
+    config:
+      name: device-plugin-config
+      default: default
+  # DCGM Exporter -- Prometheus metrics for GPU health and utilization
+  dcgmExporter:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  # GPU Feature Discovery -- labels nodes with detailed GPU properties
+  gfd:
+    enabled: true
+  # MIG Manager -- Multi-Instance GPU partitioning (A100/H100)
+  migManager:
+    enabled: true
+  # Node Status Exporter -- reports GPU node status
+  nodeStatusExporter:
+    enabled: true
+  # Toolkit -- container toolkit for GPU access
+  toolkit:
+    enabled: true
+    installDir: /usr/local/nvidia
+  # Validator -- validates GPU stack is working
+  validator:
+    enabled: true

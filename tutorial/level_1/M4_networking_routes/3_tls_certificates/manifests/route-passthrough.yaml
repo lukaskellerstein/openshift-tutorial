@@ -1,0 +1,20 @@
+# Passthrough Route -- the router does NOT terminate TLS
+# Encrypted traffic is forwarded directly to the pod
+# The application (NGINX) must handle TLS itself
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: tls-demo-passthrough
+  labels:
+    app: tls-demo-passthrough
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  host: tls-demo-passthrough-tls-demo.apps-crc.testing
+  to:
+    kind: Service
+    name: tls-demo-passthrough
+  port:
+    targetPort: 8443
+  tls:
+    termination: passthrough

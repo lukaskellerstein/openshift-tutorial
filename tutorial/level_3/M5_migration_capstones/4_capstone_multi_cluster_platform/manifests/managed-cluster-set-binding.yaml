@@ -1,0 +1,14 @@
+# ManagedClusterSetBinding binds a ManagedClusterSet to a namespace
+# This allows ApplicationSets and Placements in that namespace to target
+# the clusters in the set
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  name: production-clusters
+  namespace: openshift-gitops
+  labels:
+    app: capstone-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  clusterSet: production-clusters

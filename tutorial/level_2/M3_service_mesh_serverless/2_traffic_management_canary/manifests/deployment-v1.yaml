@@ -1,0 +1,63 @@
+# Stable version (v1) of the canary demo application
+# Includes Envoy sidecar injection annotation for Service Mesh
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canary-demo-v1
+  labels:
+    app: canary-demo
+    version: v1
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: canary-demo
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: canary-demo
+        version: v1
+        tutorial-level: "2"
+        tutorial-module: "M3"
+      annotations:
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+        - name: canary-demo
+          image: registry.access.redhat.com/ubi9/httpd-24:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: APP_VERSION
+              value: "v1"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          # Override the default httpd page to return version info
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo '{"version":"v1","pod":"'$(hostname)'"}' > /var/www/html/version
+              echo 'canary-demo v1 is running' > /var/www/html/index.html
+              exec run-httpd

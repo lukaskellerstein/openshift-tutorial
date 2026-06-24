@@ -1,0 +1,46 @@
+# PriorityClasses for batch workload scheduling
+# Higher values = higher priority = less likely to be preempted
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: batch-critical
+  labels:
+    app: batch-workloads
+    tutorial-level: "3"
+    tutorial-module: "M4"
+value: 100000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >
+  Critical batch jobs that must complete (e.g., end-of-day settlement).
+  Will preempt lower-priority batch workloads.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: batch-normal
+  labels:
+    app: batch-workloads
+    tutorial-level: "3"
+    tutorial-module: "M4"
+value: 50000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >
+  Standard batch jobs. Default priority for most batch workloads.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: batch-low
+  labels:
+    app: batch-workloads
+    tutorial-level: "3"
+    tutorial-module: "M4"
+value: 10000
+globalDefault: false
+preemptionPolicy: Never
+description: >
+  Low-priority batch jobs. Will not preempt other workloads.
+  Suitable for speculative or best-effort computations.

@@ -1,0 +1,23 @@
+# Enable etcd encryption at rest for sensitive resources
+# This configures the API server to encrypt Secrets, ConfigMaps,
+# Routes, and OAuth tokens stored in etcd using aescbc encryption.
+#
+# Once applied, the kube-apiserver operator will:
+#   1. Generate encryption keys
+#   2. Roll out updated API server pods with encryption config
+#   3. Migrate all existing resources to encrypted format
+#
+# This process takes 10-20 minutes on a typical cluster.
+# Monitor progress with:
+#   oc get clusteroperator kube-apiserver -w
+apiVersion: config.openshift.io/v1
+kind: APIServer
+metadata:
+  name: cluster
+  labels:
+    app: etcd-encryption
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  encryption:
+    type: aescbc

@@ -1,0 +1,72 @@
+# Simulates an OOMKilled scenario
+# The container allocates more memory than its limit allows,
+# causing the kernel OOM killer to terminate it with exit code 137
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oom-victim
+  labels:
+    app: oom-victim
+    scenario: oom-kill
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oom-victim
+      scenario: oom-kill
+  template:
+    metadata:
+      labels:
+        app: oom-victim
+        scenario: oom-kill
+        tutorial-level: "3"
+        tutorial-module: "M3"
+    spec:
+      containers:
+        - name: oom-victim
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting memory allocation test..."
+              echo "Memory limit is 50Mi, will attempt to allocate ~128Mi"
+              # Allocate memory in a loop until OOM killed
+              # dd reads from /dev/zero and holds data in memory via a variable
+              python3 -c "
+              import sys
+              data = []
+              chunk_size = 1024 * 1024  # 1 MB chunks
+              try:
+                  while True:
+                      data.append(b'x' * chunk_size)
+                      print(f'Allocated {len(data)} MB', flush=True)
+              except MemoryError:
+                  print('MemoryError caught', flush=True)
+                  sys.exit(1)
+              " 2>/dev/null || {
+                # Fallback if python3 is not available
+                # Use shell to create a large string in memory
+                str=""
+                while true; do
+                  str="${str}$(head -c 1048576 /dev/zero | tr '\0' 'x')"
+                  echo "Allocating more memory..."
+                done
+              }
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 50Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL

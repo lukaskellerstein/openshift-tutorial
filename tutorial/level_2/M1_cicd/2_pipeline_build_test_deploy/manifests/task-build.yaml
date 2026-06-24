@@ -1,0 +1,65 @@
+# Task: Build a container image using Buildah
+# Builds from the Dockerfile in the cloned source and pushes to the
+# internal OpenShift registry via an ImageStream
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: build-image
+  labels:
+    app: pipeline-demo
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  description: >-
+    Builds a container image with Buildah from the source code in the
+    shared workspace and pushes it to the OpenShift internal registry.
+  params:
+    - name: image-name
+      type: string
+      description: >-
+        Fully qualified image name including registry
+        (e.g., image-registry.openshift-image-registry.svc:5000/myproject/myapp:latest)
+    - name: dockerfile-path
+      type: string
+      description: Path to the Dockerfile relative to the source root
+      default: Dockerfile
+  workspaces:
+    - name: source
+      description: Workspace containing the cloned source code
+  steps:
+    - name: build-and-push
+      image: registry.redhat.io/rhel8/buildah:latest
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        SOURCE_DIR="$(workspaces.source.path)/source"
+        echo "Building image $(params.image-name)..."
+        echo "Using Dockerfile: ${SOURCE_DIR}/$(params.dockerfile-path)"
+
+        buildah bud \
+          --storage-driver=vfs \
+          --tls-verify=false \
+          -f "${SOURCE_DIR}/$(params.dockerfile-path)" \
+          -t "$(params.image-name)" \
+          "${SOURCE_DIR}"
+
+        echo "Pushing image to registry..."
+        buildah push \
+          --storage-driver=vfs \
+          --tls-verify=false \
+          "$(params.image-name)" \
+          "docker://$(params.image-name)"
+
+        echo "Image built and pushed successfully: $(params.image-name)"

@@ -1,0 +1,46 @@
+# MigPlan -- Migration Toolkit for Containers (MTC/Crane)
+# Defines what to migrate from a source Kubernetes cluster
+# IMPORTANT: MTC operator must be installed on both source and target clusters
+apiVersion: migration.openshift.io/v1alpha1
+kind: MigPlan
+metadata:
+  name: k8s-to-openshift-plan
+  namespace: openshift-migration
+  labels:
+    app: demo-app
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  srcMigClusterRef:
+    name: source-k8s-cluster
+    namespace: openshift-migration
+  destMigClusterRef:
+    name: host
+    namespace: openshift-migration
+  migStorageRef:
+    name: migration-storage
+    namespace: openshift-migration
+  namespaces:
+    - demo-app-namespace
+  # Specify which resources to migrate
+  # PVs will be handled based on the pvs section
+  indirectImageMigration: true
+  indirectVolumeMigration: true
+---
+# MigMigration -- execute the migration plan
+# Create this resource to trigger the actual migration
+apiVersion: migration.openshift.io/v1alpha1
+kind: MigMigration
+metadata:
+  name: k8s-to-openshift-migration
+  namespace: openshift-migration
+  labels:
+    app: demo-app
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  migPlanRef:
+    name: k8s-to-openshift-plan
+    namespace: openshift-migration
+  stage: false
+  quiescePods: true

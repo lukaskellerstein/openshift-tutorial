@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: alerts-demo
+  labels:
+    app: alerts-demo
+    tutorial-level: "1"
+    tutorial-module: "M6"
+spec:
+  groups:
+    - name: alerts-demo.rules
+      rules:
+        - alert: AlertsDemoDown
+          expr: up{job="alerts-demo"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "alerts-demo application is down"
+            description: "The alerts-demo application has been unreachable for more than 1 minute."
+        - alert: AlertsDemoHighRequestRate
+          expr: rate(http_requests_total{job="alerts-demo"}[2m]) > 0.5
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High request rate on alerts-demo"
+            description: "alerts-demo is receiving more than 0.5 requests per second (current value: {{ $value }})."

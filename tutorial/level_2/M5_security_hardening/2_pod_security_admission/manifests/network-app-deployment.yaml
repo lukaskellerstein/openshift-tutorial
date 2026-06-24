@@ -1,0 +1,42 @@
+# Deployment that uses the custom-network-v2 SCC via a dedicated service account.
+# This app needs NET_BIND_SERVICE and NET_RAW capabilities but runs as non-root.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-app
+  labels:
+    app: network-app
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: network-app
+  template:
+    metadata:
+      labels:
+        app: network-app
+        tutorial-level: "2"
+        tutorial-module: "M5"
+    spec:
+      serviceAccountName: network-app-sa
+      containers:
+        - name: network-app
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command: ["sleep", "3600"]
+          securityContext:
+            runAsNonRoot: true
+            capabilities:
+              add:
+                - NET_BIND_SERVICE
+                - NET_RAW
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

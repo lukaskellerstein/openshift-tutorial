@@ -1,0 +1,89 @@
+# Production deployment resources for odo deploy
+# Referenced by the Devfile's kubernetes component
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: odo-demo
+  labels:
+    app: odo-demo
+    app.kubernetes.io/name: odo-demo
+    app.kubernetes.io/managed-by: odo
+    tutorial-level: "2"
+    tutorial-module: M6
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: odo-demo
+  template:
+    metadata:
+      labels:
+        app: odo-demo
+        app.kubernetes.io/name: odo-demo
+        tutorial-level: "2"
+        tutorial-module: M6
+    spec:
+      containers:
+        - name: odo-demo
+          image: "{{CONTAINER_IMAGE}}"
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: odo-demo
+  labels:
+    app: odo-demo
+    app.kubernetes.io/name: odo-demo
+    app.kubernetes.io/managed-by: odo
+    tutorial-level: "2"
+    tutorial-module: M6
+spec:
+  selector:
+    app: odo-demo
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: odo-demo
+  labels:
+    app: odo-demo
+    app.kubernetes.io/name: odo-demo
+    app.kubernetes.io/managed-by: odo
+    tutorial-level: "2"
+    tutorial-module: M6
+spec:
+  to:
+    kind: Service
+    name: odo-demo
+  port:
+    targetPort: 3000
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

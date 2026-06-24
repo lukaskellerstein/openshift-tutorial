@@ -1,0 +1,18 @@
+# Service that selects both v1 and v2 pods via the shared "app" label.
+# Traffic splitting is handled by the VirtualService, not the Service itself.
+apiVersion: v1
+kind: Service
+metadata:
+  name: canary-demo
+  labels:
+    app: canary-demo
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  selector:
+    app: canary-demo
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

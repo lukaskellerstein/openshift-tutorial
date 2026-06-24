@@ -1,0 +1,18 @@
+# Service for the working hello-debug deployment.
+# Exposes port 8080 so you can test connectivity during debugging.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-debug
+  labels:
+    app: hello-debug
+    tutorial-level: "1"
+    tutorial-module: "M6"
+spec:
+  selector:
+    app: hello-debug
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http

@@ -1,0 +1,14 @@
+# L2Advertisement — announces IPs from the pool via ARP (IPv4) / NDP (IPv6)
+# Layer 2 mode is the simplest to set up and works in any network environment
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: demo-l2adv
+  namespace: metallb-system
+  labels:
+    app: metallb
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  ipAddressPools:
+    - demo-pool

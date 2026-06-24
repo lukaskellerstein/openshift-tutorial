@@ -1,0 +1,36 @@
+# OpenShift Route with edge TLS termination for the API gateway.
+# This is the single external entry point — all other services
+# are internal-only (no Route).
+#
+# In Kubernetes, you would create an Ingress resource and need
+# an Ingress controller installed. OpenShift's HAProxy router
+# is pre-installed and Routes are the native, feature-rich option.
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: api-gateway
+  namespace: capstone-microservices
+  labels:
+    app: api-gateway
+    app.kubernetes.io/part-of: capstone-microservices
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    # Rate limiting at the router level
+    haproxy.router.openshift.io/rate-limit-connections: "true"
+    haproxy.router.openshift.io/rate-limit-connections.concurrent-tcp: "100"
+    haproxy.router.openshift.io/rate-limit-connections.rate-http: "50"
+    # Timeout for upstream connections
+    haproxy.router.openshift.io/timeout: 30s
+spec:
+  to:
+    kind: Service
+    name: api-gateway
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

@@ -1,0 +1,16 @@
+# PersistentVolumeClaim requesting 1Gi of ReadWriteOnce storage
+# Uses the cluster's default StorageClass (in CRC: crc-csi-hostpath-provisioner)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: storage-demo-pvc
+  labels:
+    app: storage-demo
+    tutorial-level: "1"
+    tutorial-module: "M5"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

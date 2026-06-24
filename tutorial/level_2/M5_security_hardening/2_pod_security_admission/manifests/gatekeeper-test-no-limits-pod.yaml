@@ -1,0 +1,22 @@
+# Test pod without resource limits.
+# Gatekeeper should reject this pod based on the require-resource-limits constraint.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-no-limits
+  labels:
+    app: gatekeeper-test
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+    - name: no-limits
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      command: ["sleep", "3600"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL

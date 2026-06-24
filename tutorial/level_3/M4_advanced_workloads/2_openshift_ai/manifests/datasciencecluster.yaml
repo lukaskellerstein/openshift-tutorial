@@ -1,0 +1,45 @@
+# DataScienceCluster -- the single CR that controls all RHOAI components
+# Set individual components to Managed, Removed, or Unmanaged
+apiVersion: datasciencecluster.opendatahub.io/v1
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  components:
+    # RHOAI Dashboard (Web UI for managing projects, notebooks, models)
+    dashboard:
+      managementState: Managed
+    # Workbenches (JupyterHub / Notebook Controller)
+    workbenches:
+      managementState: Managed
+    # Data Science Pipelines (Kubeflow Pipelines v2)
+    datasciencepipelines:
+      managementState: Managed
+    # ModelMesh Serving (multi-model, shared pod pool)
+    modelmeshserving:
+      managementState: Managed
+    # KServe (single-model serving with Knative scale-to-zero)
+    kserve:
+      managementState: Managed
+      serving:
+        ingressGateway:
+          certificate:
+            type: SelfSigned
+        managementState: Managed
+        name: knative-serving
+    # CodeFlare (distributed computing orchestration -- Ray, MCAD)
+    codeflare:
+      managementState: Managed
+    # Ray (distributed computing framework)
+    ray:
+      managementState: Managed
+    # Kueue (job queuing and fair scheduling for batch/ML workloads)
+    kueue:
+      managementState: Managed
+    # Training Operator (distributed training -- PyTorchJob, TFJob, etc.)
+    trainingoperator:
+      managementState: Managed

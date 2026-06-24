@@ -1,0 +1,42 @@
+# Log generator deployment — produces sample log output for testing the logging stack
+# Generates INFO, WARN, ERROR, and DEBUG messages every second
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-generator
+  namespace: logging-demo
+  labels:
+    app: log-generator
+    tutorial-level: "1"
+    tutorial-module: "M6"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-generator
+  template:
+    metadata:
+      labels:
+        app: log-generator
+    spec:
+      containers:
+        - name: log-generator
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              counter=1
+              while true; do
+                timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                case $((counter % 5)) in
+                  0) level="ERROR"; msg="Log message $counter - this is an error" ;;
+                  1) level="INFO";  msg="Log message $counter from the demo application" ;;
+                  2) level="WARN";  msg="Log message $counter - this is a warning" ;;
+                  3) level="INFO";  msg="Log message $counter from the demo application" ;;
+                  4) level="DEBUG"; msg="Log message $counter - debug details here" ;;
+                esac
+                echo "$timestamp $level  $msg"
+                counter=$((counter + 1))
+                sleep 1
+              done

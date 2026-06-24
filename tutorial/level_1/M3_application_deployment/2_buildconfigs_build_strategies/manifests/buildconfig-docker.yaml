@@ -1,0 +1,27 @@
+# BuildConfig using Docker (Containerfile) build strategy
+# Builds an image from a Git repository containing a Dockerfile/Containerfile
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: sample-app-docker
+  labels:
+    app: sample-app
+    build-strategy: docker
+    tutorial-level: "1"
+    tutorial-module: "M3"
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/sclorg/httpd-ex.git
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: sample-app:docker
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange

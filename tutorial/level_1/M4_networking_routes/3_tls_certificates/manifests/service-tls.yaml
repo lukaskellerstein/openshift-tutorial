@@ -1,0 +1,17 @@
+# Service exposing the TLS-enabled NGINX backend on port 8443
+# Used by passthrough and re-encrypt Routes
+apiVersion: v1
+kind: Service
+metadata:
+  name: tls-demo-passthrough
+  labels:
+    app: tls-demo-passthrough
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  selector:
+    app: tls-demo-passthrough
+  ports:
+    - port: 8443
+      targetPort: 8443
+      protocol: TCP

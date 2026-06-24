@@ -1,0 +1,18 @@
+# EventListener — exposes an HTTP endpoint for webhooks
+# Listens for GitHub push events and triggers the pipeline
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: github-push-listener
+  labels:
+    app: tekton-tutorial
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  serviceAccountName: pipeline
+  triggers:
+    - name: github-push
+      bindings:
+        - ref: github-push-binding
+      template:
+        ref: github-push-template

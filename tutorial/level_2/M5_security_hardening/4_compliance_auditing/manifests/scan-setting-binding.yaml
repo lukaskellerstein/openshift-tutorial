@@ -1,0 +1,24 @@
+# ScanSettingBinding for recurring daily CIS scans
+# Binds the CIS profiles to the default ScanSetting (daily at 1:00 AM)
+# This is the production pattern: automated, scheduled compliance checks
+apiVersion: compliance.openshift.io/v1alpha1
+kind: ScanSettingBinding
+metadata:
+  name: cis-daily-scan
+  namespace: openshift-compliance
+  labels:
+    app: compliance-scanning
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  settingsRef:
+    name: default
+    kind: ScanSetting
+    apiGroup: compliance.openshift.io/v1alpha1
+  profiles:
+    - name: ocp4-cis
+      kind: Profile
+      apiGroup: compliance.openshift.io/v1alpha1
+    - name: ocp4-cis-node
+      kind: Profile
+      apiGroup: compliance.openshift.io/v1alpha1

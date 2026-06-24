@@ -1,0 +1,89 @@
+# Multi-Cluster Application — deploys an application across managed clusters
+# using ACM's Channel + Subscription + Placement model.
+#
+# Architecture:
+#   Channel  --> points to a Git repository containing K8s manifests
+#   Subscription --> connects the Channel to a Placement, specifying
+#                    which branch/path to deploy
+#   Placement --> selects target clusters from a ManagedClusterSet
+#   Application --> groups related subscriptions under a logical name
+#
+# ACM propagates the manifests from the Git repo to every cluster
+# selected by the Placement. Changes to the Git repo are picked up
+# automatically (default poll interval: 15 minutes).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: multi-cluster-demo
+  labels:
+    app: acm-demo
+    tutorial-level: "3"
+    tutorial-module: "M2"
+---
+apiVersion: apps.open-cluster-management.io/v1
+kind: Channel
+metadata:
+  name: demo-app-channel
+  namespace: multi-cluster-demo
+  labels:
+    app: acm-demo
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  type: Git
+  pathname: https://github.com/stolostron/demo-subscription-gitops.git
+---
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: demo-app-placement
+  namespace: multi-cluster-demo
+  labels:
+    app: acm-demo
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            environment: staging
+  clusterSets:
+    - staging-clusters
+---
+apiVersion: apps.open-cluster-management.io/v1
+kind: Subscription
+metadata:
+  name: demo-app-subscription
+  namespace: multi-cluster-demo
+  labels:
+    app: acm-demo
+    tutorial-level: "3"
+    tutorial-module: "M2"
+  annotations:
+    apps.open-cluster-management.io/git-path: demo
+    apps.open-cluster-management.io/git-branch: main
+spec:
+  channel: multi-cluster-demo/demo-app-channel
+  placement:
+    placementRef:
+      kind: Placement
+      name: demo-app-placement
+---
+apiVersion: app.k8s.io/v1beta1
+kind: Application
+metadata:
+  name: demo-app
+  namespace: multi-cluster-demo
+  labels:
+    app: acm-demo
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  componentKinds:
+    - group: apps.open-cluster-management.io
+      kind: Subscription
+  selector:
+    matchLabels:
+      app: acm-demo

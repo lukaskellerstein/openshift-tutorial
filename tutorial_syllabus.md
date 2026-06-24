@@ -103,7 +103,7 @@
 
 | # | Lesson | Duration | Description |
 |---|--------|----------|-------------|
-| 1 | Egress & Ingress Control | 30 min | EgressNetworkPolicy, EgressIP, EgressRouter. Controlling outbound traffic. |
+| 1 | Egress & Ingress Control | 30 min | EgressFirewall, EgressIP, EgressRouter. Controlling outbound traffic. |
 | 2 | Multi-Cluster Networking | 45 min | Submariner. Cross-cluster service discovery. Use cases: hybrid cloud, disaster recovery. |
 | 3 | Load Balancing & DNS | 30 min | MetalLB for bare metal. External DNS. Global load balancing concepts. |
 

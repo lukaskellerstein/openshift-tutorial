@@ -1,0 +1,21 @@
+# RoleBinding: Grant ArgoCD permission to manage resources
+# in the pipelines-gitops-demo namespace.
+# ArgoCD's application-controller needs access to create and
+# manage resources in the target namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-admin
+  namespace: pipelines-gitops-demo
+  labels:
+    app: demo-app
+    tutorial-level: "2"
+    tutorial-module: "M1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops

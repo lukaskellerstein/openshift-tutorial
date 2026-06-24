@@ -1,0 +1,17 @@
+# VirtualMachineRestore — restores a VM from a previously-taken snapshot
+# The VM must be stopped before restoring
+apiVersion: snapshot.kubevirt.io/v1beta1
+kind: VirtualMachineRestore
+metadata:
+  name: persistent-vm-restore-01
+  namespace: virtualization-lab
+  labels:
+    app: persistent-vm
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  target:
+    apiGroup: kubevirt.io
+    kind: VirtualMachine
+    name: persistent-vm
+  virtualMachineSnapshotName: persistent-vm-snap-01

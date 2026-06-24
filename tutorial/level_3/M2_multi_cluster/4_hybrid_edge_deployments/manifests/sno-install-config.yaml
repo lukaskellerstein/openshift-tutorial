@@ -1,0 +1,28 @@
+# Single Node OpenShift (SNO) install-config.yaml
+# The key difference from a standard cluster: controlPlane replicas=1, compute replicas=0
+# The single node acts as both control plane and worker.
+apiVersion: v1
+metadata:
+  name: edge-store-001
+baseDomain: edge.example.com
+networking:
+  networkType: OVNKubernetes
+  clusterNetwork:
+    - cidr: 10.128.0.0/14
+      hostPrefix: 23
+  machineNetwork:
+    - cidr: 192.168.10.0/24
+  serviceNetwork:
+    - 172.30.0.0/16
+compute:
+  - name: worker
+    replicas: 0
+controlPlane:
+  name: master
+  replicas: 1
+platform:
+  none: {}
+bootstrapInPlace:
+  installationDisk: /dev/sda
+pullSecret: '<pull-secret-json>'
+sshKey: '<ssh-public-key>'

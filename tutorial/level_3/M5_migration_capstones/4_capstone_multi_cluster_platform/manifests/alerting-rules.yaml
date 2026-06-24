@@ -1,0 +1,145 @@
+# Multi-cluster platform alerting rules
+# Deploy on the hub cluster for centralized alerting
+# Builds on alerting concepts from L1-M6.2
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: capstone-platform-alerts
+  namespace: open-cluster-management-observability
+  labels:
+    app: capstone-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+    prometheus: k8s
+    role: alert-rules
+spec:
+  groups:
+    - name: multi-cluster-health
+      interval: 60s
+      rules:
+        # Alert when a managed cluster becomes unavailable
+        - alert: ManagedClusterUnavailable
+          expr: |
+            acm_managed_cluster_info{available="false"} == 1
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Managed cluster {{ $labels.managed_cluster_name }} is unavailable"
+            description: >
+              The managed cluster {{ $labels.managed_cluster_name }} has been
+              unavailable for more than 5 minutes. Check klusterlet connectivity
+              and cluster health.
+            runbook_url: "https://wiki.example.com/runbooks/managed-cluster-unavailable"
+
+        # Alert when klusterlet agent stops reporting
+        - alert: KlusterletHeartbeatMissing
+          expr: |
+            time() - acm_managed_cluster_last_heartbeat_timestamp > 300
+          for: 2m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Klusterlet heartbeat missing for {{ $labels.managed_cluster_name }}"
+            description: >
+              No heartbeat received from {{ $labels.managed_cluster_name }} in the
+              last 5 minutes. The klusterlet agent may be down or network connectivity
+              may be impaired.
+
+    - name: multi-cluster-policy-compliance
+      interval: 120s
+      rules:
+        # Alert when policies are non-compliant
+        - alert: PolicyNonCompliant
+          expr: |
+            acm_policy_compliance{compliant="NonCompliant"} == 1
+          for: 15m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Policy {{ $labels.policy }} is non-compliant on {{ $labels.managed_cluster_name }}"
+            description: >
+              The policy {{ $labels.policy }} in namespace {{ $labels.namespace }}
+              has been non-compliant on cluster {{ $labels.managed_cluster_name }}
+              for more than 15 minutes.
+
+    - name: multi-cluster-observability
+      interval: 60s
+      rules:
+        # Alert when metrics collection from a cluster stops
+        - alert: ObservabilityMetricsGap
+          expr: |
+            time() - max by (cluster) (timestamp(up{job="kubelet"})) > 600
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Metrics gap detected for cluster {{ $labels.cluster }}"
+            description: >
+              No fresh metrics have been received from cluster {{ $labels.cluster }}
+              in the last 10 minutes. Check the observability addon and network
+              connectivity.
+
+    - name: capstone-app-health
+      interval: 30s
+      rules:
+        # Alert when the capstone app has fewer replicas than desired
+        - alert: CapstoneAppDegraded
+          expr: |
+            kube_deployment_status_replicas_available{
+              namespace="capstone-app",
+              deployment="capstone-web"
+            } < kube_deployment_spec_replicas{
+              namespace="capstone-app",
+              deployment="capstone-web"
+            }
+          for: 5m
+          labels:
+            severity: warning
+            team: application
+          annotations:
+            summary: "Capstone app degraded on {{ $labels.cluster }}"
+            description: >
+              The capstone-web deployment in namespace capstone-app on cluster
+              {{ $labels.cluster }} has fewer available replicas than desired
+              for more than 5 minutes.
+
+        # Alert when the capstone app has zero available replicas
+        - alert: CapstoneAppDown
+          expr: |
+            kube_deployment_status_replicas_available{
+              namespace="capstone-app",
+              deployment="capstone-web"
+            } == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: application
+          annotations:
+            summary: "Capstone app is DOWN on {{ $labels.cluster }}"
+            description: >
+              The capstone-web deployment has zero available replicas on cluster
+              {{ $labels.cluster }}. Immediate investigation required.
+              Consider triggering DR failover if the cluster is unhealthy.
+            runbook_url: "https://wiki.example.com/runbooks/capstone-app-down"
+
+    - name: multi-cluster-backup
+      interval: 300s
+      rules:
+        # Alert when Velero backup has not succeeded recently
+        - alert: VeleroBackupStale
+          expr: |
+            time() - velero_backup_last_successful_timestamp{schedule="capstone-app-daily"} > 172800
+          for: 1h
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Velero backup stale on {{ $labels.cluster }}"
+            description: >
+              The daily Velero backup for capstone-app on cluster {{ $labels.cluster }}
+              has not succeeded in the last 48 hours. DR capability may be compromised.

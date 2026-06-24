@@ -1,0 +1,13 @@
+# Manual one-time backup — triggers an immediate pgBackRest backup
+# The operator watches for annotation changes on the PostgresCluster
+# and initiates backups accordingly.
+#
+# To trigger a manual backup, annotate the PostgresCluster:
+#   oc annotate postgrescluster hippo \
+#     postgres-operator.crunchydata.com/pgbackrest-backup="$(date +%F_%H%M%S)" --overwrite
+#
+# This manifest is provided as documentation — the annotation approach
+# is the recommended way to trigger ad-hoc backups with CrunchyData PGO.
+#
+# Alternatively, you can exec into the pgBackRest pod and run the backup
+# command directly (see scripts/manual-backup.sh).

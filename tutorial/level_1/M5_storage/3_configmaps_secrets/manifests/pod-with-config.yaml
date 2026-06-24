@@ -1,0 +1,58 @@
+# Pod that mounts a ConfigMap as a volume and injects Secret values as environment variables
+apiVersion: v1
+kind: Pod
+metadata:
+  name: config-demo
+  labels:
+    app: config-demo
+    tutorial-level: "1"
+    tutorial-module: "M5"
+spec:
+  containers:
+    - name: app
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          echo "=== Environment Variables from Secret ==="
+          echo "DB_USER=$DB_USER"
+          echo "DB_PASSWORD=$DB_PASSWORD"
+          echo ""
+          echo "=== Environment Variables from ConfigMap ==="
+          echo "APP_ENV=$APP_ENV"
+          echo "APP_LOG_LEVEL=$APP_LOG_LEVEL"
+          echo ""
+          echo "=== ConfigMap mounted as volume ==="
+          cat /etc/config/app.properties
+          echo ""
+          echo "Config demo running."
+          sleep infinity
+      env:
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: db-user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-credentials
+              key: db-password
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: APP_ENV
+        - name: APP_LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: APP_LOG_LEVEL
+      volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+          readOnly: true
+  volumes:
+    - name: config-volume
+      configMap:
+        name: app-config

@@ -1,0 +1,24 @@
+# Test pod that explicitly runs as root (UID 0).
+# Gatekeeper should reject this pod based on the disallow-root-pods constraint.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-root
+  labels:
+    app: gatekeeper-test
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  containers:
+    - name: test-root
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      command: ["sleep", "3600"]
+      securityContext:
+        runAsUser: 0
+      resources:
+        requests:
+          cpu: 50m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi

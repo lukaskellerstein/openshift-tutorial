@@ -1,0 +1,10 @@
+# Namespace for the capstone sample application
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: capstone-app
+  labels:
+    app: capstone-app
+    tutorial-level: "3"
+    tutorial-module: "M5"
+    environment: production

@@ -1,0 +1,10 @@
+# Namespace for GitOps demo application
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitops-demo
+  labels:
+    app: gitops-demo
+    tutorial-level: "2"
+    tutorial-module: "M1"
+    argocd.argoproj.io/managed-by: openshift-gitops

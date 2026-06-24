@@ -1,0 +1,23 @@
+# MachineConfigPool for performance-tuned worker nodes
+# Selects nodes labeled with worker-perf and applies both
+# the base worker MachineConfigs and worker-perf specific ones
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfigPool
+metadata:
+  name: worker-perf
+  labels:
+    app: performance-tuning
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  machineConfigSelector:
+    matchExpressions:
+      - key: machineconfiguration.openshift.io/role
+        operator: In
+        values:
+          - worker
+          - worker-perf
+  nodeSelector:
+    matchLabels:
+      node-role.kubernetes.io/worker-perf: ""
+  maxUnavailable: 1

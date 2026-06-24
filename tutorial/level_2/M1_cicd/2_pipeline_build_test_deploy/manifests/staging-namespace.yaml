@@ -1,0 +1,10 @@
+# Project (namespace) for the staging environment
+apiVersion: project.openshift.io/v1
+kind: ProjectRequest
+metadata:
+  name: cicd-staging
+  labels:
+    app: pipeline-demo
+    tutorial-level: "2"
+    tutorial-module: "M1"
+    environment: staging

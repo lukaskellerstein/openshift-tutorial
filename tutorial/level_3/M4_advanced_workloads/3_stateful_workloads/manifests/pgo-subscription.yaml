@@ -1,0 +1,18 @@
+# CrunchyData PostgreSQL Operator (PGO) — OperatorHub subscription.
+# This installs PGO in all namespaces via the openshift-operators namespace.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: crunchy-postgres-operator
+  namespace: openshift-operators
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  channel: v5
+  name: crunchy-postgres-operator
+  source: certified-operators
+  sourceNamespace: openshift-marketplace
+  # Manual approval lets you review InstallPlans before upgrades.
+  # Use Automatic in dev/test, Manual in production.
+  installPlanApproval: Automatic

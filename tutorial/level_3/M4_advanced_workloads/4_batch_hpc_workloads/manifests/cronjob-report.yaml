@@ -1,0 +1,65 @@
+# CronJob for periodic report generation
+# Demonstrates production settings: concurrency policy, history limits, deadlines
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daily-report-generator
+  labels:
+    app: daily-report-generator
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  schedule: "0 2 * * *"
+  timeZone: "America/New_York"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  suspend: false
+  jobTemplate:
+    metadata:
+      labels:
+        app: daily-report-generator
+        tutorial-level: "3"
+        tutorial-module: "M4"
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app: daily-report-generator
+            tutorial-level: "3"
+            tutorial-module: "M4"
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: batch-sa
+          containers:
+            - name: report-gen
+              image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "=== Daily Report Generation ==="
+                  echo "Run date: $(date)"
+                  echo "Hostname: $(hostname)"
+                  echo "Generating report..."
+                  sleep 10
+                  echo "Report complete."
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 128Mi
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
+                capabilities:
+                  drop:
+                    - ALL

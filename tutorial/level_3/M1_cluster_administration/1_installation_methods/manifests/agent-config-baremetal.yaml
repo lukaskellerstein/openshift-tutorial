@@ -1,0 +1,196 @@
+# OpenShift Agent-Based Installer — agent-config.yaml
+# Used alongside install-config.yaml to define host-level configuration
+# for the agent-based installation method.
+#
+# Usage:
+#   1. Place this file alongside install-config.yaml in your install directory
+#   2. Run: openshift-install agent create image --dir <dir>
+#   3. Boot all machines from the generated agent.x86_64.iso
+#   4. Monitor: openshift-install agent wait-for install-complete --dir <dir>
+apiVersion: v1alpha1
+metadata:
+  name: production-cluster
+  labels:
+    app: openshift-tutorial
+    tutorial-level: "3"
+    tutorial-module: "M1"
+
+# The rendezvous IP is the address of the host that will run the
+# Assisted Installer's coordination service. Other agents connect
+# to this host to register and form the cluster.
+# Choose one of your control plane node IPs.
+rendezvousIP: 192.168.1.21
+
+# --- Host definitions ---
+# Define each host with its role, network interfaces, and root device.
+# The agent uses these to match discovered hardware to intended roles.
+hosts:
+  # --- Control Plane Nodes ---
+  - hostname: master-0
+    role: master
+    interfaces:
+      - name: eno1
+        macAddress: aa:bb:cc:dd:ee:02
+    networkConfig:
+      interfaces:
+        - name: eno1
+          type: ethernet
+          state: up
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: 192.168.1.21
+                prefix-length: 24
+      dns-resolver:
+        config:
+          server:
+            - 192.168.1.1
+      routes:
+        config:
+          - destination: 0.0.0.0/0
+            next-hop-address: 192.168.1.1
+            next-hop-interface: eno1
+    rootDeviceHints:
+      deviceName: /dev/sda
+
+  - hostname: master-1
+    role: master
+    interfaces:
+      - name: eno1
+        macAddress: aa:bb:cc:dd:ee:03
+    networkConfig:
+      interfaces:
+        - name: eno1
+          type: ethernet
+          state: up
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: 192.168.1.22
+                prefix-length: 24
+      dns-resolver:
+        config:
+          server:
+            - 192.168.1.1
+      routes:
+        config:
+          - destination: 0.0.0.0/0
+            next-hop-address: 192.168.1.1
+            next-hop-interface: eno1
+    rootDeviceHints:
+      deviceName: /dev/sda
+
+  - hostname: master-2
+    role: master
+    interfaces:
+      - name: eno1
+        macAddress: aa:bb:cc:dd:ee:04
+    networkConfig:
+      interfaces:
+        - name: eno1
+          type: ethernet
+          state: up
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: 192.168.1.23
+                prefix-length: 24
+      dns-resolver:
+        config:
+          server:
+            - 192.168.1.1
+      routes:
+        config:
+          - destination: 0.0.0.0/0
+            next-hop-address: 192.168.1.1
+            next-hop-interface: eno1
+    rootDeviceHints:
+      deviceName: /dev/sda
+
+  # --- Worker Nodes ---
+  - hostname: worker-0
+    role: worker
+    interfaces:
+      - name: eno1
+        macAddress: aa:bb:cc:dd:ee:05
+    networkConfig:
+      interfaces:
+        - name: eno1
+          type: ethernet
+          state: up
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: 192.168.1.31
+                prefix-length: 24
+      dns-resolver:
+        config:
+          server:
+            - 192.168.1.1
+      routes:
+        config:
+          - destination: 0.0.0.0/0
+            next-hop-address: 192.168.1.1
+            next-hop-interface: eno1
+    rootDeviceHints:
+      deviceName: /dev/sda
+
+  - hostname: worker-1
+    role: worker
+    interfaces:
+      - name: eno1
+        macAddress: aa:bb:cc:dd:ee:06
+    networkConfig:
+      interfaces:
+        - name: eno1
+          type: ethernet
+          state: up
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: 192.168.1.32
+                prefix-length: 24
+      dns-resolver:
+        config:
+          server:
+            - 192.168.1.1
+      routes:
+        config:
+          - destination: 0.0.0.0/0
+            next-hop-address: 192.168.1.1
+            next-hop-interface: eno1
+    rootDeviceHints:
+      deviceName: /dev/sda
+
+  - hostname: worker-2
+    role: worker
+    interfaces:
+      - name: eno1
+        macAddress: aa:bb:cc:dd:ee:07
+    networkConfig:
+      interfaces:
+        - name: eno1
+          type: ethernet
+          state: up
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: 192.168.1.33
+                prefix-length: 24
+      dns-resolver:
+        config:
+          server:
+            - 192.168.1.1
+      routes:
+        config:
+          - destination: 0.0.0.0/0
+            next-hop-address: 192.168.1.1
+            next-hop-interface: eno1
+    rootDeviceHints:
+      deviceName: /dev/sda

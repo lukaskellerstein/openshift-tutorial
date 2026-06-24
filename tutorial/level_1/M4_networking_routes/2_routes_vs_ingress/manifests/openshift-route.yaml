@@ -1,0 +1,17 @@
+# OpenShift Route — the native way to expose a Service externally
+# Compare with k8s-ingress.yaml for the Kubernetes equivalent
+# No spec.host is set, so OpenShift auto-generates the hostname
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: demo-app-route
+  labels:
+    app: demo-app
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  to:
+    kind: Service
+    name: demo-app
+  port:
+    targetPort: 8080

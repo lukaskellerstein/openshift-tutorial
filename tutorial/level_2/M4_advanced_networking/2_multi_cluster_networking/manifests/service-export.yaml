@@ -1,0 +1,15 @@
+# ServiceExport — makes a local service discoverable across all clusters
+# in the Submariner ClusterSet. Deploy this on the cluster that owns the service.
+#
+# Once created, Submariner's lighthouse agent propagates the service
+# information to the broker, and other clusters create a corresponding
+# ServiceImport automatically.
+apiVersion: multicluster.x-k8s.io/v1alpha1
+kind: ServiceExport
+metadata:
+  name: demo-server
+  namespace: cross-cluster-demo
+  labels:
+    app: demo-server
+    tutorial-level: "2"
+    tutorial-module: "M4"

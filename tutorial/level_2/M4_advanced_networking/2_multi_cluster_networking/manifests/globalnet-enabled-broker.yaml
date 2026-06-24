@@ -1,0 +1,18 @@
+# Broker with Globalnet enabled — use when cluster CIDRs overlap.
+#
+# Globalnet assigns each cluster a virtual global CIDR (from globalnetCIDRRange)
+# and performs NAT at the tunnel endpoints. This solves the common problem
+# of multiple clusters using the default 10.128.0.0/14 pod CIDR.
+apiVersion: submariner.io/v1alpha1
+kind: Broker
+metadata:
+  name: submariner-broker
+  namespace: submariner-k8s-broker
+  labels:
+    app: submariner
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  globalnetEnabled: true
+  globalnetCIDRRange: "242.0.0.0/8"
+  defaultGlobalnetClusterSize: 65536

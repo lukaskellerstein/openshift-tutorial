@@ -1,0 +1,54 @@
+# MachineSet for remote worker nodes at a branch office
+# Remote workers extend the central cluster to remote sites.
+# They run workloads locally while the control plane remains in the data center.
+#
+# Key considerations:
+# - Use node labels and taints to control scheduling
+# - Tolerate WAN latency and intermittent connectivity
+# - Ensure local storage is available for workloads that need persistence during disconnects
+apiVersion: machine.openshift.io/v1beta1
+kind: MachineSet
+metadata:
+  name: remote-worker-branch-nyc
+  namespace: openshift-machine-api
+  labels:
+    app: remote-worker
+    tutorial-level: "3"
+    tutorial-module: "M2"
+    machine.openshift.io/cluster-api-cluster: central-cluster
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      machine.openshift.io/cluster-api-cluster: central-cluster
+      machine.openshift.io/cluster-api-machineset: remote-worker-branch-nyc
+  template:
+    metadata:
+      labels:
+        machine.openshift.io/cluster-api-cluster: central-cluster
+        machine.openshift.io/cluster-api-machineset: remote-worker-branch-nyc
+        machine.openshift.io/cluster-api-machine-role: worker
+        machine.openshift.io/cluster-api-machine-type: worker
+    spec:
+      metadata:
+        labels:
+          # Label to identify remote worker nodes for scheduling
+          node-role.kubernetes.io/remote-worker: ""
+          topology.kubernetes.io/zone: branch-nyc
+          edge.example.com/site: branch-nyc
+      taints:
+        # Taint to prevent non-edge workloads from being scheduled here
+        - key: node-role.kubernetes.io/remote-worker
+          effect: NoSchedule
+      providerSpec:
+        value:
+          apiVersion: baremetal.cluster.k8s.io/v1alpha1
+          kind: BareMetalMachineProviderSpec
+          image:
+            url: "https://mirror.example.com/rhcos-latest.qcow2"
+            checksum: "sha256:abcdef1234567890..."
+          userData:
+            name: worker-user-data
+          hostSelector:
+            matchLabels:
+              site: branch-nyc

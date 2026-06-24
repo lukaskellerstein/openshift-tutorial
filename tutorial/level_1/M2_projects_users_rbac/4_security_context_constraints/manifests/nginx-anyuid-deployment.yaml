@@ -1,0 +1,26 @@
+# Nginx deployment using the anyuid SCC via a dedicated service account.
+# The standard Docker Hub nginx image (which requires root) now works.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-anyuid
+  labels:
+    app: nginx-anyuid
+    tutorial-level: "1"
+    tutorial-module: "M2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-anyuid
+  template:
+    metadata:
+      labels:
+        app: nginx-anyuid
+    spec:
+      serviceAccountName: nginx-anyuid
+      containers:
+        - name: nginx
+          image: docker.io/library/nginx:1.27
+          ports:
+            - containerPort: 80

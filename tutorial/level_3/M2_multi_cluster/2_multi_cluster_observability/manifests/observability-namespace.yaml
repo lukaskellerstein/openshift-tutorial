@@ -1,0 +1,10 @@
+# Namespace for ACM Observability components on the hub cluster.
+# Must be named exactly "open-cluster-management-observability".
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: open-cluster-management-observability
+  labels:
+    app: acm-observability
+    tutorial-level: "3"
+    tutorial-module: "M2"

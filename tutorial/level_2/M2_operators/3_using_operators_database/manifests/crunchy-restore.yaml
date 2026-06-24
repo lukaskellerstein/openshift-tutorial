@@ -1,0 +1,53 @@
+# PostgresCluster with restore configuration — restores from a pgBackRest backup
+# This creates a NEW cluster from an existing backup
+apiVersion: postgres-operator.crunchydata.com/v1beta1
+kind: PostgresCluster
+metadata:
+  name: hippo-restored
+  labels:
+    app: hippo-restored
+    tutorial-level: "2"
+    tutorial-module: "M2"
+spec:
+  image: registry.developers.crunchydata.com/crunchydata/crunchy-postgres:ubi8-15.4-0
+  postgresVersion: 15
+
+  dataSource:
+    postgresCluster:
+      clusterName: hippo
+      repoName: repo1
+
+  instances:
+    - name: instance1
+      replicas: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+      dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+
+  backups:
+    pgbackrest:
+      image: registry.developers.crunchydata.com/crunchydata/crunchy-pgbackrest:ubi8-2.47-2
+      repos:
+        - name: repo1
+          volume:
+            volumeClaimSpec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 10Gi
+
+  users:
+    - name: appuser
+      databases:
+        - appdb

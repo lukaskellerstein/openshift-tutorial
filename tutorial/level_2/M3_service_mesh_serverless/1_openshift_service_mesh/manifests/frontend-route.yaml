@@ -1,0 +1,16 @@
+# OpenShift Route to expose the frontend service externally
+# In L1-M4.2 you learned about Routes — here we use one alongside the mesh
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  to:
+    kind: Service
+    name: frontend
+  port:
+    targetPort: http

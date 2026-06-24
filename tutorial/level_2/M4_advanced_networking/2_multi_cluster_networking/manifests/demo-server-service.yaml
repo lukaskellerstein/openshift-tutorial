@@ -1,0 +1,20 @@
+# Service for the demo server — standard ClusterIP service.
+# This service will be exported cross-cluster via ServiceExport.
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-server
+  namespace: cross-cluster-demo
+  labels:
+    app: demo-server
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  selector:
+    app: demo-server
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  type: ClusterIP

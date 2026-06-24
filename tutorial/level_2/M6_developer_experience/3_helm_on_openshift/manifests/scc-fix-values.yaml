@@ -1,0 +1,27 @@
+# scc-fix-values.yaml
+# Override values to fix common Helm chart SCC issues on OpenShift
+# Use: helm install <name> <chart> -f scc-fix-values.yaml
+#
+# This file demonstrates the typical overrides needed when a Helm chart
+# from Docker Hub / ArtifactHub assumes root or specific UID
+
+# Remove hardcoded runAsUser — let OpenShift assign from project range
+podSecurityContext:
+  runAsUser: null
+  fsGroup: null
+
+containerSecurityContext:
+  runAsUser: null
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+
+# Switch from Ingress to Route
+ingress:
+  enabled: false
+
+# Use a Red Hat UBI-based image instead of Docker Hub default
+image:
+  registry: registry.access.redhat.com

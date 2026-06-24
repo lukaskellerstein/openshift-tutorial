@@ -1,0 +1,24 @@
+# LokiStack instance — deploys a Loki cluster for log storage
+# Uses the 1x.demo size suitable for CRC / development environments
+# Production deployments should use 1x.small or larger with real object storage
+apiVersion: loki.grafana.com/v1
+kind: LokiStack
+metadata:
+  name: logging-loki
+  namespace: openshift-logging
+  labels:
+    app: openshift-logging
+    tutorial-level: "1"
+    tutorial-module: "M6"
+spec:
+  size: 1x.demo
+  storage:
+    schemas:
+      - version: v13
+        effectiveDate: "2024-10-01"
+    secret:
+      name: logging-loki-s3
+      type: s3
+  storageClassName: crc-csi-hostpath-provisioner
+  tenants:
+    mode: openshift-logging

@@ -1,0 +1,21 @@
+# MachineAutoscaler -- sets min/max bounds for a worker MachineSet
+# The Cluster Autoscaler scales this MachineSet within these bounds
+# when pods are pending due to insufficient resources.
+# IMPORTANT: Replace MACHINESET_NAME with your actual worker MachineSet name.
+# Find it with: oc get machinesets -n openshift-machine-api
+apiVersion: autoscaling.openshift.io/v1beta1
+kind: MachineAutoscaler
+metadata:
+  name: worker-autoscaler
+  namespace: openshift-machine-api
+  labels:
+    app: node-management
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  minReplicas: 2
+  maxReplicas: 6
+  scaleTargetRef:
+    apiVersion: machine.openshift.io/v1beta1
+    kind: MachineSet
+    name: MACHINESET_NAME

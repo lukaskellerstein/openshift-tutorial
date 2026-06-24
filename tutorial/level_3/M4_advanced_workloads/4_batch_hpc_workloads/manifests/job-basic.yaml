@@ -1,0 +1,52 @@
+# Basic Kubernetes Job — works identically on OpenShift
+# Demonstrates indexed completion mode and production-quality settings
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: batch-processor
+  labels:
+    app: batch-processor
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  completions: 5
+  parallelism: 2
+  completionMode: Indexed
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: batch-processor
+        tutorial-level: "3"
+        tutorial-module: "M4"
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: processor
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Processing batch item index: $JOB_COMPLETION_INDEX"
+              echo "Started at: $(date)"
+              # Simulate work proportional to index
+              sleep $((JOB_COMPLETION_INDEX * 2 + 5))
+              echo "Completed batch item index: $JOB_COMPLETION_INDEX at $(date)"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL

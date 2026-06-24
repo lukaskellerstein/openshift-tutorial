@@ -1,0 +1,39 @@
+# Blocked deployment — uses an image from docker.io which is NOT in the allowedRegistries list
+# This deployment will be created but pods will fail to pull the image
+# after the image-policy.yaml is applied
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blocked-demo
+  labels:
+    app: blocked-demo
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blocked-demo
+  template:
+    metadata:
+      labels:
+        app: blocked-demo
+        tutorial-level: "2"
+        tutorial-module: "M5"
+    spec:
+      containers:
+        - name: busybox
+          image: docker.io/library/busybox:latest
+          command: ["sleep", "infinity"]
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
+            limits:
+              memory: "64Mi"
+              cpu: "50m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

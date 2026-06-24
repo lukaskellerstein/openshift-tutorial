@@ -1,0 +1,37 @@
+# OpenShift Serverless Operator -- required for KServe scale-to-zero
+# This installs Knative Serving which KServe uses as its inference gateway
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-serverless-operator
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: serverless-operator-group
+  namespace: openshift-serverless-operator
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec: {}
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: serverless-operator
+  namespace: openshift-serverless-operator
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  channel: stable
+  name: serverless-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic

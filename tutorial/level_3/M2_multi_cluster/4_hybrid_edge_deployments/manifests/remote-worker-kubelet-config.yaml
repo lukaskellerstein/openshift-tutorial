@@ -1,0 +1,90 @@
+# KubeletConfig for remote worker nodes on unreliable WAN connections
+# Increases timeouts to prevent unnecessary pod evictions during
+# transient network outages between the remote site and the data center.
+#
+# Default values (designed for LAN):
+#   nodeStatusUpdateFrequency: 10s
+#   nodeStatusReportFrequency: 5m
+#   (controller-manager) node-monitor-grace-period: 40s
+#   (controller-manager) pod-eviction-timeout: 5m
+#
+# These tuned values tolerate WAN outages of up to ~2 minutes
+# without triggering pod eviction.
+apiVersion: machineconfiguration.openshift.io/v1
+kind: KubeletConfig
+metadata:
+  name: remote-worker-kubelet
+  labels:
+    app: remote-worker
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  machineConfigPoolSelector:
+    matchLabels:
+      pools.operator.machineconfiguration.openshift.io/remote-worker: ""
+  kubeletConfig:
+    # How often kubelet posts node status to the API server
+    # Increase for WAN to reduce chattiness over the link
+    nodeStatusUpdateFrequency: "20s"
+    # How often kubelet reports full node status
+    nodeStatusReportFrequency: "5m"
+    # Eviction thresholds for resource pressure
+    evictionHard:
+      memory.available: "200Mi"
+      nodefs.available: "10%"
+      imagefs.available: "10%"
+    evictionSoft:
+      memory.available: "500Mi"
+      nodefs.available: "15%"
+      imagefs.available: "15%"
+    evictionSoftGracePeriod:
+      memory.available: "1m30s"
+      nodefs.available: "1m30s"
+      imagefs.available: "1m30s"
+    # Max pods per remote worker node
+    maxPods: 50
+---
+# MachineConfigPool for remote worker nodes
+# Groups remote workers so KubeletConfig and MachineConfig apply only to them.
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfigPool
+metadata:
+  name: remote-worker
+  labels:
+    app: remote-worker
+    tutorial-level: "3"
+    tutorial-module: "M2"
+    pools.operator.machineconfiguration.openshift.io/remote-worker: ""
+spec:
+  machineConfigSelector:
+    matchExpressions:
+      - key: machineconfiguration.openshift.io/role
+        operator: In
+        values:
+          - worker
+          - remote-worker
+  nodeSelector:
+    matchLabels:
+      node-role.kubernetes.io/remote-worker: ""
+  paused: false
+---
+# Controller Manager configuration to increase node-monitor-grace-period
+# This is a cluster-wide setting applied via the OpenShift API.
+# Increasing it prevents the control plane from marking remote nodes
+# as NotReady too aggressively.
+apiVersion: operator.openshift.io/v1
+kind: KubeControllerManager
+metadata:
+  name: cluster
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  unsupportedConfigOverrides:
+    extendedArguments:
+      # Increase from default 40s to 120s for WAN tolerance
+      node-monitor-grace-period:
+        - "120s"
+      # Increase from default 5m to 10m
+      pod-eviction-timeout:
+        - "600s"

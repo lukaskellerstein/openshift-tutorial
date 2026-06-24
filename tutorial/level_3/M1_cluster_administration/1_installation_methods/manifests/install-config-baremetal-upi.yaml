@@ -1,0 +1,108 @@
+# OpenShift install-config.yaml — Bare Metal UPI (User-Provisioned Infrastructure)
+# Production-grade configuration for bare metal environments
+#
+# With UPI, YOU are responsible for:
+#   - Provisioning physical/virtual machines
+#   - Configuring DNS records (api, api-int, *.apps, etcd SRV)
+#   - Setting up load balancers (API + Ingress)
+#   - DHCP or static IP assignment
+#   - PXE boot infrastructure (for RHCOS)
+#   - Delivering Ignition configs to machines at boot
+apiVersion: v1
+metadata:
+  name: production-cluster
+  labels:
+    app: openshift-tutorial
+    tutorial-level: "3"
+    tutorial-module: "M1"
+baseDomain: example.com
+
+# --- Control Plane ---
+# For UPI, platform-specific machine settings are not used.
+# Hardware specs are determined by your physical/virtual machines.
+# Minimum recommended: 4 vCPU, 16 GiB RAM, 120 GiB disk per master.
+controlPlane:
+  name: master
+  replicas: 3
+
+# --- Workers ---
+# Minimum recommended: 4 vCPU, 16 GiB RAM, 120 GiB disk per worker.
+# Size based on your workload requirements.
+compute:
+  - name: worker
+    replicas: 3
+    hyperthreading: Enabled
+
+# --- Networking ---
+networking:
+  networkType: OVNKubernetes
+  clusterNetwork:
+    - cidr: 10.128.0.0/14
+      hostPrefix: 23
+  serviceNetwork:
+    - 172.30.0.0/16
+  machineNetwork:
+    - cidr: 192.168.1.0/24     # Your bare metal network CIDR
+
+# --- Platform ---
+# "none" tells the installer not to provision any infrastructure.
+# You are fully responsible for all infrastructure components.
+platform:
+  none: {}
+
+# --- Authentication ---
+pullSecret: '<your-pull-secret>'
+sshKey: '<your-ssh-public-key>'
+
+# --- Required DNS records for UPI (create these before installation) ---
+#
+# A/AAAA records:
+#   api.production-cluster.example.com      -> API load balancer VIP
+#   api-int.production-cluster.example.com  -> Internal API load balancer VIP
+#   *.apps.production-cluster.example.com   -> Ingress load balancer VIP
+#
+# If not using a load balancer with VIP, point to all control plane IPs:
+#   api.production-cluster.example.com      -> 192.168.1.21, .22, .23
+#   api-int.production-cluster.example.com  -> 192.168.1.21, .22, .23
+#
+# SRV records (for etcd peer discovery):
+#   _etcd-server-ssl._tcp.production-cluster.example.com
+#     -> 0 10 2380 etcd-0.production-cluster.example.com
+#     -> 0 10 2380 etcd-1.production-cluster.example.com
+#     -> 0 10 2380 etcd-2.production-cluster.example.com
+#
+# A records for etcd:
+#   etcd-0.production-cluster.example.com -> 192.168.1.21
+#   etcd-1.production-cluster.example.com -> 192.168.1.22
+#   etcd-2.production-cluster.example.com -> 192.168.1.23
+
+# --- Required load balancer configuration for UPI ---
+#
+# API load balancer (api and api-int):
+#   Frontend: TCP 6443 (Kubernetes API)
+#   Backend:  bootstrap:6443, master-0:6443, master-1:6443, master-2:6443
+#   Health:   HTTPS /readyz on port 6443
+#
+#   Frontend: TCP 22623 (Machine Config Server)
+#   Backend:  bootstrap:22623, master-0:22623, master-1:22623, master-2:22623
+#   Health:   HTTPS /healthz on port 22623
+#   NOTE: Remove bootstrap from backend after bootstrap-complete
+#
+# Ingress load balancer (*.apps):
+#   Frontend: TCP 80 (HTTP)
+#   Backend:  worker-0:80, worker-1:80, worker-2:80
+#   Frontend: TCP 443 (HTTPS)
+#   Backend:  worker-0:443, worker-1:443, worker-2:443
+#   Health:   HTTP /healthz/ready on port 1936
+
+# --- Machine inventory for UPI (not part of install-config, for reference) ---
+#
+# | Role      | Hostname    | IP           | MAC               |
+# |-----------|-------------|--------------|-------------------|
+# | bootstrap | bootstrap-0 | 192.168.1.20 | aa:bb:cc:dd:ee:01 |
+# | master    | master-0    | 192.168.1.21 | aa:bb:cc:dd:ee:02 |
+# | master    | master-1    | 192.168.1.22 | aa:bb:cc:dd:ee:03 |
+# | master    | master-2    | 192.168.1.23 | aa:bb:cc:dd:ee:04 |
+# | worker    | worker-0    | 192.168.1.31 | aa:bb:cc:dd:ee:05 |
+# | worker    | worker-1    | 192.168.1.32 | aa:bb:cc:dd:ee:06 |
+# | worker    | worker-2    | 192.168.1.33 | aa:bb:cc:dd:ee:07 |

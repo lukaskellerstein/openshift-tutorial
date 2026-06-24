@@ -1,0 +1,38 @@
+# Tekton Task: Run application tests.
+# This is a simplified test step for the tutorial.
+# In production, replace with your actual test framework.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: run-tests
+  labels:
+    app: demo-app
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  workspaces:
+    - name: source
+      description: Workspace containing the application source code
+  steps:
+    - name: run-tests
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      script: |
+        #!/bin/sh
+        set -e
+        echo "==> Running application tests"
+        cd $(workspaces.source.path)
+
+        # Install test dependencies if requirements exist
+        if [ -f app/requirements.txt ]; then
+          pip install -r app/requirements.txt 2>/dev/null
+        fi
+
+        # Run tests (replace with your test command)
+        if [ -f app/test_app.py ]; then
+          python -m pytest app/test_app.py -v
+        else
+          echo "==> No test file found, running basic validation"
+          python -c "print('Basic validation passed')"
+        fi
+
+        echo "==> Tests completed successfully"

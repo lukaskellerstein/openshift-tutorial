@@ -1,0 +1,12 @@
+apiVersion: v2
+name: openshift-web-app
+description: A simple OpenShift-compatible Helm chart for a web application
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - openshift
+  - web
+  - tutorial
+maintainers:
+  - name: Tutorial Author

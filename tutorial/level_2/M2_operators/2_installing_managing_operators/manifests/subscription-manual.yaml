@@ -1,0 +1,18 @@
+# Subscription with Manual approval — recommended for production
+# OLM will create an InstallPlan that requires explicit approval
+# before the operator is installed or upgraded
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: etcd
+  namespace: etcd-demo
+  labels:
+    app: etcd-demo
+    tutorial-level: "2"
+    tutorial-module: "M2"
+spec:
+  channel: singlenamespace-alpha
+  name: etcd
+  source: community-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Manual

@@ -1,0 +1,48 @@
+# RBAC resources for the etcd backup CronJob
+# Grants the ServiceAccount the minimum privileges needed to
+# run on a control-plane node and execute the backup script.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: etcd-backup-sa
+  namespace: etcd-backup
+  labels:
+    app: etcd-backup
+    tutorial-level: "3"
+    tutorial-module: "M3"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: etcd-backup-role
+  labels:
+    app: etcd-backup
+    tutorial-level: "3"
+    tutorial-module: "M3"
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: etcd-backup-binding
+  labels:
+    app: etcd-backup
+    tutorial-level: "3"
+    tutorial-module: "M3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: etcd-backup-role
+subjects:
+  - kind: ServiceAccount
+    name: etcd-backup-sa
+    namespace: etcd-backup

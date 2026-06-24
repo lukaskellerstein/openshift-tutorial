@@ -1,0 +1,91 @@
+# Tekton Task: Update the image tag in the GitOps repository.
+# This is the bridge between CI (Tekton) and CD (ArgoCD).
+# The pipeline builds a new image, then this task updates the
+# deployment manifest in Git so ArgoCD can detect and sync the change.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: update-gitops-repo
+  labels:
+    app: demo-app
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  params:
+    - name: gitops-repo-url
+      type: string
+      description: URL of the GitOps repository
+    - name: gitops-repo-branch
+      type: string
+      description: Branch to update in the GitOps repo
+      default: main
+    - name: image-name
+      type: string
+      description: Fully qualified image name
+    - name: image-tag
+      type: string
+      description: New image tag to set in the deployment manifest
+    - name: manifest-path
+      type: string
+      description: Path to the deployment manifest inside the GitOps repo
+      default: deployment.yaml
+  workspaces:
+    - name: gitops-workspace
+      description: Workspace for cloning and modifying the GitOps repo
+  steps:
+    - name: clone-gitops-repo
+      image: alpine/git:latest
+      script: |
+        #!/bin/sh
+        set -e
+        echo "==> Cloning GitOps repo: $(params.gitops-repo-url)"
+        cd $(workspaces.gitops-workspace.path)
+        git clone $(params.gitops-repo-url) gitops-repo
+        cd gitops-repo
+        git checkout $(params.gitops-repo-branch)
+        echo "==> GitOps repo cloned successfully"
+        ls -la
+
+    - name: update-image-tag
+      image: alpine:latest
+      script: |
+        #!/bin/sh
+        set -e
+        cd $(workspaces.gitops-workspace.path)/gitops-repo
+
+        MANIFEST="$(params.manifest-path)"
+        NEW_IMAGE="$(params.image-name):$(params.image-tag)"
+
+        echo "==> Updating image in ${MANIFEST} to ${NEW_IMAGE}"
+
+        # Use sed to replace the image line in the deployment manifest
+        sed -i "s|image:.*demo-app.*|image: ${NEW_IMAGE}|g" "${MANIFEST}"
+
+        echo "==> Updated manifest:"
+        cat "${MANIFEST}" | grep -A 2 "image:"
+
+    - name: commit-and-push
+      image: alpine/git:latest
+      script: |
+        #!/bin/sh
+        set -e
+        cd $(workspaces.gitops-workspace.path)/gitops-repo
+
+        git config user.email "tekton-pipeline@openshift.local"
+        git config user.name "Tekton Pipeline"
+
+        git add -A
+        git diff --cached --quiet && {
+          echo "==> No changes to commit"
+          exit 0
+        }
+
+        git commit -m "chore: update demo-app image to $(params.image-tag)
+
+        Updated by Tekton pipeline run.
+        Image: $(params.image-name):$(params.image-tag)"
+
+        echo "==> Pushing changes to $(params.gitops-repo-branch)"
+        git push origin $(params.gitops-repo-branch)
+
+        echo "==> GitOps repo updated. ArgoCD will detect the change."

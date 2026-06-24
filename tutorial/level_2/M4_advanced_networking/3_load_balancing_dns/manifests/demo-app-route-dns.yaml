@@ -1,0 +1,21 @@
+# Route with External DNS — the External DNS Operator will automatically
+# create a DNS record for this Route's hostname
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: demo-app-route
+  namespace: l2-m4-lb-demo
+  labels:
+    app: demo-app
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  host: demo-app-route.example.com
+  to:
+    kind: Service
+    name: demo-app-lb
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

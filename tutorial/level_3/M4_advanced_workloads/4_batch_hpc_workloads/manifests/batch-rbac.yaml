@@ -1,0 +1,45 @@
+# RBAC for batch workloads
+# Service account and role for Jobs and CronJobs
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: batch-sa
+  labels:
+    app: batch-workloads
+    tutorial-level: "3"
+    tutorial-module: "M4"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: batch-role
+  labels:
+    app: batch-workloads
+    tutorial-level: "3"
+    tutorial-module: "M4"
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: batch-role-binding
+  labels:
+    app: batch-workloads
+    tutorial-level: "3"
+    tutorial-module: "M4"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: batch-role
+subjects:
+  - kind: ServiceAccount
+    name: batch-sa

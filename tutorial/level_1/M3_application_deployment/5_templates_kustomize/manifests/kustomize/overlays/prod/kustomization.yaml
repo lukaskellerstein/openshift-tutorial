@@ -1,0 +1,21 @@
+# Kustomize prod overlay -- customizes the base for a production environment.
+# Adds a "prod-" prefix to all resource names and increases replicas to 3.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namePrefix: prod-
+
+commonLabels:
+  environment: prod
+
+resources:
+  - ../../base
+
+patches:
+  - target:
+      kind: Deployment
+      name: kustomize-app
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3

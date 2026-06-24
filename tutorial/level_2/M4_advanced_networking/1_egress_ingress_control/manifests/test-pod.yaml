@@ -1,0 +1,25 @@
+# Test pod for verifying egress firewall rules
+# Uses UBI minimal image (Red Hat Universal Base Image) which works with restricted SCC
+apiVersion: v1
+kind: Pod
+metadata:
+  name: egress-test
+  labels:
+    app: egress-test
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  containers:
+    - name: egress-test
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      command:
+        - sleep
+        - "3600"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+  restartPolicy: Never

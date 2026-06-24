@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: alerts-demo
+  labels:
+    app: alerts-demo
+    tutorial-level: "1"
+    tutorial-module: "M6"
+spec:
+  selector:
+    matchLabels:
+      app: alerts-demo
+  endpoints:
+    - port: http
+      interval: 15s
+      path: /metrics

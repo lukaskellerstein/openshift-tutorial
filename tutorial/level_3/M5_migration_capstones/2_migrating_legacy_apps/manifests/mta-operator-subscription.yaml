@@ -1,0 +1,34 @@
+# Subscription for the Migration Toolkit for Applications (MTA) operator
+# Installs Konveyor/Tackle for application assessment and migration planning
+# Requires cluster-admin privileges
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-mta
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: mta-operator-group
+  namespace: openshift-mta
+spec:
+  targetNamespaces:
+    - openshift-mta
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: mta-operator
+  namespace: openshift-mta
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  channel: stable-v7.0
+  installPlanApproval: Automatic
+  name: mta-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

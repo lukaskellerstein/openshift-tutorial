@@ -1,0 +1,120 @@
+# Sample stateful application for DR backup/restore testing.
+# Deploys an Nginx web server with a PVC to verify data persistence
+# across backup and restore cycles.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dr-test-data
+  namespace: dr-test
+  labels:
+    app: dr-test-app
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dr-test-app
+  namespace: dr-test
+  labels:
+    app: dr-test-app
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dr-test-app
+  template:
+    metadata:
+      labels:
+        app: dr-test-app
+        tutorial-level: "3"
+        tutorial-module: "M3"
+    spec:
+      containers:
+        - name: nginx
+          image: registry.access.redhat.com/ubi9/nginx-122:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: data
+              mountPath: /opt/app-root/src/data
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: dr-test-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dr-test-app
+  namespace: dr-test
+  labels:
+    app: dr-test-app
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  selector:
+    app: dr-test-app
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: dr-test-app
+  namespace: dr-test
+  labels:
+    app: dr-test-app
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  to:
+    kind: Service
+    name: dr-test-app
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dr-test-config
+  namespace: dr-test
+  labels:
+    app: dr-test-app
+    tutorial-level: "3"
+    tutorial-module: "M3"
+data:
+  DR_TEST_MARKER: "This ConfigMap verifies that application configuration survives backup and restore."
+  BACKUP_TIMESTAMP: "Set by the DR drill script at backup time."

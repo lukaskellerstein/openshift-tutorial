@@ -1,0 +1,21 @@
+# Gatekeeper Constraint: apply the K8sRequireResourceLimits policy to pods
+# in the pod-security-demo namespace.
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireResourceLimits
+metadata:
+  name: require-resource-limits
+  labels:
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces:
+      - pod-security-demo
+    excludedNamespaces:
+      - kube-system
+      - openshift-*
+      - gatekeeper-system

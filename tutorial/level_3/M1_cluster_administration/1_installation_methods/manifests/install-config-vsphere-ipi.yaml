@@ -1,0 +1,94 @@
+# OpenShift install-config.yaml — vSphere IPI (Installer-Provisioned Infrastructure)
+# Production-grade configuration for VMware vSphere environments
+#
+# Requirements:
+#   - vCenter 7.0+ with API access
+#   - A dedicated datacenter, cluster, datastore, and network
+#   - DNS and DHCP configured for the machine network
+#   - The installer needs vCenter credentials to provision VMs
+apiVersion: v1
+metadata:
+  name: production-cluster
+  labels:
+    app: openshift-tutorial
+    tutorial-level: "3"
+    tutorial-module: "M1"
+baseDomain: example.com
+
+# --- Control Plane ---
+# 3 masters with sufficient CPU, memory, and fast storage for etcd.
+# vSphere IPI uses VM templates created from the RHCOS OVA.
+controlPlane:
+  name: master
+  replicas: 3
+  platform:
+    vsphere:
+      cpus: 4
+      coresPerSocket: 2
+      memoryMB: 16384          # 16 GiB minimum for control plane
+      osDisk:
+        diskSizeGB: 120        # Fast datastore required for etcd
+
+# --- Workers ---
+compute:
+  - name: worker
+    replicas: 3
+    platform:
+      vsphere:
+        cpus: 8
+        coresPerSocket: 4
+        memoryMB: 32768        # 32 GiB for general workloads
+        osDisk:
+          diskSizeGB: 250
+    hyperthreading: Enabled
+
+# --- Networking ---
+networking:
+  networkType: OVNKubernetes
+  clusterNetwork:
+    - cidr: 10.128.0.0/14
+      hostPrefix: 23
+  serviceNetwork:
+    - 172.30.0.0/16
+  machineNetwork:
+    - cidr: 192.168.1.0/24     # Must match your vSphere network
+
+# --- Platform: vSphere ---
+# The installer uses these credentials to interact with vCenter API.
+# For production, use a dedicated service account with minimum required permissions.
+platform:
+  vsphere:
+    vcenter: vcenter.example.com
+    username: openshift-svc@vsphere.local
+    password: '<vcenter-password>'
+    datacenter: DC1
+    defaultDatastore: vsanDatastore
+    cluster: Cluster1
+    network: VM Network
+    folder: /DC1/vm/openshift
+    apiVIPs:
+      - 192.168.1.10           # Virtual IP for the API load balancer
+    ingressVIPs:
+      - 192.168.1.11           # Virtual IP for the Ingress load balancer
+    # diskType: thin           # thin, thick, or eagerZeroedThick
+
+# --- Authentication ---
+pullSecret: '<your-pull-secret>'
+sshKey: '<your-ssh-public-key>'
+
+# --- Optional: Trusted CA for vCenter certificate ---
+# additionalTrustBundle: |
+#   -----BEGIN CERTIFICATE-----
+#   <vCenter CA certificate in PEM format>
+#   -----END CERTIFICATE-----
+
+# --- vSphere-specific notes ---
+# 1. DNS: You MUST create api.<cluster>.<baseDomain> and
+#    *.apps.<cluster>.<baseDomain> records BEFORE installation.
+#    IPI creates the VMs but does NOT manage DNS on vSphere.
+# 2. DHCP: The machine network must have DHCP for initial IP assignment.
+#    Static IPs can be configured post-install via MachineConfigs.
+# 3. Time sync: NTP must be configured on the ESXi hosts.
+#    Clock skew causes etcd and certificate issues.
+# 4. Storage: etcd requires sustained low-latency I/O (<10ms p99).
+#    Use NVMe or vSAN with a flash-only tier for the master datastore.

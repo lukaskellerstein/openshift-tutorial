@@ -1,0 +1,21 @@
+# OpenShift Route with edge TLS termination
+# TLS is terminated at the router; traffic to the pod is HTTP
+# insecureEdgeTerminationPolicy: Redirect forces HTTP -> HTTPS redirect
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: demo-app-edge
+  labels:
+    app: demo-app
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  host: demo-app-edge-routes-demo.apps-crc.testing
+  to:
+    kind: Service
+    name: demo-app
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

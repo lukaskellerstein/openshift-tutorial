@@ -1,0 +1,17 @@
+# PVC for notebook persistent storage
+# Stores Jupyter notebooks, data files, and user home directory contents
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ml-workbench-storage
+  namespace: ds-project
+  labels:
+    app: ml-workbench
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

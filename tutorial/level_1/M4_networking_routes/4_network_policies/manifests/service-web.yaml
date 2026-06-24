@@ -1,0 +1,17 @@
+# Service for the web-app Deployment.
+# Exposes port 8080 as a ClusterIP so other pods can reach it by name.
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-app
+  labels:
+    app: web-app
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  selector:
+    app: web-app
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

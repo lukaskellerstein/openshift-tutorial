@@ -1,0 +1,95 @@
+# Traditional oc-based deployment for comparison
+# This is the manual approach — compare with the Devfile-based odo workflow
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: odo-demo-oc
+  labels:
+    app: odo-demo-oc
+    tutorial-level: "2"
+    tutorial-module: M6
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: odo-demo-oc
+  template:
+    metadata:
+      labels:
+        app: odo-demo-oc
+        tutorial-level: "2"
+        tutorial-module: M6
+    spec:
+      containers:
+        - name: odo-demo-oc
+          image: image-registry.openshift-image-registry.svc:5000/odo-demo/odo-demo-oc:latest
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: odo-demo-oc
+  labels:
+    app: odo-demo-oc
+    tutorial-level: "2"
+    tutorial-module: M6
+spec:
+  selector:
+    app: odo-demo-oc
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: odo-demo-oc
+  labels:
+    app: odo-demo-oc
+    tutorial-level: "2"
+    tutorial-module: M6
+spec:
+  to:
+    kind: Service
+    name: odo-demo-oc
+  port:
+    targetPort: 3000
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: odo-demo-oc
+  labels:
+    app: odo-demo-oc
+    tutorial-level: "2"
+    tutorial-module: M6
+spec:
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy: {}
+  output:
+    to:
+      kind: ImageStreamTag
+      name: odo-demo-oc:latest
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: odo-demo-oc
+  labels:
+    app: odo-demo-oc
+    tutorial-level: "2"
+    tutorial-module: M6

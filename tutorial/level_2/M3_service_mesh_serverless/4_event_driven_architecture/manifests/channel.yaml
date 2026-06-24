@@ -1,0 +1,14 @@
+# Channel -- ordered, point-to-point event delivery
+# Alternative to Broker/Trigger for pipeline-style processing
+apiVersion: messaging.knative.dev/v1
+kind: Channel
+metadata:
+  name: processing-pipeline
+  labels:
+    app: event-pipeline
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  channelTemplate:
+    apiVersion: messaging.knative.dev/v1
+    kind: InMemoryChannel

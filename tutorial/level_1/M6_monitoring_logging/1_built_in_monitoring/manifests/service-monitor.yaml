@@ -1,0 +1,19 @@
+# ServiceMonitor tells the user workload Prometheus to scrape metrics
+# from pods behind the prometheus-example-app Service.
+# It matches Services with the label app=prometheus-example-app and
+# scrapes the port named "metrics" every 15 seconds.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: prometheus-example-app
+  labels:
+    app: prometheus-example-app
+    tutorial-level: "1"
+    tutorial-module: "M6"
+spec:
+  selector:
+    matchLabels:
+      app: prometheus-example-app
+  endpoints:
+    - port: metrics
+      interval: 15s

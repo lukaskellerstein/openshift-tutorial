@@ -1,0 +1,25 @@
+# Nginx deployment using the unprivileged image — runs as non-root (UID 101).
+# This works with the default restricted-v2 SCC on OpenShift.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-nonroot
+  labels:
+    app: nginx-nonroot
+    tutorial-level: "1"
+    tutorial-module: "M2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-nonroot
+  template:
+    metadata:
+      labels:
+        app: nginx-nonroot
+    spec:
+      containers:
+        - name: nginx
+          image: docker.io/nginxinc/nginx-unprivileged:1.27
+          ports:
+            - containerPort: 8080

@@ -1,0 +1,44 @@
+# Pod with Guaranteed QoS and integer CPU request for CPU pinning
+# Requires CPU Manager to be enabled with static policy
+# The pod will be assigned exclusive CPUs (no sharing)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cpu-pinned-workload
+  namespace: perf-tuning-demo
+  labels:
+    app: cpu-pinned-workload
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  containers:
+    - name: latency-sensitive-app
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      command:
+        - /bin/sh
+        - -c
+        - |
+          echo "CPU pinning verification:"
+          echo "CPU affinity (taskset):"
+          taskset -p $$ 2>/dev/null || echo "taskset not available"
+          echo "---"
+          echo "Cgroup cpuset:"
+          cat /sys/fs/cgroup/cpuset.cpus 2>/dev/null || \
+            cat /sys/fs/cgroup/cpuset/cpuset.cpus 2>/dev/null || \
+            echo "cpuset info not available"
+          echo "---"
+          echo "NUMA info:"
+          cat /sys/fs/cgroup/cpuset.mems 2>/dev/null || \
+            cat /sys/fs/cgroup/cpuset/cpuset.mems 2>/dev/null || \
+            echo "NUMA info not available"
+          echo "---"
+          echo "/proc/self/status:"
+          grep -E "Cpus_allowed|Mems_allowed" /proc/self/status
+          sleep infinity
+      resources:
+        requests:
+          memory: "512Mi"
+          cpu: "4"
+        limits:
+          memory: "512Mi"
+          cpu: "4"

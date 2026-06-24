@@ -1,0 +1,66 @@
+# Gatekeeper ConstraintTemplate: require resource limits on all containers.
+# Ensures every container specifies both cpu and memory limits.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequireresourcelimits
+  labels:
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireResourceLimits
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            message:
+              type: string
+              description: "Custom denial message"
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequireresourcelimits
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not has_limits(container)
+          msg := sprintf(
+            "Container \"%v\" does not have resource limits set. All containers must specify cpu and memory limits.",
+            [container.name]
+          )
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          has_limits(container)
+          not has_cpu_limit(container)
+          msg := sprintf(
+            "Container \"%v\" is missing a cpu limit. All containers must specify cpu and memory limits.",
+            [container.name]
+          )
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          has_limits(container)
+          not has_memory_limit(container)
+          msg := sprintf(
+            "Container \"%v\" is missing a memory limit. All containers must specify cpu and memory limits.",
+            [container.name]
+          )
+        }
+
+        has_limits(container) {
+          container.resources.limits
+        }
+
+        has_cpu_limit(container) {
+          container.resources.limits.cpu
+        }
+
+        has_memory_limit(container) {
+          container.resources.limits.memory
+        }

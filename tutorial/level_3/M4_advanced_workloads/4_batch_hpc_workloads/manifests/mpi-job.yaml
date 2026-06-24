@@ -1,0 +1,76 @@
+# MPI Job using the mpi-operator
+# Requires: mpi-operator installed on the cluster
+# This runs a distributed MPI workload across multiple worker pods
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  name: mpi-hello-world
+  labels:
+    app: mpi-hello-world
+    tutorial-level: "3"
+    tutorial-module: "M4"
+    workload-type: hpc
+spec:
+  slotsPerWorker: 1
+  runPolicy:
+    cleanPodPolicy: Running
+    ttlSecondsAfterFinished: 3600
+    backoffLimit: 3
+    activeDeadlineSeconds: 1800
+  sshAuthMountPath: /home/mpiuser/.ssh
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        metadata:
+          labels:
+            app: mpi-hello-world
+            role: launcher
+            tutorial-level: "3"
+            tutorial-module: "M4"
+        spec:
+          containers:
+            - name: mpi-launcher
+              image: mpioperator/mpi-pi:openmpi
+              command:
+                - mpirun
+              args:
+                - -np
+                - "4"
+                - --allow-run-as-root
+                - /home/mpiuser/pi
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                seccompProfile:
+                  type: RuntimeDefault
+    Worker:
+      replicas: 4
+      template:
+        metadata:
+          labels:
+            app: mpi-hello-world
+            role: worker
+            tutorial-level: "3"
+            tutorial-module: "M4"
+        spec:
+          containers:
+            - name: mpi-worker
+              image: mpioperator/mpi-pi:openmpi
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                seccompProfile:
+                  type: RuntimeDefault

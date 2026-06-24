@@ -1,0 +1,13 @@
+# ManagedClusterSet groups clusters for policy and application targeting
+# Clusters are added to the set via labels on the ManagedCluster resource
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSet
+metadata:
+  name: production-clusters
+  labels:
+    app: capstone-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  clusterSelector:
+    selectorType: ExclusiveClusterSetLabel

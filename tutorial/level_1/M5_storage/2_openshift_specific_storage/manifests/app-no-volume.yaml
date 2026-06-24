@@ -1,0 +1,25 @@
+# Deployment with no volumes attached.
+# Used to demonstrate the oc set volume command, which adds
+# a PVC and volume mount to this Deployment in a single step.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: volume-demo
+  labels:
+    app: volume-demo
+    tutorial-level: "1"
+    tutorial-module: "M5"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: volume-demo
+  template:
+    metadata:
+      labels:
+        app: volume-demo
+    spec:
+      containers:
+        - name: app
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command: ["sleep", "infinity"]

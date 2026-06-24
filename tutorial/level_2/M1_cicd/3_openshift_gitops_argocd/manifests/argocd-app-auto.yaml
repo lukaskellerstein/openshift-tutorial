@@ -1,0 +1,32 @@
+# ArgoCD Application — Automatic Sync Policy
+# Same app as manual, but with auto-sync enabled, self-heal, and pruning
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-app-auto
+  namespace: openshift-gitops
+  labels:
+    app: sample-app
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/redhat-developer/openshift-gitops-getting-started.git
+    targetRevision: main
+    path: app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitops-demo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

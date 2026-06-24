@@ -1,0 +1,25 @@
+# Pod that violates the restricted PSA profile by requesting root access.
+# On OpenShift, PSA will warn but SCCs will actually block execution.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: psa-test
+  labels:
+    app: psa-test
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  containers:
+    - name: psa-test
+      image: docker.io/library/nginx:1.27
+      ports:
+        - containerPort: 80
+      securityContext:
+        runAsUser: 0
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi

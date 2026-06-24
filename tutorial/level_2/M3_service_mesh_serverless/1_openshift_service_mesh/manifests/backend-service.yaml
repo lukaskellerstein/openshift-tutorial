@@ -1,0 +1,18 @@
+# Service for the backend — selects both v1 and v2 pods via the "app: backend" label
+# Traffic splitting between versions is handled by DestinationRule + VirtualService
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    app: backend
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

@@ -1,0 +1,21 @@
+# ApiServerSource -- watches Kubernetes Pod events and forwards them as CloudEvents
+# Requires the event-watcher ServiceAccount with appropriate RBAC (see event-sa-rbac.yaml)
+apiVersion: sources.knative.dev/v1
+kind: ApiServerSource
+metadata:
+  name: pod-watcher
+  labels:
+    app: event-source
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  serviceAccountName: event-watcher
+  mode: Resource
+  resources:
+    - apiVersion: v1
+      kind: Pod
+  sink:
+    ref:
+      apiVersion: eventing.knative.dev/v1
+      kind: Broker
+      name: default

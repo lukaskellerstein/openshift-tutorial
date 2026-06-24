@@ -1,0 +1,10 @@
+# ImageStream for the sample application
+# Used by both Docker and S2I BuildConfigs as the output target
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: sample-app
+  labels:
+    app: sample-app
+    tutorial-level: "1"
+    tutorial-module: "M3"

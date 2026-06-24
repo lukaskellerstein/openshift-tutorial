@@ -1,0 +1,31 @@
+# ExternalDNS instance — watches LoadBalancer Services for DNS record creation
+# Use this when you want DNS records for Services (not just Routes)
+apiVersion: externaldns.olm.openshift.io/v1beta1
+kind: ExternalDNS
+metadata:
+  name: demo-dns-services
+  namespace: external-dns-operator
+  labels:
+    app: external-dns
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  provider:
+    type: AWS
+    aws:
+      credentials:
+        name: aws-dns-credentials
+  zones:
+    - Z1234567890EXAMPLE
+  source:
+    type: Service
+    service:
+      serviceType:
+        - LoadBalancer
+    labelFilter:
+      matchLabels:
+        tutorial-level: "2"
+  domains:
+    - filterType: Include
+      matchType: Exact
+      name: example.com

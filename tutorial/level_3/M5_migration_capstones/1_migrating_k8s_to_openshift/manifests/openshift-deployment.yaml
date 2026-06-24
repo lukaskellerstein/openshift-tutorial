@@ -1,0 +1,59 @@
+# OpenShift-compatible Deployment -- migrated from k8s-deployment.yaml
+# Key changes:
+#   1. Uses UBI-based nginx (runs as non-root)
+#   2. No runAsUser: 0 (compatible with restricted SCC)
+#   3. Listens on port 8080 (non-privileged port)
+#   4. Includes tutorial labels for easy cleanup
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  labels:
+    app: demo-app
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        tutorial-level: "3"
+        tutorial-module: "M5"
+    spec:
+      containers:
+        - name: demo-app
+          image: registry.access.redhat.com/ubi9/nginx-122:latest
+          ports:
+            - containerPort: 8080
+          # OpenShift restricted SCC: no root, no privilege escalation
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30

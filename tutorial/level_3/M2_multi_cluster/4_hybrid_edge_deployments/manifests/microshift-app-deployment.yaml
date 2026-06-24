@@ -1,0 +1,85 @@
+# Application Deployment for MicroShift
+# Sized for constrained edge devices (2-4 vCPUs, 2-4 GB RAM).
+# MicroShift supports standard Kubernetes Deployments --- no special API needed.
+#
+# Key differences from full OpenShift deployments:
+# - Very conservative resource requests/limits (device has limited capacity)
+# - No OLM, so operators cannot be installed --- use plain manifests
+# - Single replica (edge device is a single node)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-data-collector
+  labels:
+    app: edge-data-collector
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-data-collector
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: edge-data-collector
+        tutorial-level: "3"
+        tutorial-module: "M2"
+    spec:
+      containers:
+        - name: collector
+          # Use Red Hat UBI (Universal Base Image) for OpenShift compatibility
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Edge data collector started on $(hostname)"
+              echo "Collecting data from local sensors..."
+              while true; do
+                echo "[$(date -Iseconds)] Sensor reading: temp=$(shuf -i 20-30 -n 1)C humidity=$(shuf -i 40-60 -n 1)%"
+                sleep 10
+              done
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pgrep -f 'Collecting data' > /dev/null"
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pgrep -f 'Collecting data' > /dev/null"
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+      # Tolerate the single-node taint (MicroShift runs on one node)
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule

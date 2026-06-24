@@ -1,0 +1,44 @@
+# PipelineRun: Execute the CI/CD pipeline.
+# Replace the Git URLs with your actual repositories before running.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: ci-cd-pipeline-run-
+  labels:
+    app: demo-app
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  pipelineRef:
+    name: ci-cd-pipeline
+  serviceAccountName: pipeline-gitops-sa
+  params:
+    - name: source-repo-url
+      value: https://github.com/<your-username>/demo-app-source.git
+    - name: source-repo-branch
+      value: main
+    - name: gitops-repo-url
+      value: https://github.com/<your-username>/demo-app-gitops.git
+    - name: gitops-repo-branch
+      value: main
+    - name: image-name
+      value: image-registry.openshift-image-registry.svc:5000/pipelines-gitops-demo/demo-app
+    - name: manifest-path
+      value: deployment.yaml
+  workspaces:
+    - name: shared-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+    - name: gitops-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 500Mi

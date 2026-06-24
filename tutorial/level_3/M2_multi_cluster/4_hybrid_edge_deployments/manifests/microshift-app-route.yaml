@@ -1,0 +1,24 @@
+# Route for the MicroShift edge data collector application
+# OpenShift Routes work on MicroShift --- this is one of the key
+# OpenShift APIs that MicroShift preserves.
+#
+# On MicroShift, the HAProxy router runs in a minimal configuration
+# with reduced memory footprint compared to full OpenShift.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: edge-data-collector
+  labels:
+    app: edge-data-collector
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  to:
+    kind: Service
+    name: edge-data-collector
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

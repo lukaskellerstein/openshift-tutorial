@@ -1,0 +1,67 @@
+# ApplicationSet using a list generator -- explicitly maps clusters to environments
+# This is the simplest approach: each cluster and its parameters are hard-coded.
+# Use this when you have a small, stable set of clusters.
+# Compare with appset-cluster-generator.yaml for dynamic discovery.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: demo-app
+  namespace: openshift-gitops
+  labels:
+    app: demo-app
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+    - list:
+        elements:
+          - cluster: dev-cluster
+            url: https://api.dev.example.com:6443
+            environment: dev
+            namespace: demo-dev
+          - cluster: staging-cluster
+            url: https://api.staging.example.com:6443
+            environment: staging
+            namespace: demo-staging
+          - cluster: prod-cluster-east
+            url: https://api.prod-east.example.com:6443
+            environment: prod
+            namespace: demo-prod
+          - cluster: prod-cluster-west
+            url: https://api.prod-west.example.com:6443
+            environment: prod
+            namespace: demo-prod
+  template:
+    metadata:
+      name: 'demo-app-{{.cluster}}'
+      labels:
+        app: demo-app
+        environment: '{{.environment}}'
+        tutorial-level: "3"
+        tutorial-module: "M2"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/your-org/gitops-repo.git
+        targetRevision: main
+        path: 'apps/demo-app/overlays/{{.environment}}'
+      destination:
+        server: '{{.url}}'
+        namespace: '{{.namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+          - ServerSideApply=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m

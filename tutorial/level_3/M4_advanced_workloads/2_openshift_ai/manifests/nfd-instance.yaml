@@ -1,0 +1,28 @@
+# NodeFeatureDiscovery instance -- runs NFD worker pods on all nodes
+# to detect and label hardware features (GPUs, NICs, CPU flags, etc.)
+apiVersion: nfd.openshift.io/v1
+kind: NodeFeatureDiscovery
+metadata:
+  name: nfd-instance
+  namespace: openshift-nfd
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  instance: ""
+  operand:
+    image: registry.redhat.io/openshift4/ose-node-feature-discovery:latest
+    servicePort: 12000
+  workerConfig:
+    configData: |
+      sources:
+        pci:
+          deviceClassWhitelist:
+            - "0300"   # VGA compatible controller (GPUs)
+            - "0302"   # 3D controller (compute GPUs like Tesla, A100)
+          deviceLabelFields:
+            - vendor
+            - device
+            - subsystem_vendor
+            - subsystem_device

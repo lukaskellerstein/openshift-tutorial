@@ -1,0 +1,56 @@
+# Task: Run application tests against the built image
+# Executes the test suite inside the container image to validate correctness
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: run-tests
+  labels:
+    app: pipeline-demo
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  description: >-
+    Runs the application test suite from the source code in the shared
+    workspace. Tests validate that the application works correctly
+    before deployment.
+  params:
+    - name: test-command
+      type: string
+      description: The command to run tests
+      default: "npm test"
+  workspaces:
+    - name: source
+      description: Workspace containing the cloned source code
+  results:
+    - name: test-result
+      description: Pass or fail status of the test run
+  steps:
+    - name: run-tests
+      image: registry.access.redhat.com/ubi9/nodejs-18:latest
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      workingDir: "$(workspaces.source.path)/source"
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        echo "=== Installing dependencies ==="
+        npm ci --ignore-scripts 2>/dev/null || npm install
+
+        echo ""
+        echo "=== Running tests ==="
+        if $(params.test-command); then
+          echo ""
+          echo "All tests PASSED"
+          printf "PASS" > "$(results.test-result.path)"
+        else
+          echo ""
+          echo "Tests FAILED"
+          printf "FAIL" > "$(results.test-result.path)"
+          exit 1
+        fi

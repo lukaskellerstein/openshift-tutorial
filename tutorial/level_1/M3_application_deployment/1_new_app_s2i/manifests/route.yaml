@@ -1,0 +1,16 @@
+# OpenShift Route to expose the nginx Service externally
+# This is the OpenShift equivalent of a Kubernetes Ingress
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: nginx-manifest
+  labels:
+    app: nginx-manifest
+    tutorial-level: "1"
+    tutorial-module: "M3"
+spec:
+  to:
+    kind: Service
+    name: nginx-manifest
+  port:
+    targetPort: 8080

@@ -1,0 +1,31 @@
+# PipelineRun: Execute the build-test-deploy Pipeline
+# Supplies parameter values and binds the shared workspace to a PVC
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: build-test-deploy-run-
+  labels:
+    app: pipeline-demo
+    tutorial-level: "2"
+    tutorial-module: "M1"
+    tekton.dev/pipeline: build-test-deploy
+spec:
+  pipelineRef:
+    name: build-test-deploy
+  params:
+    - name: git-url
+      value: "https://github.com/sclorg/nodejs-ex.git"
+    - name: git-revision
+      value: master
+    - name: app-name
+      value: pipeline-demo-app
+    - name: staging-namespace
+      value: cicd-staging
+    - name: production-namespace
+      value: cicd-production
+  workspaces:
+    - name: shared-workspace
+      persistentVolumeClaim:
+        claimName: pipeline-workspace-pvc
+  taskRunTemplate:
+    serviceAccountName: pipeline

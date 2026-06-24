@@ -1,0 +1,20 @@
+# RoleBinding: pod-diagnostics-developer
+# Binds the custom pod-diagnostics Role to the developer user.
+# This gives developer read-only access to pods, logs, and events
+# in the namespace where this RoleBinding is applied.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pod-diagnostics-developer
+  labels:
+    app: rbac-demo
+    tutorial-level: "1"
+    tutorial-module: "M2"
+subjects:
+  - kind: User
+    name: developer
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-diagnostics
+  apiGroup: rbac.authorization.k8s.io

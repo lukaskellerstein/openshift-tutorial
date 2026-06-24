@@ -1,0 +1,20 @@
+# BGPAdvertisement — announces IPs from the pool via BGP
+# Use together with bgp-peer.yaml for production bare-metal environments
+# BGP mode provides true multi-node load balancing at the network level
+#
+# PRODUCTION ONLY — do NOT apply on CRC
+apiVersion: metallb.io/v1beta1
+kind: BGPAdvertisement
+metadata:
+  name: demo-bgp-adv
+  namespace: metallb-system
+  labels:
+    app: metallb
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  ipAddressPools:
+    - demo-pool
+  communities: []
+  aggregationLength: 32
+  localPref: 100

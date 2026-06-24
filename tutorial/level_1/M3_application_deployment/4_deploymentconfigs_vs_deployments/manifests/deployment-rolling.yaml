@@ -1,0 +1,44 @@
+# Deployment with RollingUpdate strategy.
+# maxSurge: 1 -- allow one extra pod above the desired count during updates.
+# maxUnavailable: 0 -- never drop below the desired count (zero-downtime).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-rolling
+  labels:
+    app: deploy-strategies
+    tutorial-level: "1"
+    tutorial-module: "M3"
+  annotations:
+    kubernetes.io/change-cause: "initial deployment"
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: deploy-strategies
+      variant: rolling
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: deploy-strategies
+        variant: rolling
+        tutorial-level: "1"
+        tutorial-module: "M3"
+    spec:
+      containers:
+        - name: nginx
+          image: registry.access.redhat.com/ubi9/nginx-122:latest
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5

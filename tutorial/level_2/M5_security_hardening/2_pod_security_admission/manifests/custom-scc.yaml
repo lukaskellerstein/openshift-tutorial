@@ -1,0 +1,40 @@
+# Custom SCC that allows NET_BIND_SERVICE and NET_RAW capabilities
+# while still enforcing non-root execution.
+# Use case: applications that need to bind to privileged ports or use raw sockets
+# but should not run as root.
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: custom-network-v2
+  labels:
+    tutorial-level: "2"
+    tutorial-module: "M5"
+allowPrivilegedContainer: false
+allowHostNetwork: false
+allowHostPorts: false
+allowHostPID: false
+allowHostIPC: false
+allowHostDirVolumePlugin: false
+allowedCapabilities:
+  - NET_BIND_SERVICE
+  - NET_RAW
+defaultAddCapabilities: []
+requiredDropCapabilities:
+  - ALL
+readOnlyRootFilesystem: false
+runAsUser:
+  type: MustRunAsRange
+seLinuxContext:
+  type: MustRunAs
+fsGroup:
+  type: MustRunAs
+supplementalGroups:
+  type: RunAsAny
+volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+priority: null

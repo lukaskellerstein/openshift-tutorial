@@ -1,0 +1,33 @@
+# ArgoCD AppProject — Scoped project for the tutorial
+# Restricts which repos, clusters, and namespaces ArgoCD can deploy to
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: tutorial-project
+  namespace: openshift-gitops
+  labels:
+    app: openshift-gitops
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  description: "Scoped project for OpenShift GitOps tutorial"
+  sourceRepos:
+    - "https://github.com/redhat-developer/openshift-gitops-getting-started.git"
+    - "https://github.com/your-org/gitops-repo.git"
+  destinations:
+    - namespace: gitops-demo
+      server: https://kubernetes.default.svc
+    - namespace: staging
+      server: https://kubernetes.default.svc
+    - namespace: production
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: apps
+      kind: Deployment
+    - group: route.openshift.io
+      kind: Route

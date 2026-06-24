@@ -1,0 +1,12 @@
+# ServiceAccount for the pipeline with Git credentials attached.
+# Tekton PipelineRuns use this SA to authenticate to Git repos.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline-gitops-sa
+  labels:
+    app: demo-app
+    tutorial-level: "2"
+    tutorial-module: "M1"
+secrets:
+  - name: git-credentials

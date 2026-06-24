@@ -1,0 +1,18 @@
+# ConfigMap with sample application configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  labels:
+    app: config-demo
+    tutorial-level: "1"
+    tutorial-module: "M5"
+data:
+  APP_ENV: "production"
+  APP_LOG_LEVEL: "info"
+  APP_MAX_CONNECTIONS: "100"
+  app.properties: |
+    server.port=8080
+    server.context-path=/api
+    feature.cache.enabled=true
+    feature.debug.enabled=false

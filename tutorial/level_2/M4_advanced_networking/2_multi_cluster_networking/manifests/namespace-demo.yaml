@@ -1,0 +1,10 @@
+# Demo namespace for cross-cluster service discovery
+# Used on both clusters to host the exported and imported services.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cross-cluster-demo
+  labels:
+    app: cross-cluster-demo
+    tutorial-level: "2"
+    tutorial-module: "M4"

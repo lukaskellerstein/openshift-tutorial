@@ -1,0 +1,11 @@
+# Plain Kubernetes Namespace — for comparison with an OpenShift Project
+# Compare with: oc new-project demo-project --display-name="Demo Project"
+# Notice: no RBAC bindings, no display name, no description, no requester tracking
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-namespace
+  labels:
+    app: demo-namespace
+    tutorial-level: "1"
+    tutorial-module: "M2"

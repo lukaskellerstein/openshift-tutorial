@@ -1,0 +1,24 @@
+# Per-project ResourceQuota for production
+# Same as Kubernetes — caps total resource usage within a single project
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: production-quota
+  labels:
+    app: quota-demo
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "20"
+    services: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: 50Gi
+    replicationcontrollers: "10"
+    secrets: "20"
+    configmaps: "20"
+  scopes: []

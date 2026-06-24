@@ -1,0 +1,29 @@
+# Deployment for a simple nginx app used to explore the OpenShift Web Console.
+# Uses nginxinc/nginx-unprivileged which runs as non-root (UID 101) on port 8080,
+# compatible with OpenShift's restricted SCC.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console-demo-app
+  labels:
+    app: console-demo-app
+    tutorial-level: "1"
+    tutorial-module: "M1"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: console-demo-app
+  template:
+    metadata:
+      labels:
+        app: console-demo-app
+        tutorial-level: "1"
+        tutorial-module: "M1"
+    spec:
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:alpine
+          ports:
+            - containerPort: 8080
+              protocol: TCP

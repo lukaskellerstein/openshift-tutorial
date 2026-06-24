@@ -1,0 +1,20 @@
+# PVC targeting ODF shared filesystem (CephFS).
+# Requires OpenShift Data Foundation to be installed on the cluster.
+# On CRC or Developer Sandbox, this PVC will remain Pending.
+# CephFS supports ReadWriteMany (RWX), allowing multiple pods
+# to mount and write to the same volume simultaneously.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: odf-filesystem-pvc
+  labels:
+    app: odf-demo
+    tutorial-level: "1"
+    tutorial-module: "M5"
+spec:
+  storageClassName: ocs-storagecluster-cephfs
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi

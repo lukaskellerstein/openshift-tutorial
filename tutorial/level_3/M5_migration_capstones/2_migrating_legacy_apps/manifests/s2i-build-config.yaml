@@ -1,0 +1,45 @@
+# BuildConfig for S2I (replatform) deployment
+# Builds a Java application directly from source code using the OpenJDK builder
+# The builder image handles Maven/Gradle build, packaging, and image assembly
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: s2i-legacy-app
+  labels:
+    app: legacy-app
+    tutorial-level: "3"
+    tutorial-module: "M5"
+    migration-strategy: replatform
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/jboss-openshift/openshift-quickstarts.git
+      ref: master
+    contextDir: undertow-servlet
+  strategy:
+    type: Source
+    sourceStrategy:
+      from:
+        kind: ImageStreamTag
+        namespace: openshift
+        name: java:openjdk-17-ubi8
+      env:
+        - name: MAVEN_ARGS_APPEND
+          value: "-Dmaven.test.skip=true"
+        - name: ARTIFACT_DIR
+          value: "target"
+  output:
+    to:
+      kind: ImageStreamTag
+      name: s2i-legacy-app:latest
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi

@@ -1,0 +1,40 @@
+# EgressFirewall — Allow only DNS and HTTPS to external endpoints
+# This is the primary egress control mechanism in OpenShift (OVN-Kubernetes)
+# Compare with Kubernetes NetworkPolicy, which cannot restrict egress by CIDR/DNS to the same degree
+apiVersion: k8s.ovn.org/v1
+kind: EgressFirewall
+metadata:
+  name: default
+  labels:
+    app: egress-demo
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  egress:
+    # Rule 1: Allow DNS resolution (required for any DNS-based rules and cluster DNS)
+    - type: Allow
+      to:
+        cidrSelector: 0.0.0.0/0
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Rule 2: Allow HTTPS to a specific trusted API
+    - type: Allow
+      to:
+        dnsName: api.github.com
+      ports:
+        - protocol: TCP
+          port: 443
+    # Rule 3: Allow HTTPS to Red Hat registries for image pulls
+    - type: Allow
+      to:
+        dnsName: "*.redhat.com"
+      ports:
+        - protocol: TCP
+          port: 443
+    # Rule 4: Deny everything else
+    - type: Deny
+      to:
+        cidrSelector: 0.0.0.0/0

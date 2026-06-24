@@ -1,0 +1,33 @@
+# ArgoCD Application: Watches the GitOps repository and syncs
+# the desired state to the target namespace on the cluster.
+# This is the CD side of the CI/CD flow.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-app
+  namespace: openshift-gitops
+  labels:
+    app: demo-app
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/<your-username>/demo-app-gitops.git
+    targetRevision: main
+    path: .
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: pipelines-gitops-demo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

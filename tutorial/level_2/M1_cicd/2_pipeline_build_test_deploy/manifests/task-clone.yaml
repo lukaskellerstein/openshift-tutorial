@@ -1,0 +1,54 @@
+# Task: Clone source code from a Git repository
+# Uses the shared workspace to make code available to subsequent Tasks
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: git-clone-source
+  labels:
+    app: pipeline-demo
+    tutorial-level: "2"
+    tutorial-module: "M1"
+spec:
+  description: >-
+    Clones a Git repository into the shared workspace so downstream
+    Tasks can build and test the source code.
+  params:
+    - name: repo-url
+      type: string
+      description: The Git repository URL to clone
+    - name: revision
+      type: string
+      description: The Git revision (branch, tag, or commit) to check out
+      default: main
+  workspaces:
+    - name: source
+      description: Workspace where the source code will be cloned
+  results:
+    - name: commit-sha
+      description: The precise commit SHA that was checked out
+  steps:
+    - name: clone
+      image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:latest
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+
+        echo "Cloning $(params.repo-url) at revision $(params.revision)..."
+
+        git clone --depth 1 --branch "$(params.revision)" \
+          "$(params.repo-url)" "$(workspaces.source.path)/source"
+
+        cd "$(workspaces.source.path)/source"
+        COMMIT=$(git rev-parse HEAD)
+        echo "Cloned commit: ${COMMIT}"
+        printf "%s" "${COMMIT}" > "$(results.commit-sha.path)"
+
+        echo "--- Repository contents ---"
+        ls -la

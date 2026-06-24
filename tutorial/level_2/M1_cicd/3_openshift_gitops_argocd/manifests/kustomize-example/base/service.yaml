@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitops-sample-app
+spec:
+  selector:
+    app: gitops-sample-app
+  ports:
+    - port: 8080
+      targetPort: 8080

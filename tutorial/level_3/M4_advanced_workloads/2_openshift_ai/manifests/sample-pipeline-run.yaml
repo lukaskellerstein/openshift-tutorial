@@ -1,0 +1,113 @@
+# Sample pipeline run using Argo Workflow
+# This demonstrates a simple ML pipeline: load data -> train model -> evaluate
+# In production, pipelines are typically submitted via the kfp Python SDK
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: sample-ml-pipeline-
+  namespace: ds-project
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+    pipelines.kubeflow.org/pipeline-sdk-type: kfp
+  annotations:
+    pipelines.kubeflow.org/pipeline_spec: |
+      {"description": "A simple ML pipeline for tutorial purposes",
+       "name": "Sample ML Pipeline"}
+spec:
+  entrypoint: ml-pipeline
+  serviceAccountName: ds-pipeline-dspa
+  templates:
+    - name: ml-pipeline
+      dag:
+        tasks:
+          - name: load-data
+            template: load-data-step
+          - name: train-model
+            template: train-model-step
+            dependencies:
+              - load-data
+          - name: evaluate-model
+            template: evaluate-model-step
+            dependencies:
+              - train-model
+
+    - name: load-data-step
+      container:
+        image: image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/jupyter-datascience-notebook:2024.1
+        command:
+          - python3
+          - -c
+          - |
+            from sklearn.datasets import load_iris
+            import json
+            data = load_iris()
+            print(f"Loaded {len(data.data)} samples with {len(data.feature_names)} features")
+            print("Features:", data.feature_names)
+            with open('/tmp/data-loaded.json', 'w') as f:
+                json.dump({"samples": len(data.data), "features": len(data.feature_names)}, f)
+        resources:
+          requests:
+            cpu: "250m"
+            memory: 256Mi
+          limits:
+            cpu: "500m"
+            memory: 512Mi
+
+    - name: train-model-step
+      container:
+        image: image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/jupyter-datascience-notebook:2024.1
+        command:
+          - python3
+          - -c
+          - |
+            from sklearn.datasets import load_iris
+            from sklearn.model_selection import train_test_split
+            from sklearn.ensemble import RandomForestClassifier
+            import json
+            data = load_iris()
+            X_train, X_test, y_train, y_test = train_test_split(
+                data.data, data.target, test_size=0.2, random_state=42
+            )
+            model = RandomForestClassifier(n_estimators=100, random_state=42)
+            model.fit(X_train, y_train)
+            accuracy = model.score(X_test, y_test)
+            print(f"Model trained. Test accuracy: {accuracy:.4f}")
+            with open('/tmp/model-metrics.json', 'w') as f:
+                json.dump({"accuracy": accuracy, "model_type": "RandomForest"}, f)
+        resources:
+          requests:
+            cpu: "500m"
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+
+    - name: evaluate-model-step
+      container:
+        image: image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/jupyter-datascience-notebook:2024.1
+        command:
+          - python3
+          - -c
+          - |
+            from sklearn.datasets import load_iris
+            from sklearn.model_selection import train_test_split, cross_val_score
+            from sklearn.ensemble import RandomForestClassifier
+            import numpy as np
+            data = load_iris()
+            model = RandomForestClassifier(n_estimators=100, random_state=42)
+            scores = cross_val_score(model, data.data, data.target, cv=5)
+            print(f"Cross-validation scores: {scores}")
+            print(f"Mean accuracy: {np.mean(scores):.4f} (+/- {np.std(scores)*2:.4f})")
+            if np.mean(scores) > 0.90:
+                print("PASS: Model meets accuracy threshold (>0.90)")
+            else:
+                print("FAIL: Model below accuracy threshold")
+        resources:
+          requests:
+            cpu: "500m"
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi

@@ -1,0 +1,69 @@
+# CrunchyData PostgresCluster — the operator-managed approach
+# Compare with k8s-statefulset-postgres.yaml for the manual K8s equivalent
+apiVersion: postgres-operator.crunchydata.com/v1beta1
+kind: PostgresCluster
+metadata:
+  name: hippo
+  labels:
+    app: hippo
+    tutorial-level: "2"
+    tutorial-module: "M2"
+spec:
+  image: registry.developers.crunchydata.com/crunchydata/crunchy-postgres:ubi8-15.4-0
+  postgresVersion: 15
+
+  instances:
+    - name: instance1
+      replicas: 2
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+      dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    postgres-operator.crunchydata.com/cluster: hippo
+
+  backups:
+    pgbackrest:
+      image: registry.developers.crunchydata.com/crunchydata/crunchy-pgbackrest:ubi8-2.47-2
+      repos:
+        - name: repo1
+          volume:
+            volumeClaimSpec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 10Gi
+          schedules:
+            full: "0 1 * * 0"
+            incremental: "0 1 * * 1-6"
+
+  users:
+    - name: appuser
+      databases:
+        - appdb
+      options: "CREATEDB"
+
+  patroni:
+    dynamicConfiguration:
+      postgresql:
+        parameters:
+          max_connections: "100"
+          shared_buffers: "128MB"
+          work_mem: "4MB"

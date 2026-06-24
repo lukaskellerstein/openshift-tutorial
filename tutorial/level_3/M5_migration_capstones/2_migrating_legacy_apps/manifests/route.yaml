@@ -1,0 +1,25 @@
+# Route for the migrated legacy application
+# Uses edge TLS termination (HTTPS at the router, HTTP to the pod)
+# Cookie-based session affinity for legacy session handling
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: legacy-app
+  labels:
+    app: legacy-app
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    haproxy.router.openshift.io/timeout: "120s"
+    haproxy.router.openshift.io/disable_cookies: "false"
+    haproxy.router.openshift.io/balance: "leastconn"
+spec:
+  to:
+    kind: Service
+    name: legacy-app
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

@@ -1,0 +1,46 @@
+# Example: OAuth configuration with multiple identity providers
+# This is a REFERENCE ONLY -- do not apply unless you have the
+# corresponding secrets and provider configurations set up.
+#
+# Shows how OpenShift supports multiple identity providers
+# simultaneously. The login page will present all configured providers.
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+  labels:
+    app: auth-tutorial
+    tutorial-level: "1"
+    tutorial-module: "M2"
+spec:
+  identityProviders:
+    - name: htpasswd-local
+      mappingMethod: claim
+      type: HTPasswd
+      htpasswd:
+        fileData:
+          name: htpasswd-secret
+    - name: github-corp
+      mappingMethod: claim
+      type: GitHub
+      github:
+        clientID: "<your-github-oauth-app-client-id>"
+        clientSecret:
+          name: github-oauth-secret
+        organizations:
+          - your-github-org
+    - name: corporate-sso
+      mappingMethod: claim
+      type: OpenID
+      openID:
+        clientID: "<your-oidc-client-id>"
+        clientSecret:
+          name: oidc-client-secret
+        issuer: "https://sso.example.com/auth/realms/openshift"
+        claims:
+          preferredUsername:
+            - preferred_username
+          name:
+            - name
+          email:
+            - email

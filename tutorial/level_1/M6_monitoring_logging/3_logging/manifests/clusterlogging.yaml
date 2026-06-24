@@ -1,0 +1,22 @@
+# ClusterLogging instance — defines the logging stack deployment
+# This tells the operator to deploy Vector collectors on every node
+# and connect them to the LokiStack log store
+apiVersion: logging.openshift.io/v1
+kind: ClusterLogging
+metadata:
+  name: instance
+  namespace: openshift-logging
+  labels:
+    app: openshift-logging
+    tutorial-level: "1"
+    tutorial-module: "M6"
+spec:
+  collection:
+    type: vector
+  logStore:
+    type: lokistack
+    lokistack:
+      name: logging-loki
+  visualization:
+    type: ocp-console
+  managementState: Managed

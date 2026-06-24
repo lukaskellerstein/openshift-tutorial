@@ -1,0 +1,100 @@
+# Devfile for a Node.js application workspace
+# This file would live in the root of your Git repository as devfile.yaml
+# Dev Spaces reads it to configure the workspace automatically
+schemaVersion: 2.2.2
+metadata:
+  name: nodejs-sample
+  version: 1.0.0
+  displayName: Node.js Sample Application
+  description: Dev Spaces workspace for a Node.js web application
+  language: JavaScript
+  projectType: Node.js
+  tags:
+    - Node.js
+    - Express
+attributes:
+  controller.devfile.io/storage-type: per-user
+projects:
+  - name: nodejs-sample
+    git:
+      remotes:
+        origin: https://github.com/sclorg/nodejs-ex.git
+      checkoutFrom:
+        revision: master
+components:
+  - name: tools
+    container:
+      image: registry.redhat.io/devspaces/udi-rhel8:latest
+      memoryLimit: 2Gi
+      cpuLimit: "1"
+      memoryRequest: 512Mi
+      cpuRequest: 250m
+      mountSources: true
+      endpoints:
+        - name: nodejs
+          targetPort: 8080
+          exposure: public
+          protocol: https
+        - name: debug
+          targetPort: 9229
+          exposure: internal
+      env:
+        - name: NODE_ENV
+          value: development
+        - name: DEBUG_PORT
+          value: "9229"
+      volumeMounts:
+        - name: npm-cache
+          path: /home/user/.npm
+  - name: npm-cache
+    volume:
+      size: 1Gi
+commands:
+  - id: install-dependencies
+    exec:
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: npm install
+      group:
+        kind: build
+        isDefault: false
+  - id: build
+    exec:
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: npm run build --if-present
+      group:
+        kind: build
+        isDefault: true
+  - id: run
+    exec:
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: npm start
+      group:
+        kind: run
+        isDefault: true
+  - id: run-dev
+    exec:
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: npm run dev --if-present || nodemon server.js
+      group:
+        kind: run
+        isDefault: false
+  - id: debug
+    exec:
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: node --inspect=${DEBUG_PORT} server.js
+      group:
+        kind: debug
+        isDefault: true
+  - id: test
+    exec:
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: npm test
+      group:
+        kind: test
+        isDefault: true

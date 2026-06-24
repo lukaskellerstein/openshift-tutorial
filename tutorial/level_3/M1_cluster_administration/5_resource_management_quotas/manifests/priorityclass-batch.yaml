@@ -1,0 +1,19 @@
+# PriorityClass for batch and non-critical workloads
+# These pods will be preempted first when the cluster needs
+# resources for higher-priority workloads
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: batch-low
+  labels:
+    app: quota-demo
+    tutorial-level: "3"
+    tutorial-module: "M1"
+value: 100
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >-
+  Low-priority batch workloads (CI jobs, data processing, dev experiments).
+  These pods are the first to be preempted under resource pressure.
+  Set preemptionPolicy to Never if you prefer pods to stay Pending
+  rather than being evicted after scheduling.

@@ -1,0 +1,21 @@
+{{- if .Values.ingress.enabled }}
+# Kubernetes Ingress — available on OpenShift but Route is preferred
+# Enable this if you need cross-platform chart compatibility
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "openshift-web-app.fullname" . }}
+  labels:
+    {{- include "openshift-web-app.labels" . | nindent 4 }}
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "openshift-web-app.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}

@@ -1,0 +1,54 @@
+# Job managed by Kueue — the kueue.x-k8s.io/queue-name label
+# tells Kueue to gate this Job until capacity is available
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kueue-managed-job
+  labels:
+    app: kueue-managed-job
+    kueue.x-k8s.io/queue-name: batch-local-queue
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  completions: 3
+  parallelism: 3
+  completionMode: Indexed
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 3600
+  suspend: true
+  template:
+    metadata:
+      labels:
+        app: kueue-managed-job
+        tutorial-level: "3"
+        tutorial-module: "M4"
+    spec:
+      restartPolicy: Never
+      priorityClassName: high-priority-kueue
+      containers:
+        - name: worker
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Kueue-managed job index $JOB_COMPLETION_INDEX starting at $(date)"
+              echo "This job was admitted by Kueue based on cluster capacity"
+              sleep $((RANDOM % 30 + 10))
+              echo "Job index $JOB_COMPLETION_INDEX completed at $(date)"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL

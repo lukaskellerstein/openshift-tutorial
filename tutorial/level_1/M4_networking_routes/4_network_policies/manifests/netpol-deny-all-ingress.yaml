@@ -1,0 +1,16 @@
+# NetworkPolicy: Deny all ingress traffic to every pod in the namespace.
+# This is the recommended starting point -- deny everything, then allow selectively.
+# Same standard K8s NetworkPolicy API, enforced by OpenShift's OVN-Kubernetes CNI.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all-ingress
+  labels:
+    app: netpol-demo
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress: []

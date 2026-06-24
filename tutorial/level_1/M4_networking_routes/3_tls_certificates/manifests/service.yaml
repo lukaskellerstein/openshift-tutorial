@@ -1,0 +1,17 @@
+# Service exposing the HTTP backend on port 8080
+# Used by edge-terminated Routes
+apiVersion: v1
+kind: Service
+metadata:
+  name: tls-demo
+  labels:
+    app: tls-demo
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  selector:
+    app: tls-demo
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

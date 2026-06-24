@@ -1,0 +1,20 @@
+# Route to expose the Fedora VM's HTTP server externally via OpenShift Router
+# Demonstrates that VMs participate in the same networking model as containers
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: fedora-vm-http
+  namespace: virtualization-lab
+  labels:
+    app: fedora-vm
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  to:
+    kind: Service
+    name: fedora-vm-http
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

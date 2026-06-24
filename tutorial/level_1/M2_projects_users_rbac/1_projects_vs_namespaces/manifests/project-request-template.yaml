@@ -1,0 +1,68 @@
+# Custom project-request template
+# Automatically injects a LimitRange and NetworkPolicy into every new Project.
+# Install with: oc apply -f project-request-template.yaml
+# Then patch the cluster config:
+#   oc patch project.config.openshift.io/cluster --type=merge \
+#     -p '{"spec":{"projectRequestTemplate":{"name":"project-request"}}}'
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: project-request
+  namespace: openshift-config
+  labels:
+    app: project-request
+    tutorial-level: "1"
+    tutorial-module: "M2"
+objects:
+  # The Project itself — required by the project-request mechanism
+  - apiVersion: project.openshift.io/v1
+    kind: Project
+    metadata:
+      annotations:
+        openshift.io/description: ${PROJECT_DESCRIPTION}
+        openshift.io/display-name: ${PROJECT_DISPLAYNAME}
+        openshift.io/requester: ${PROJECT_REQUESTING_USER}
+      name: ${PROJECT_NAME}
+  # Grant the requesting user admin access to their new Project
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: admin
+      namespace: ${PROJECT_NAME}
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: admin
+    subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: User
+        name: ${PROJECT_ADMIN_USER}
+  # Default LimitRange — ensures every container gets baseline resource requests
+  - apiVersion: v1
+    kind: LimitRange
+    metadata:
+      name: default-limits
+      namespace: ${PROJECT_NAME}
+    spec:
+      limits:
+        - type: Container
+          defaultRequest:
+            cpu: 50m
+            memory: 64Mi
+  # Default NetworkPolicy — allow traffic only from pods in the same namespace
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-from-same-namespace
+      namespace: ${PROJECT_NAME}
+    spec:
+      podSelector: {}
+      ingress:
+        - from:
+            - podSelector: {}
+parameters:
+  - name: PROJECT_NAME
+  - name: PROJECT_DISPLAYNAME
+  - name: PROJECT_DESCRIPTION
+  - name: PROJECT_ADMIN_USER
+  - name: PROJECT_REQUESTING_USER

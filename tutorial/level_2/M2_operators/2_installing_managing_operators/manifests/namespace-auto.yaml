@@ -1,0 +1,9 @@
+# Namespace for the automatic-approval operator installation demo
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: etcd-auto-demo
+  labels:
+    app: etcd-auto-demo
+    tutorial-level: "2"
+    tutorial-module: "M2"

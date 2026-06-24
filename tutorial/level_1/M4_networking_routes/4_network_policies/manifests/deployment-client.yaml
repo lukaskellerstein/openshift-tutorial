@@ -1,0 +1,29 @@
+# Deployment for a client pod used to test NetworkPolicy rules.
+# This pod runs curl in a sleep loop so it stays alive for exec commands.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client-app
+  labels:
+    app: client-app
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client-app
+  template:
+    metadata:
+      labels:
+        app: client-app
+        tutorial-level: "1"
+        tutorial-module: "M4"
+    spec:
+      containers:
+        - name: client-app
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command:
+            - /bin/bash
+            - -c
+            - "sleep infinity"

@@ -1,0 +1,23 @@
+# ServiceMonitor for RHOAI model serving metrics
+# Scrapes inference latency, request count, and model status metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rhoai-model-serving
+  namespace: ds-project
+  labels:
+    app: rhoai
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  endpoints:
+    - interval: 30s
+      port: metrics
+      path: /metrics
+      scheme: http
+  namespaceSelector:
+    matchNames:
+      - ds-project
+  selector:
+    matchLabels:
+      app: rhoai

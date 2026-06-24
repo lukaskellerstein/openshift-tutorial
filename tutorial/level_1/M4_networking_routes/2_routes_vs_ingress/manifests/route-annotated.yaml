@@ -1,0 +1,23 @@
+# OpenShift Route with HAProxy annotations for fine-grained control
+# Demonstrates: timeout, load-balancing algorithm, and session affinity
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: demo-app-annotated
+  labels:
+    app: demo-app
+    tutorial-level: "1"
+    tutorial-module: "M4"
+  annotations:
+    haproxy.router.openshift.io/timeout: "60s"
+    haproxy.router.openshift.io/balance: "leastconn"
+    router.openshift.io/cookie_name: "my_app_session"
+spec:
+  host: demo-app-annotated-routes-demo.apps-crc.testing
+  to:
+    kind: Service
+    name: demo-app
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge

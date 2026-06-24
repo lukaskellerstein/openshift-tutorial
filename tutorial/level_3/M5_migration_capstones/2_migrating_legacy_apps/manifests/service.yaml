@@ -1,0 +1,23 @@
+# Service for the migrated legacy application
+# Uses session affinity to handle legacy apps that store session state in memory
+apiVersion: v1
+kind: Service
+metadata:
+  name: legacy-app
+  labels:
+    app: legacy-app
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  selector:
+    app: legacy-app
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 1800

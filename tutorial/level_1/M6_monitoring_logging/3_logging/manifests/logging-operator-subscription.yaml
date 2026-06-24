@@ -1,0 +1,17 @@
+# OpenShift Logging Operator subscription — installs the Logging Operator from OperatorHub
+# This operator manages ClusterLogging and ClusterLogForwarder resources
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: cluster-logging
+  namespace: openshift-logging
+  labels:
+    app: openshift-logging
+    tutorial-level: "1"
+    tutorial-module: "M6"
+spec:
+  channel: stable-6.1
+  name: cluster-logging
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic

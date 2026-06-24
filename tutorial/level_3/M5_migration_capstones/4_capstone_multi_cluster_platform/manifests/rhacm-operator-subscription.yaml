@@ -1,0 +1,54 @@
+# RHACM Operator Subscription
+# Install Red Hat Advanced Cluster Management on the hub cluster
+# Requires OperatorHub access (connected cluster or mirrored catalog)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: open-cluster-management
+  labels:
+    app: rhacm
+    tutorial-level: "3"
+    tutorial-module: "M5"
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: open-cluster-management
+  namespace: open-cluster-management
+  labels:
+    app: rhacm
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  targetNamespaces:
+    - open-cluster-management
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: advanced-cluster-management
+  namespace: open-cluster-management
+  labels:
+    app: rhacm
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  channel: release-2.10
+  installPlanApproval: Automatic
+  name: advanced-cluster-management
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+---
+# MultiClusterHub CR -- triggers full RHACM deployment
+# Apply this after the operator CSV reaches "Succeeded" phase
+apiVersion: operator.open-cluster-management.io/v1
+kind: MultiClusterHub
+metadata:
+  name: multiclusterhub
+  namespace: open-cluster-management
+  labels:
+    app: rhacm
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  availabilityConfig: High

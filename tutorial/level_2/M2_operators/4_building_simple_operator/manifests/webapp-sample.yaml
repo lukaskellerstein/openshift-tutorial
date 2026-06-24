@@ -1,0 +1,18 @@
+apiVersion: tutorial.openshift.io/v1alpha1
+kind: WebApp
+metadata:
+  name: hello-web
+  labels:
+    app: hello-web
+    tutorial-level: "2"
+    tutorial-module: "M2"
+spec:
+  image: quay.io/redhattraining/hello-world-nginx:latest
+  replicas: 2
+  port: 8080
+  routeEnabled: true
+  resources:
+    cpuRequest: "100m"
+    cpuLimit: "500m"
+    memoryRequest: "64Mi"
+    memoryLimit: "128Mi"

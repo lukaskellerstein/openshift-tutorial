@@ -1,0 +1,123 @@
+# Sample application Deployment for the multi-cluster capstone
+# Production-quality configuration with resource limits, probes, and security
+# Compatible with restricted SCC (no root, read-only filesystem)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capstone-web
+  namespace: capstone-app
+  labels:
+    app: capstone-app
+    component: web
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: capstone-app
+      component: web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: capstone-app
+        component: web
+        tutorial-level: "3"
+        tutorial-module: "M5"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: capstone-app
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: registry.redhat.io/ubi9/httpd-24:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+              name: http
+            - containerPort: 8443
+              protocol: TCP
+              name: https
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            failureThreshold: 30
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: capstone-app
+              component: web
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: capstone-app
+  namespace: capstone-app
+  labels:
+    app: capstone-app
+    tutorial-level: "3"
+    tutorial-module: "M5"
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: capstone-web-pdb
+  namespace: capstone-app
+  labels:
+    app: capstone-app
+    component: web
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: capstone-app
+      component: web

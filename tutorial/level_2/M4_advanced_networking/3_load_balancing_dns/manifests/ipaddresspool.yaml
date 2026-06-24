@@ -1,0 +1,18 @@
+# IPAddressPool — defines the range of external IPs MetalLB can assign
+# Adjust the address range to match your network environment
+# For CRC: use addresses on the CRC VM subnet (typically 192.168.130.0/24)
+# For bare metal: use addresses routable on your network, not managed by DHCP
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: demo-pool
+  namespace: metallb-system
+  labels:
+    app: metallb
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  addresses:
+    - 192.168.130.200-192.168.130.250
+  autoAssign: true
+  avoidBuggyIPs: true

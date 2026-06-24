@@ -1,0 +1,45 @@
+# DataProtectionApplication CR — configures OADP (Velero) with:
+# - AWS S3 as the backup storage location
+# - CSI snapshots for persistent volumes
+# - Kopia for filesystem-level volume backups
+# - OpenShift plugin for Routes, ImageStreams, BuildConfigs
+apiVersion: oadp.openshift.io/v1alpha1
+kind: DataProtectionApplication
+metadata:
+  name: dr-dpa
+  namespace: openshift-adp
+  labels:
+    app: oadp
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  configuration:
+    velero:
+      defaultPlugins:
+        - openshift
+        - aws
+        - csi
+      resourceTimeout: 10m
+      defaultSnapshotMoveData: true
+    nodeAgent:
+      enable: true
+      uploaderType: kopia
+  backupLocations:
+    - velero:
+        provider: aws
+        default: true
+        objectStorage:
+          bucket: openshift-dr-backups
+          prefix: cluster-01
+        config:
+          region: us-east-1
+          profile: default
+        credential:
+          name: cloud-credentials
+          key: cloud
+  snapshotLocations:
+    - velero:
+        provider: aws
+        config:
+          region: us-east-1
+          profile: default

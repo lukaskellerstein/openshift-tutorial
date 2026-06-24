@@ -1,0 +1,58 @@
+# MachineConfig adding a custom log rotation systemd timer to worker nodes
+# Compresses and rotates /var/log/containers/ logs older than 7 days.
+# WARNING: Applying this triggers a rolling reboot of worker nodes.
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: 99-worker-custom-logrotate
+  labels:
+    machineconfiguration.openshift.io/role: worker
+    app: node-management
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      files:
+        - path: /usr/local/bin/custom-logrotate.sh
+          mode: 0755
+          overwrite: true
+          contents:
+            source: data:text/plain;charset=utf-8;base64,IyEvYmluL2Jhc2gKIyBDdXN0b20gbG9nIHJvdGF0aW9uIGZvciBjb250YWluZXIgbG9ncwojIENvbXByZXNzZXMgbG9ncyBvbGRlciB0aGFuIDEgZGF5LCBkZWxldGVzIGxvZ3Mgb2xkZXIgdGhhbiA3IGRheXMKCkxPR19ESVI9Ii92YXIvbG9nL2NvbnRhaW5lcnMiCgojIENvbXByZXNzIGxvZ3Mgb2xkZXIgdGhhbiAxIGRheQpmaW5kICIke0xPR19ESVJ9IiAtbmFtZSAiKi5sb2ciIC1tdGltZSArMSAtZXhlYyBnemlwIC1xIHt9IFw7IDI+L2Rldi9udWxsCgojIERlbGV0ZSBjb21wcmVzc2VkIGxvZ3Mgb2xkZXIgdGhhbiA3IGRheXMKZmluZCAiJHtMT0dfRElSfSIgLW5hbWUgIiouZ3oiIC1tdGltZSArNyAtZGVsZXRlIDI+L2Rldi9udWxsCgplY2hvICIkKGRhdGUpOiBMb2cgcm90YXRpb24gY29tcGxldGVkIiA+PiAvdmFyL2xvZy9jdXN0b20tbG9ncm90YXRlLmxvZwo=
+            # Decoded content:
+            # #!/bin/bash
+            # # Custom log rotation for container logs
+            # # Compresses logs older than 1 day, deletes logs older than 7 days
+            #
+            # LOG_DIR="/var/log/containers"
+            #
+            # # Compress logs older than 1 day
+            # find "${LOG_DIR}" -name "*.log" -mtime +1 -exec gzip -q {} \; 2>/dev/null
+            #
+            # # Delete compressed logs older than 7 days
+            # find "${LOG_DIR}" -name "*.gz" -mtime +7 -delete 2>/dev/null
+            #
+            # echo "$(date): Log rotation completed" >> /var/log/custom-logrotate.log
+    systemd:
+      units:
+        - name: custom-logrotate.service
+          enabled: false
+          contents: |
+            [Unit]
+            Description=Custom container log rotation
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/local/bin/custom-logrotate.sh
+        - name: custom-logrotate.timer
+          enabled: true
+          contents: |
+            [Unit]
+            Description=Run custom log rotation daily
+            [Timer]
+            OnCalendar=daily
+            Persistent=true
+            RandomizedDelaySec=3600
+            [Install]
+            WantedBy=timers.target

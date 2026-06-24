@@ -1,0 +1,26 @@
+# NetworkPolicy: Allow ingress to web-app from any pod in a namespace
+# labeled "purpose: monitoring" on port 8080.
+# This pattern is common for allowing monitoring tools (Prometheus, Grafana)
+# to scrape metrics from application pods across namespaces.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-monitoring
+  labels:
+    app: netpol-demo
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  podSelector:
+    matchLabels:
+      app: web-app
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              purpose: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080
