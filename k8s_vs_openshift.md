@@ -29,39 +29,39 @@ A comprehensive mapping of Kubernetes resources to their OpenShift equivalents, 
 
 ## Namespace & Project Resources
 
-| Resource | Kubernetes | OpenShift | Notes |
-|----------|-----------|-----------|-------|
-| Namespace | `v1 Namespace` | `v1 Namespace` (identical) | Works on OpenShift unchanged |
-| Project | — | `project.openshift.io/v1 Project` | Superset of Namespace: adds display name, description, default RBAC, self-provisioning |
-| ProjectRequest | — | `project.openshift.io/v1 ProjectRequest` | Creates a Project with default role bindings via a template |
+| Resource       | Kubernetes     | OpenShift                                | Notes                                                                                  |
+| -------------- | -------------- | ---------------------------------------- | -------------------------------------------------------------------------------------- |
+| Namespace      | `v1 Namespace` | `v1 Namespace` (identical)               | Works on OpenShift unchanged                                                           |
+| Project        | —              | `project.openshift.io/v1 Project`        | Superset of Namespace: adds display name, description, default RBAC, self-provisioning |
+| ProjectRequest | —              | `project.openshift.io/v1 ProjectRequest` | Creates a Project with default role bindings via a template                            |
 
 ## Build & Image Resources
 
-| Resource | Kubernetes | OpenShift | Notes |
-|----------|-----------|-----------|-------|
-| BuildConfig | — | `build.openshift.io/v1 BuildConfig` | Defines how to build images. Strategies: Source (S2I), Docker, Custom, Pipeline (legacy). |
-| Build | — | `build.openshift.io/v1 Build` | A single execution of a BuildConfig |
-| ImageStream | — | `image.openshift.io/v1 ImageStream` | Abstraction over image references. Enables triggers, rollback, and scheduled imports. |
-| ImageStreamTag | — | `image.openshift.io/v1 ImageStreamTag` | A specific tag within an ImageStream |
-| ImageStreamImage | — | `image.openshift.io/v1 ImageStreamImage` | An image by digest within an ImageStream |
-| ImageStreamImport | — | `image.openshift.io/v1 ImageStreamImport` | Import external images into an ImageStream |
-| ImageStreamMapping | — | `image.openshift.io/v1 ImageStreamMapping` | Used internally by the build system |
+| Resource           | Kubernetes | OpenShift                                  | Notes                                                                                     |
+| ------------------ | ---------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| BuildConfig        | —          | `build.openshift.io/v1 BuildConfig`        | Defines how to build images. Strategies: Source (S2I), Docker, Custom, Pipeline (legacy). |
+| Build              | —          | `build.openshift.io/v1 Build`              | A single execution of a BuildConfig                                                       |
+| ImageStream        | —          | `image.openshift.io/v1 ImageStream`        | Abstraction over image references. Enables triggers, rollback, and scheduled imports.     |
+| ImageStreamTag     | —          | `image.openshift.io/v1 ImageStreamTag`     | A specific tag within an ImageStream                                                      |
+| ImageStreamImage   | —          | `image.openshift.io/v1 ImageStreamImage`   | An image by digest within an ImageStream                                                  |
+| ImageStreamImport  | —          | `image.openshift.io/v1 ImageStreamImport`  | Import external images into an ImageStream                                                |
+| ImageStreamMapping | —          | `image.openshift.io/v1 ImageStreamMapping` | Used internally by the build system                                                       |
 
 ## Authentication & Authorization Resources
 
-| Resource | Kubernetes | OpenShift | Notes |
-|----------|-----------|-----------|-------|
-| ServiceAccount | `v1 ServiceAccount` | `v1 ServiceAccount` (identical) | Same API |
-| ClusterRole | `rbac.authorization.k8s.io/v1 ClusterRole` | `rbac.authorization.k8s.io/v1 ClusterRole` (identical) | Same API; OpenShift adds default roles: `admin`, `edit`, `view`, `basic-user`, `self-provisioner` |
-| Role | `rbac.authorization.k8s.io/v1 Role` | `rbac.authorization.k8s.io/v1 Role` (identical) | Same API |
-| ClusterRoleBinding | `rbac.authorization.k8s.io/v1 ClusterRoleBinding` | `rbac.authorization.k8s.io/v1 ClusterRoleBinding` (identical) | Same API |
-| RoleBinding | `rbac.authorization.k8s.io/v1 RoleBinding` | `rbac.authorization.k8s.io/v1 RoleBinding` (identical) | Same API |
-| OAuth | — | `config.openshift.io/v1 OAuth` | Configures the built-in OAuth server and identity providers |
-| OAuthClient | — | `oauth.openshift.io/v1 OAuthClient` | Registers an OAuth client for token-based auth |
-| OAuthAccessToken | — | `oauth.openshift.io/v1 OAuthAccessToken` | Represents an issued OAuth token |
-| User | — | `user.openshift.io/v1 User` | Represents an authenticated user |
-| Group | — | `user.openshift.io/v1 Group` | Groups of users for RBAC bindings |
-| Identity | — | `user.openshift.io/v1 Identity` | Maps a user to an identity provider |
+| Resource           | Kubernetes                                        | OpenShift                                                     | Notes                                                                                             |
+| ------------------ | ------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| ServiceAccount     | `v1 ServiceAccount`                               | `v1 ServiceAccount` (identical)                               | Same API                                                                                          |
+| ClusterRole        | `rbac.authorization.k8s.io/v1 ClusterRole`        | `rbac.authorization.k8s.io/v1 ClusterRole` (identical)        | Same API; OpenShift adds default roles: `admin`, `edit`, `view`, `basic-user`, `self-provisioner` |
+| Role               | `rbac.authorization.k8s.io/v1 Role`               | `rbac.authorization.k8s.io/v1 Role` (identical)               | Same API                                                                                          |
+| ClusterRoleBinding | `rbac.authorization.k8s.io/v1 ClusterRoleBinding` | `rbac.authorization.k8s.io/v1 ClusterRoleBinding` (identical) | Same API                                                                                          |
+| RoleBinding        | `rbac.authorization.k8s.io/v1 RoleBinding`        | `rbac.authorization.k8s.io/v1 RoleBinding` (identical)        | Same API                                                                                          |
+| OAuth              | —                                                 | `config.openshift.io/v1 OAuth`                                | Configures the built-in OAuth server and identity providers                                       |
+| OAuthClient        | —                                                 | `oauth.openshift.io/v1 OAuthClient`                           | Registers an OAuth client for token-based auth                                                    |
+| OAuthAccessToken   | —                                                 | `oauth.openshift.io/v1 OAuthAccessToken`                      | Represents an issued OAuth token                                                                  |
+| User               | —                                                 | `user.openshift.io/v1 User`                                   | Represents an authenticated user                                                                  |
+| Group              | —                                                 | `user.openshift.io/v1 Group`                                  | Groups of users for RBAC bindings                                                                 |
+| Identity           | —                                                 | `user.openshift.io/v1 Identity`                               | Maps a user to an identity provider                                                               |
 
 ## Security Resources
 
