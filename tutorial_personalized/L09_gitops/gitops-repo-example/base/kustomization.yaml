@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+commonLabels:
+  app: shopinsights
+  tutorial: personalized
+  lesson: "09"
+
+resources:
+  - products-deployment.yaml
+  - orders-deployment.yaml
+  - analytics-deployment.yaml
+  - dashboard-deployment.yaml
+  - services.yaml
+  - routes.yaml
+  - configmap.yaml

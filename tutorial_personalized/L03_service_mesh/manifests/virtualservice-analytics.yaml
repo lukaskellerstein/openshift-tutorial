@@ -1,0 +1,32 @@
+# VirtualService — controls traffic routing to analytics-service subsets
+# Canary deployment: 90% of traffic goes to v1 (stable), 10% to v2 (canary)
+# To shift traffic: update the weights and re-apply
+#   50/50:  weight: 50 / weight: 50
+#   full:   weight: 0  / weight: 100  (promote canary to stable)
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: analytics-service
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    component: analytics-service
+    tutorial: personalized
+    lesson: "03"
+spec:
+  hosts:
+    - analytics-service
+  http:
+    - route:
+        - destination:
+            host: analytics-service
+            subset: v1
+            port:
+              number: 8080
+          weight: 90
+        - destination:
+            host: analytics-service
+            subset: v2
+            port:
+              number: 8080
+          weight: 10

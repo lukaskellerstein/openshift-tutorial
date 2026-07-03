@@ -1,0 +1,36 @@
+# Knative Eventing Trigger — routes order events to the Analytics Service
+# When a CloudEvent with type "com.shopinsights.order.created" arrives at the
+# Broker, this Trigger forwards it to the analytics-service Knative Service.
+#
+# If the Analytics Service is scaled to zero, Knative wakes it up to handle
+# the event — true event-driven, scale-to-zero processing.
+#
+# For the Orders Service to produce events, it would POST CloudEvents to:
+#   http://broker-ingress.knative-eventing.svc.cluster.local/shopinsights/default
+#
+# Example CloudEvent payload:
+#   POST /shopinsights/default
+#   Ce-Type: com.shopinsights.order.created
+#   Ce-Source: /orders-service
+#   Ce-Id: order-12345
+#   Content-Type: application/json
+#   {"order_id": "12345", "total": 99.99, "items": 3}
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: analytics-on-new-order
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "10"
+spec:
+  broker: default
+  filter:
+    attributes:
+      type: com.shopinsights.order.created
+  subscriber:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: analytics-service

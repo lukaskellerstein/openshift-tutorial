@@ -1,0 +1,18 @@
+# EventListener: Receives GitHub webhook POST requests
+# Creates a PipelineRun via the TriggerTemplate when a push event arrives
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: shopinsights-webhook
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "08"
+spec:
+  serviceAccountName: shopinsights-pipeline
+  triggers:
+    - name: github-push
+      bindings:
+        - ref: shopinsights-github-binding
+      template:
+        ref: shopinsights-pipeline-trigger

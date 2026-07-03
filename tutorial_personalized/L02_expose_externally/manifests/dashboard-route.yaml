@@ -1,0 +1,19 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: dashboard-ui
+  labels:
+    app: shopinsights
+    component: dashboard-ui
+    tutorial: personalized
+    lesson: "02"
+spec:
+  host: dashboard-ui-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com
+  to:
+    kind: Service
+    name: dashboard-ui
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

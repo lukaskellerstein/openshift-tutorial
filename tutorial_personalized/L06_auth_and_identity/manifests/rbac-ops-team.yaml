@@ -1,0 +1,39 @@
+# RoleBindings: grant ops-user the "admin" ClusterRole on both projects
+# The "admin" role gives full control within a project, including managing
+# RBAC (RoleBindings), resource quotas, and limit ranges
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ops-user-admin-dev
+  namespace: shopinsights-dev
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "06"
+subjects:
+  - kind: User
+    name: ops-user
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ops-user-admin-staging
+  namespace: shopinsights-staging
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "06"
+subjects:
+  - kind: User
+    name: ops-user
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,53 @@
+# Task: Update the Deployment to use the newly built image
+# Uses oc CLI to patch the Deployment with the new image tag
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: deploy-to-openshift
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "08"
+spec:
+  description: Update an OpenShift Deployment with a new container image
+  params:
+    - name: deployment-name
+      type: string
+      description: Name of the Deployment to update
+    - name: image-name
+      type: string
+      description: >
+        Full image reference to set on the Deployment
+        (e.g., ghcr.io/lukaskellerstein/shopinsights-products:v1.0)
+    - name: container-name
+      type: string
+      description: Name of the container within the Deployment to update
+    - name: namespace
+      type: string
+      description: Namespace where the Deployment lives
+      default: shopinsights
+  steps:
+    - name: patch-deployment
+      image: registry.redhat.io/openshift4/ose-cli:latest
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+
+        echo "=== Deploying $(params.image-name) ==="
+        echo "Deployment: $(params.deployment-name)"
+        echo "Container:  $(params.container-name)"
+        echo "Namespace:  $(params.namespace)"
+
+        # Update the Deployment's container image
+        oc set image deployment/$(params.deployment-name) \
+          $(params.container-name)=$(params.image-name) \
+          -n $(params.namespace)
+
+        # Wait for the rollout to complete
+        echo "Waiting for rollout..."
+        oc rollout status deployment/$(params.deployment-name) \
+          -n $(params.namespace) \
+          --timeout=120s
+
+        echo "=== Deployment complete ==="
+        oc get deployment $(params.deployment-name) -n $(params.namespace)

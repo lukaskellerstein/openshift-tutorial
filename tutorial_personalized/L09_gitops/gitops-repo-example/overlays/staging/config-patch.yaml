@@ -1,0 +1,11 @@
+# Staging-specific ConfigMap patch
+# Overrides base ConfigMap values for the staging environment:
+# - INFO logging (production-like, less verbose than dev)
+# - Environment label set to "staging"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopinsights-config
+data:
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "staging"

@@ -1,0 +1,28 @@
+# Istio Gateway — exposes services through the Istio ingress gateway
+# Optional: you already have Routes (HAProxy) from L02 for external access.
+# Use this when you want mesh-level traffic management on external requests
+# (e.g., canary splitting for external users, not just internal traffic).
+#
+# To use this gateway, you also need a Route pointing to the
+# istio-ingressgateway service in istio-system:
+#   oc expose svc/istio-ingressgateway -n istio-system \
+#     --hostname=shopinsights-mesh.apps-crc.testing
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: shopinsights-gateway
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "03"
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "shopinsights-mesh.apps-crc.testing"

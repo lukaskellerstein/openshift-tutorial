@@ -1,0 +1,16 @@
+# TriggerBinding: Extracts values from a GitHub push webhook payload
+# Maps GitHub-specific JSON fields to pipeline parameters
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: shopinsights-github-binding
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "08"
+spec:
+  params:
+    - name: repo-url
+      value: $(body.repository.clone_url)
+    - name: revision
+      value: $(body.after)

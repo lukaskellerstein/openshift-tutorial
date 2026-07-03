@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namePrefix: ""
+namespace: shopinsights-staging
+
+commonLabels:
+  environment: staging
+
+resources:
+  - ../../base
+
+patches:
+  # Staging: 2 replicas per service for availability
+  - target:
+      kind: Deployment
+      name: products-service
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: Deployment
+      name: orders-service
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: Deployment
+      name: analytics-service
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: Deployment
+      name: dashboard-ui
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+  # Staging-specific ConfigMap values
+  - path: config-patch.yaml
+    target:
+      kind: ConfigMap
+      name: shopinsights-config

@@ -1,0 +1,10 @@
+apiVersion: project.openshift.io/v1
+kind: ProjectRequest
+metadata:
+  name: shopinsights-dev
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "05"
+displayName: "ShopInsights Dev"
+description: "Development environment for ShopInsights microservices"

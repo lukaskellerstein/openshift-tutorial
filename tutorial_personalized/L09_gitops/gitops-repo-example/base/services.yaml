@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: products-service
+  labels:
+    app: shopinsights
+    component: products-service
+spec:
+  selector:
+    app: shopinsights
+    component: products-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-service
+  labels:
+    app: shopinsights
+    component: orders-service
+spec:
+  selector:
+    app: shopinsights
+    component: orders-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+  labels:
+    app: shopinsights
+    component: analytics-service
+spec:
+  selector:
+    app: shopinsights
+    component: analytics-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-ui
+  labels:
+    app: shopinsights
+    component: dashboard-ui
+spec:
+  selector:
+    app: shopinsights
+    component: dashboard-ui
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

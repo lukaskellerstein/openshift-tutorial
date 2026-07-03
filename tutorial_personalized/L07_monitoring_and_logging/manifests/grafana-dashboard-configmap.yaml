@@ -1,0 +1,154 @@
+# Grafana dashboard for ShopInsights metrics.
+#
+# In vanilla Kubernetes, you install Grafana, create dashboards in the UI,
+# and optionally export them as JSON. On OpenShift, the cluster Grafana is
+# read-only (managed by the monitoring stack), but you can deploy your own
+# Grafana instance or use this ConfigMap with a community Grafana Operator.
+#
+# This ConfigMap contains a dashboard JSON that visualises the custom
+# Prometheus metrics from the Products Service.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopinsights-grafana-dashboard
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "07"
+    grafana_dashboard: "true"
+data:
+  shopinsights-dashboard.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "description": "ShopInsights Products Service Metrics",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "title": "Request Rate (req/s)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total[5m])) by (endpoint)",
+              "legendFormat": "{{ endpoint }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps"
+            }
+          }
+        },
+        {
+          "title": "Error Rate (%)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100",
+              "legendFormat": "5xx error %"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "title": "P50 / P95 / P99 Latency",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p50"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p95"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p99"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            }
+          }
+        },
+        {
+          "title": "DuckDB Query Duration by Type",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(duckdb_query_duration_seconds_bucket[5m])) by (le, query_type))",
+              "legendFormat": "p95 {{ query_type }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            }
+          }
+        },
+        {
+          "title": "Active Connections",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "expr": "active_connections",
+              "legendFormat": "connections"
+            }
+          ]
+        },
+        {
+          "title": "Total Requests (all time)",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 },
+          "targets": [
+            {
+              "expr": "sum(http_requests_total)",
+              "legendFormat": "total"
+            }
+          ]
+        },
+        {
+          "title": "Requests by Status Code",
+          "type": "piechart",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+          "targets": [
+            {
+              "expr": "sum(http_requests_total) by (status)",
+              "legendFormat": "{{ status }}"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["shopinsights", "products-service"],
+      "templating": { "list": [] },
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "ShopInsights - Products Service",
+      "uid": "shopinsights-products",
+      "version": 1
+    }

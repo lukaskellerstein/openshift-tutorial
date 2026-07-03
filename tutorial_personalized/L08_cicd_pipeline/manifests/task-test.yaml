@@ -1,0 +1,52 @@
+# Task: Run tests on the Python services
+# Installs dependencies and runs pytest for each service
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: run-tests
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "08"
+spec:
+  description: Install dependencies and run pytest on the Python services
+  params:
+    - name: service-path
+      type: string
+      description: >
+        Relative path to the service directory inside the repo
+        (e.g., shared_app/products-service)
+  workspaces:
+    - name: source
+      description: The workspace containing the cloned repo
+  steps:
+    - name: install-and-test
+      image: python:3.11-slim
+      workingDir: $(workspaces.source.path)/repo
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+
+        # Install uv
+        pip install --quiet uv
+
+        SERVICE_DIR="$(params.service-path)"
+        echo "=== Running tests for ${SERVICE_DIR} ==="
+
+        cd "${SERVICE_DIR}"
+
+        # Install project dependencies via uv + pytest/httpx for testing
+        uv sync --frozen --no-dev
+        uv pip install --system --quiet pytest httpx
+
+        # Run tests if they exist, otherwise run a basic import + health check
+        if [ -d "tests" ] || find . -name "test_*.py" -o -name "*_test.py" | grep -q .; then
+          echo "Found test files — running pytest"
+          uv run pytest -v
+        else
+          echo "No test files found — running import check and linting"
+          uv run python -c "import app; print('Module import OK')"
+          echo "Import check passed"
+        fi
+
+        echo "=== Tests complete for ${SERVICE_DIR} ==="

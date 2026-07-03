@@ -1,0 +1,80 @@
+# This is how you'd do it in vanilla K8s with Traefik IngressRoute.
+# Compare with the OpenShift Route manifests in this directory.
+#
+# Prerequisites in K8s (not needed in OpenShift):
+#   1. Install Traefik (e.g. helm install traefik traefik/traefik)
+#   2. Install cert-manager for TLS (e.g. helm install cert-manager jetstack/cert-manager)
+#   3. Create a ClusterIssuer for Let's Encrypt
+#   4. Ensure DNS records point to the Traefik LoadBalancer IP
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dashboard-ui
+  labels:
+    app: shopinsights
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`dashboard.example.com`)
+      kind: Rule
+      services:
+        - name: dashboard-ui
+          port: 8080
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: products-service
+  labels:
+    app: shopinsights
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`products.example.com`)
+      kind: Rule
+      services:
+        - name: products-service
+          port: 8080
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: orders-service
+  labels:
+    app: shopinsights
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`orders.example.com`)
+      kind: Rule
+      services:
+        - name: orders-service
+          port: 8080
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: analytics-service
+  labels:
+    app: shopinsights
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`analytics.example.com`)
+      kind: Rule
+      services:
+        - name: analytics-service
+          port: 8080
+  tls:
+    certResolver: letsencrypt

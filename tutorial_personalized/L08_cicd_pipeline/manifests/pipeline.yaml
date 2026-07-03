@@ -1,0 +1,103 @@
+# Pipeline: Full CI/CD workflow for a ShopInsights service
+# clone -> test -> build & push to GHCR -> deploy to OpenShift
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: shopinsights-cicd
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "08"
+spec:
+  description: >
+    Build, test, and deploy a ShopInsights service.
+    Clones from GitHub, runs tests, builds with buildah,
+    pushes to GHCR, and updates the Deployment.
+  params:
+    - name: repo-url
+      type: string
+      description: GitHub repository URL
+    - name: revision
+      type: string
+      description: Git branch, tag, or commit SHA
+      default: main
+    - name: service-path
+      type: string
+      description: >
+        Relative path to the service directory inside the repo
+        (e.g., shared_app/products-service)
+    - name: image-name
+      type: string
+      description: >
+        Full image reference for GHCR
+        (e.g., ghcr.io/lukaskellerstein/shopinsights-products:v1.0)
+    - name: deployment-name
+      type: string
+      description: Name of the Deployment to update
+    - name: container-name
+      type: string
+      description: Container name within the Deployment
+    - name: namespace
+      type: string
+      description: Target namespace
+      default: shopinsights
+  workspaces:
+    - name: shared-workspace
+      description: Workspace shared between Tasks for source code
+  tasks:
+    # Stage 1: Clone the repository
+    - name: clone
+      taskRef:
+        name: git-clone-shopinsights
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      params:
+        - name: repo-url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.revision)
+
+    # Stage 2: Run tests (depends on clone)
+    - name: test
+      taskRef:
+        name: run-tests
+      runAfter:
+        - clone
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      params:
+        - name: service-path
+          value: $(params.service-path)
+
+    # Stage 3: Build and push image (depends on test)
+    - name: build-push
+      taskRef:
+        name: build-push-ghcr
+      runAfter:
+        - test
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      params:
+        - name: context-dir
+          value: repo/$(params.service-path)
+        - name: image-name
+          value: $(params.image-name)
+
+    # Stage 4: Deploy to OpenShift (depends on build-push)
+    - name: deploy
+      taskRef:
+        name: deploy-to-openshift
+      runAfter:
+        - build-push
+      params:
+        - name: deployment-name
+          value: $(params.deployment-name)
+        - name: image-name
+          value: $(params.image-name)
+        - name: container-name
+          value: $(params.container-name)
+        - name: namespace
+          value: $(params.namespace)

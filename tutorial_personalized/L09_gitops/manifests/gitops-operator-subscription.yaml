@@ -1,0 +1,18 @@
+# OpenShift GitOps Operator Subscription
+# Installs ArgoCD via the Operator Lifecycle Manager (OLM)
+# Requires cluster-admin privileges (kubeadmin in CRC)
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-gitops-operator
+  namespace: openshift-operators
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "09"
+spec:
+  channel: latest
+  installPlanApproval: Automatic
+  name: openshift-gitops-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

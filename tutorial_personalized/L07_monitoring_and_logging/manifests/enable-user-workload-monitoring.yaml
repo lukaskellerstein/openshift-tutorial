@@ -1,0 +1,25 @@
+# Enable user workload monitoring in OpenShift.
+#
+# By default, the built-in Prometheus stack only monitors OpenShift
+# infrastructure (API server, etcd, nodes). To monitor YOUR applications,
+# you must set enableUserWorkload: true in the cluster-monitoring-config
+# ConfigMap in the openshift-monitoring namespace.
+#
+# This requires cluster-admin privileges:
+#   oc login -u kubeadmin ...
+#   oc apply -f enable-user-workload-monitoring.yaml
+#
+# After applying, OpenShift will deploy a dedicated Prometheus instance
+# for user workloads in the openshift-user-workload-monitoring namespace.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "07"
+data:
+  config.yaml: |
+    enableUserWorkload: true

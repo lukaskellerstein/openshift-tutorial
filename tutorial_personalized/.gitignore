@@ -1,0 +1,10 @@
+*.tmp
+*.bak
+kubeconfig
+.kube/
+node_modules/
+build/
+dist/
+__pycache__/
+*.pyc
+.env

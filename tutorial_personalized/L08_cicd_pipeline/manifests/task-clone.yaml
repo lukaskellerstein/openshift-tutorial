@@ -1,0 +1,36 @@
+# Task: Clone the Git repository into the shared workspace
+# This is a lightweight alternative to the Tekton Hub git-clone ClusterTask
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: git-clone-shopinsights
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "08"
+spec:
+  description: Clone a Git repository into the workspace
+  params:
+    - name: repo-url
+      type: string
+      description: The Git repository URL to clone
+    - name: revision
+      type: string
+      description: The Git revision (branch, tag, or commit SHA) to checkout
+      default: main
+  workspaces:
+    - name: source
+      description: The workspace to clone the repo into
+  steps:
+    - name: clone
+      image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.14
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        echo "Cloning $(params.repo-url) at revision $(params.revision)"
+        git clone --branch $(params.revision) --depth 1 \
+          $(params.repo-url) $(workspaces.source.path)/repo
+        cd $(workspaces.source.path)/repo
+        echo "Cloned commit: $(git rev-parse HEAD)"
+        echo "Repository contents:"
+        ls -la

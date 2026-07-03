@@ -1,0 +1,9 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: dashboard-ui
+  labels:
+    app: shopinsights
+    component: dashboard-ui
+    tutorial: personalized
+    lesson: "04"

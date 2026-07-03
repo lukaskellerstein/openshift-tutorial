@@ -1,0 +1,41 @@
+# PipelineRun: Execute the shopinsights-cicd pipeline manually
+# Builds the products-service as an example — change the params
+# to build orders-service or analytics-service instead
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: shopinsights-products-run-
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "08"
+    tekton.dev/pipeline: shopinsights-cicd
+spec:
+  pipelineRef:
+    name: shopinsights-cicd
+  taskRunTemplate:
+    serviceAccountName: shopinsights-pipeline
+  params:
+    - name: repo-url
+      value: https://github.com/lukaskellerstein/shopinsights.git
+    - name: revision
+      value: main
+    - name: service-path
+      value: shared_app/products-service
+    - name: image-name
+      value: ghcr.io/lukaskellerstein/shopinsights-products:latest
+    - name: deployment-name
+      value: products-service
+    - name: container-name
+      value: products-service
+    - name: namespace
+      value: shopinsights
+  workspaces:
+    - name: shared-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi

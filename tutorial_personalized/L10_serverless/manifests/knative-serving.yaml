@@ -1,0 +1,20 @@
+# KnativeServing CR — tells the Serverless operator to deploy Knative Serving
+# This creates the activator, autoscaler, controller, and webhook components
+# in the knative-serving namespace. On OpenShift, networking is handled
+# automatically via OpenShift Routes (no need to install Kourier or Istio).
+apiVersion: operator.knative.dev/v1beta1
+kind: KnativeServing
+metadata:
+  name: knative-serving
+  namespace: knative-serving
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "10"
+spec:
+  ingress:
+    istio:
+      enabled: false
+  controller-custom-certs:
+    name: ''
+    type: ''

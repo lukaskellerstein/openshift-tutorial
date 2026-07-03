@@ -1,0 +1,15 @@
+# Knative Eventing Broker — an event bus for the shopinsights namespace
+# Events are sent to the Broker by producers (e.g., Orders Service) and
+# distributed to subscribers via Triggers.
+#
+# The "default" broker uses an in-memory channel (fine for development).
+# In production, use a Kafka-backed broker for durability.
+apiVersion: eventing.knative.dev/v1
+kind: Broker
+metadata:
+  name: default
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "10"

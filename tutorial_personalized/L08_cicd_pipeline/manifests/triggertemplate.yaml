@@ -1,0 +1,56 @@
+# TriggerTemplate: Creates a PipelineRun when a webhook fires
+# Receives params from the TriggerBinding and generates a PipelineRun
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: shopinsights-pipeline-trigger
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "08"
+spec:
+  params:
+    - name: repo-url
+      description: The Git repository URL from the webhook
+    - name: revision
+      description: The Git commit SHA from the webhook
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: shopinsights-webhook-run-
+        labels:
+          app: shopinsights
+          tutorial: personalized
+          lesson: "08"
+          tekton.dev/pipeline: shopinsights-cicd
+          trigger: github-push
+      spec:
+        pipelineRef:
+          name: shopinsights-cicd
+        taskRunTemplate:
+          serviceAccountName: shopinsights-pipeline
+        params:
+          - name: repo-url
+            value: $(tt.params.repo-url)
+          - name: revision
+            value: $(tt.params.revision)
+          - name: service-path
+            value: shared_app/products-service
+          - name: image-name
+            value: ghcr.io/lukaskellerstein/shopinsights-products:latest
+          - name: deployment-name
+            value: products-service
+          - name: container-name
+            value: products-service
+          - name: namespace
+            value: shopinsights
+        workspaces:
+          - name: shared-workspace
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 1Gi

@@ -1,0 +1,26 @@
+# DestinationRule — defines v1 and v2 subsets for the analytics-service
+# Subsets map to pod labels (version: v1, version: v2),
+# enabling traffic splitting via the VirtualService.
+# Also configures mTLS for traffic to this service.
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: analytics-service
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    component: analytics-service
+    tutorial: personalized
+    lesson: "03"
+spec:
+  host: analytics-service
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL  # Use mesh-provided certificates for mTLS
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+    - name: v2
+      labels:
+        version: v2

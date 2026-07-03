@@ -1,0 +1,11 @@
+# Dev-specific ConfigMap patch
+# Overrides base ConfigMap values for the dev environment:
+# - DEBUG logging for easier troubleshooting
+# - Environment label set to "dev"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopinsights-config
+data:
+  LOG_LEVEL: "DEBUG"
+  ENVIRONMENT: "dev"

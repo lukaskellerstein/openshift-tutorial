@@ -1,0 +1,25 @@
+# ServiceMonitor tells Prometheus HOW to scrape your service.
+#
+# In vanilla Kubernetes you would configure prometheus.yml scrape_configs
+# by hand (or use the Prometheus Operator if you installed it yourself).
+# On OpenShift, the Prometheus Operator is pre-installed — you just create
+# a ServiceMonitor custom resource and Prometheus picks it up automatically.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: products-service-monitor
+  labels:
+    app: shopinsights
+    component: products-service
+    tutorial: personalized
+    lesson: "07"
+spec:
+  selector:
+    matchLabels:
+      app: shopinsights
+      component: products-service
+  endpoints:
+    - port: "8080"
+      path: /metrics
+      interval: 15s
+      scheme: http

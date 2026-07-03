@@ -1,0 +1,16 @@
+# ServiceMeshMemberRoll — enrolls namespaces into the service mesh
+# Must be named "default" and live in the same namespace as the SMCP
+# In upstream Istio, you'd label namespaces with istio-injection=enabled instead;
+# here enrollment is explicit, giving better multi-tenant isolation
+apiVersion: maistra.io/v1
+kind: ServiceMeshMemberRoll
+metadata:
+  name: default
+  namespace: istio-system
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "03"
+spec:
+  members:
+    - shopinsights

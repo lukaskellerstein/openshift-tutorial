@@ -1,0 +1,12 @@
+# ServiceAccount for the Tekton pipeline
+# Links to GHCR credentials so pipeline Tasks can push images
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: shopinsights-pipeline
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "08"
+secrets:
+  - name: ghcr-credentials

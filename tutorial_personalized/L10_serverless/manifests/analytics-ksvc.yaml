@@ -1,0 +1,54 @@
+# Knative Service for Analytics — replaces the Deployment + Service from L01
+# The container spec is the same as the original Deployment, but wrapped in
+# the Knative Service format. Knative handles scaling (including to zero),
+# routing, and revision management automatically.
+#
+# Compare with ../L01_deploy_microservices/manifests/analytics-deployment.yaml
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    component: analytics-service
+    tutorial: personalized
+    lesson: "10"
+spec:
+  template:
+    metadata:
+      labels:
+        app: shopinsights
+        component: analytics-service
+      annotations:
+        # Scale to zero after 60 seconds of no requests
+        autoscaling.knative.dev/window: "60s"
+        # Target 10 concurrent requests per pod before scaling up
+        autoscaling.knative.dev/target: "10"
+        # Allow scaling to zero (this is the default, but explicit is clearer)
+        autoscaling.knative.dev/minScale: "0"
+        # Cap at 5 pods maximum
+        autoscaling.knative.dev/maxScale: "5"
+    spec:
+      containers:
+        - image: ghcr.io/lukaskellerstein/shopinsights-analytics:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          envFrom:
+            - configMapRef:
+                name: shopinsights-config
+            - secretRef:
+                name: shopinsights-secrets

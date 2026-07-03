@@ -1,0 +1,29 @@
+# ArgoCD Application — ShopInsights Staging Environment
+# Points at the overlays/staging Kustomize overlay in the GitOps repo.
+# Automatic sync with self-heal and prune enabled — the cluster always matches Git.
+# Replace <your-username> with your actual GitHub username before applying.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: shopinsights-staging
+  namespace: openshift-gitops
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "09"
+    environment: staging
+spec:
+  project: shopinsights
+  source:
+    repoURL: https://github.com/<your-username>/shopinsights-gitops.git
+    targetRevision: main
+    path: overlays/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: shopinsights-staging
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false

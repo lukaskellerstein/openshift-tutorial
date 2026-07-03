@@ -1,0 +1,59 @@
+# Knative Service with traffic split — 90% to v1 (revision 00001), 10% to v2 (revision 00002)
+# This enables canary deployments at the Knative level without needing Istio
+# VirtualService or DestinationRule resources.
+#
+# Apply this after creating a second Revision (Step 8 in the lesson).
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    component: analytics-service
+    tutorial: personalized
+    lesson: "10"
+spec:
+  template:
+    metadata:
+      labels:
+        app: shopinsights
+        component: analytics-service
+      annotations:
+        autoscaling.knative.dev/window: "60s"
+        autoscaling.knative.dev/target: "10"
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "5"
+    spec:
+      containers:
+        - image: ghcr.io/lukaskellerstein/shopinsights-analytics:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          envFrom:
+            - configMapRef:
+                name: shopinsights-config
+            - secretRef:
+                name: shopinsights-secrets
+          env:
+            - name: APP_VERSION
+              value: "v2"
+  traffic:
+    # 90% of traffic goes to the original revision (v1)
+    - revisionName: analytics-service-00001
+      percent: 90
+    # 10% of traffic goes to the new revision (v2) — canary
+    - revisionName: analytics-service-00002
+      percent: 10

@@ -1,0 +1,55 @@
+# PrometheusRule defines alerting rules that the built-in Alertmanager evaluates.
+#
+# In vanilla Kubernetes you would edit Prometheus alerting rule files directly
+# (or use the Prometheus Operator). On OpenShift, you create a PrometheusRule
+# CR in your project namespace and it is automatically loaded.
+#
+# This rule fires when the average request latency for the Products Service
+# exceeds 500ms over a 5-minute window.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: products-alerting-rules
+  labels:
+    app: shopinsights
+    component: products-service
+    tutorial: personalized
+    lesson: "07"
+spec:
+  groups:
+    - name: shopinsights-products
+      rules:
+        - alert: ProductsHighLatency
+          expr: |
+            (
+              rate(http_request_duration_seconds_sum{endpoint=~"/products.*"}[5m])
+              /
+              rate(http_request_duration_seconds_count{endpoint=~"/products.*"}[5m])
+            ) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+            service: products-service
+          annotations:
+            summary: "Products Service high latency"
+            description: >-
+              The average request latency for the Products Service has
+              exceeded 500ms for the last 5 minutes.
+              Current value: {{ $value | printf "%.3f" }}s.
+        - alert: ProductsHighErrorRate
+          expr: |
+            (
+              rate(http_requests_total{endpoint=~"/products.*", status=~"5.."}[5m])
+              /
+              rate(http_requests_total{endpoint=~"/products.*"}[5m])
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+            service: products-service
+          annotations:
+            summary: "Products Service high error rate"
+            description: >-
+              More than 5% of requests to the Products Service are
+              returning 5xx errors over the last 5 minutes.
+              Current value: {{ $value | printf "%.2f" }}.

@@ -1,0 +1,67 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: products-service
+  labels:
+    app: shopinsights
+    component: products-service
+spec:
+  to:
+    kind: Service
+    name: products-service
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: orders-service
+  labels:
+    app: shopinsights
+    component: orders-service
+spec:
+  to:
+    kind: Service
+    name: orders-service
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: analytics-service
+  labels:
+    app: shopinsights
+    component: analytics-service
+spec:
+  to:
+    kind: Service
+    name: analytics-service
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: dashboard-ui
+  labels:
+    app: shopinsights
+    component: dashboard-ui
+spec:
+  to:
+    kind: Service
+    name: dashboard-ui
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

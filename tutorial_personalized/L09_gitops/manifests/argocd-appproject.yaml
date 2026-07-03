@@ -1,0 +1,31 @@
+# ArgoCD AppProject for ShopInsights
+# Defines which Git repos and namespaces the ShopInsights ArgoCD Applications can access.
+# Replace <your-username> with your actual GitHub username before applying.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: shopinsights
+  namespace: openshift-gitops
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "09"
+spec:
+  description: ShopInsights application project
+  sourceRepos:
+    - "https://github.com/<your-username>/shopinsights-gitops.git"
+  destinations:
+    - namespace: shopinsights-dev
+      server: https://kubernetes.default.svc
+    - namespace: shopinsights-staging
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: apps
+      kind: Deployment
+    - group: route.openshift.io
+      kind: Route

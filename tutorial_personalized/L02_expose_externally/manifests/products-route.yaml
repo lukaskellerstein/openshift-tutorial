@@ -1,0 +1,19 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: products-service
+  labels:
+    app: shopinsights
+    component: products-service
+    tutorial: personalized
+    lesson: "02"
+spec:
+  host: products-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com
+  to:
+    kind: Service
+    name: products-service
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

@@ -1,0 +1,28 @@
+# BuildConfig using Docker strategy for the Dashboard UI
+# Uses the multi-stage Dockerfile: Node build → nginx serve
+# S2I cannot handle multi-stage builds, so Docker strategy is required here
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: dashboard-ui
+  labels:
+    app: shopinsights
+    component: dashboard-ui
+    tutorial: personalized
+    lesson: "04"
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/lukaskellerstein/openshift-tutorial.git
+    contextDir: tutorial_personalized/shared_app/dashboard-ui
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: dashboard-ui:latest
+  triggers:
+    - type: ConfigChange
