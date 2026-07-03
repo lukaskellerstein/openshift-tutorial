@@ -1,11 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-IMAGE="ghcr.io/lukaskellerstein/openshift-tutorial/shopinsights-dashboard:latest"
+REGISTRY_USER="${REGISTRY_USER:-your-username}"
+IMAGE="ghcr.io/${REGISTRY_USER}/openshift-tutorial/shopinsights-dashboard:latest"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "$IMAGE — logging in to ghcr.io..."
-echo "$(gh auth token)" | podman login ghcr.io -u lukaskellerstein --password-stdin
+echo "$(gh auth token)" | podman login ghcr.io -u "${REGISTRY_USER}" --password-stdin
 
 echo "Building $IMAGE..."
 podman build --platform linux/amd64 -t "$IMAGE" "$SCRIPT_DIR"

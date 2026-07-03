@@ -30,7 +30,7 @@ spec:
       type: string
       description: >
         Full image reference for GHCR
-        (e.g., ghcr.io/lukaskellerstein/shopinsights-products:v1.0)
+        (e.g., ghcr.io/<your-username>/shopinsights-products:v1.0)
     - name: deployment-name
       type: string
       description: Name of the Deployment to update

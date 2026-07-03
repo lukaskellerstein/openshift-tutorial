@@ -513,7 +513,7 @@ cd <your-gitops-repo>
 # Update the image tag in the base deployment
 # Using kustomize edit or sed:
 cd overlays/dev
-kustomize edit set image ghcr.io/lukaskellerstein/shopinsights-products:v1.2.3
+kustomize edit set image ghcr.io/<your-username>/shopinsights-products:v1.2.3
 
 git add .
 git commit -m "Update products-service to v1.2.3"

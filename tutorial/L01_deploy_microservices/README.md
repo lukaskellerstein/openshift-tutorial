@@ -171,7 +171,7 @@ Look at the key parts of the Deployment manifest:
 spec:
   containers:
     - name: products-service
-      image: ghcr.io/lukaskellerstein/openshift-tutorial/shopinsights-products:latest
+      image: ghcr.io/<your-username>/openshift-tutorial/shopinsights-products:latest
       ports:
         - containerPort: 8080          # Non-privileged port (SCC compatible)
       resources:

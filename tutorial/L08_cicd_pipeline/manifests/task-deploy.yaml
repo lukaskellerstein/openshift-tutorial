@@ -18,7 +18,7 @@ spec:
       type: string
       description: >
         Full image reference to set on the Deployment
-        (e.g., ghcr.io/lukaskellerstein/shopinsights-products:v1.0)
+        (e.g., ghcr.io/<your-username>/shopinsights-products:v1.0)
     - name: container-name
       type: string
       description: Name of the container within the Deployment to update

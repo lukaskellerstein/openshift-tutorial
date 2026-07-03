@@ -75,7 +75,7 @@ The advantage: no Dockerfile needed. The disadvantage: less control over the bui
 
 ### ImageStreams
 
-An ImageStream is an OpenShift abstraction over container image references. Instead of pointing your Deployment at `ghcr.io/lukaskellerstein/shopinsights-products:latest`, you point it at an ImageStream tag like `products-service:latest`.
+An ImageStream is an OpenShift abstraction over container image references. Instead of pointing your Deployment at `ghcr.io/<your-username>/shopinsights-products:latest`, you point it at an ImageStream tag like `products-service:latest`.
 
 Why this matters:
 
@@ -148,7 +148,7 @@ spec:
   source:
     type: Git
     git:
-      uri: https://github.com/lukaskellerstein/openshift-tutorial.git
+      uri: https://github.com/<your-username>/openshift-tutorial.git
     contextDir: tutorial/shared_app/products-service
   strategy:
     type: Source
@@ -241,7 +241,7 @@ spec:
   source:
     type: Git
     git:
-      uri: https://github.com/lukaskellerstein/openshift-tutorial.git
+      uri: https://github.com/<your-username>/openshift-tutorial.git
     contextDir: tutorial/shared_app/dashboard-ui
   strategy:
     type: Docker

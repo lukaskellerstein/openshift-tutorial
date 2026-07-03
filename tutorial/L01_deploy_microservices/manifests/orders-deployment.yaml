@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: orders-service
-          image: ghcr.io/lukaskellerstein/openshift-tutorial/shopinsights-orders:latest
+          image: ghcr.io/<your-username>/openshift-tutorial/shopinsights-orders:latest
           ports:
             - containerPort: 8080
           resources:

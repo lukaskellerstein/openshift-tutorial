@@ -14,7 +14,7 @@ spec:
   source:
     type: Git
     git:
-      uri: https://github.com/lukaskellerstein/openshift-tutorial.git
+      uri: https://github.com/<your-username>/openshift-tutorial.git
     contextDir: tutorial_personalized/shared_app/dashboard-ui
   strategy:
     type: Docker

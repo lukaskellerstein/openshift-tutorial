@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: dashboard-ui
-          image: ghcr.io/lukaskellerstein/shopinsights-dashboard:latest
+          image: ghcr.io/<your-username>/shopinsights-dashboard:latest
           ports:
             - containerPort: 8080
           resources:

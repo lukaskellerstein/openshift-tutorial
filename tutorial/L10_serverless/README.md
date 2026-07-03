@@ -319,7 +319,7 @@ spec:
         autoscaling.knative.dev/maxScale: "5"
     spec:
       containers:
-        - image: ghcr.io/lukaskellerstein/shopinsights-analytics:latest
+        - image: ghcr.io/<your-username>/shopinsights-analytics:latest
           ports:
             - containerPort: 8080
           resources:
@@ -507,7 +507,7 @@ oc patch ksvc analytics-service -n shopinsights --type merge -p '{
       },
       "spec": {
         "containers": [{
-          "image": "ghcr.io/lukaskellerstein/shopinsights-analytics:latest",
+          "image": "ghcr.io/<your-username>/shopinsights-analytics:latest",
           "env": [{
             "name": "APP_VERSION",
             "value": "v2"

@@ -672,7 +672,7 @@ oc delete configmap shopinsights-grafana-dashboard
 
 # Roll back the products-service to the original image
 oc set image deployment/products-service \
-  products-service=ghcr.io/lukaskellerstein/shopinsights-products:latest
+  products-service=ghcr.io/<your-username>/shopinsights-products:latest
 oc rollout status deployment/products-service
 
 # (Optional) Disable user workload monitoring — requires kubeadmin

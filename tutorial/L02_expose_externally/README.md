@@ -39,7 +39,7 @@ A Route is an OpenShift-native resource (`route.openshift.io/v1`) that maps an e
 Key properties of Routes:
 
 - **Pre-installed**: The router runs in the `openshift-ingress` namespace from day one. No installation required.
-- **Automatic hostname generation**: If you omit `spec.host`, OpenShift generates `<route-name>-<project>.<apps-domain>` (e.g., `<route-name>-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com`).
+- **Automatic hostname generation**: If you omit `spec.host`, OpenShift generates `<route-name>-<project>.<cluster-domain>` (e.g., `<route-name>-<project>.<cluster-domain>`).
 - **Built-in TLS**: Edge TLS is available immediately using the router's wildcard certificate. No cert-manager needed.
 - **HAProxy features**: The router supports sticky sessions, rate limiting, IP whitelisting, and custom timeouts via Route annotations.
 
@@ -66,7 +66,7 @@ Every OpenShift cluster has a wildcard apps domain. When you create a Route, Ope
 For example, a Route named `dashboard-ui` in the `shopinsights` project gets:
 
 ```
-dashboard-ui-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com
+dashboard-ui-<project>.<cluster-domain>
 ```
 
 You can override this with `spec.host`, but the automatic generation is convenient for development.
@@ -146,7 +146,6 @@ metadata:
     tutorial: personalized
     lesson: "02"
 spec:
-  host: dashboard-ui-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com
   to:
     kind: Service
     name: dashboard-ui
@@ -157,9 +156,10 @@ spec:
     insecureEdgeTerminationPolicy: Redirect
 ```
 
+> **Note:** OpenShift auto-generates the route hostname from the route name, project, and cluster domain. Your URLs will look different from the examples — use `oc get routes` to find your actual hostnames.
+
 Key fields:
 
-- **`spec.host`**: The external hostname. We set it explicitly for clarity, but you could omit it and let OpenShift generate it.
 - **`spec.to`**: Points to the `dashboard-ui` Service created in L01.
 - **`spec.port.targetPort`**: The port on the Service (8080).
 - **`tls.termination: edge`**: TLS terminates at the router. Traffic from the router to the pod is plain HTTP.
@@ -183,7 +183,6 @@ metadata:
     tutorial: personalized
     lesson: "02"
 spec:
-  host: products-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com
   to:
     kind: Service
     name: products-service
@@ -212,7 +211,6 @@ metadata:
     tutorial: personalized
     lesson: "02"
 spec:
-  host: orders-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com
   to:
     kind: Service
     name: orders-service
@@ -241,7 +239,6 @@ metadata:
     tutorial: personalized
     lesson: "02"
 spec:
-  host: analytics-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com
   to:
     kind: Service
     name: analytics-service
@@ -264,31 +261,31 @@ Expected output:
 
 ```
 NAME                HOST/PORT                                          PATH   SERVICES            PORT   TERMINATION     WILDCARD
-analytics-service   analytics-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com           analytics-service   8080   edge/Redirect   None
-dashboard-ui        dashboard-ui-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com                dashboard-ui        8080   edge/Redirect   None
-orders-service      orders-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com              orders-service      8080   edge/Redirect   None
-products-service    products-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com            products-service    8080   edge/Redirect   None
+analytics-service   analytics-service-<project>.<cluster-domain>           analytics-service   8080   edge/Redirect   None
+dashboard-ui        dashboard-ui-<project>.<cluster-domain>                dashboard-ui        8080   edge/Redirect   None
+orders-service      orders-service-<project>.<cluster-domain>              orders-service      8080   edge/Redirect   None
+products-service    products-service-<project>.<cluster-domain>            products-service    8080   edge/Redirect   None
 ```
 
-Test each Route with `curl`:
+Test each Route with `curl` (use `oc get route <name> -o jsonpath='{.spec.host}'` to get the actual hostname):
 
 ```bash
 # Dashboard UI
-curl -sk https://dashboard-ui-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/
+curl -sk https://$(oc get route dashboard-ui -o jsonpath='{.spec.host}')/
 
 # Products API
-curl -sk https://products-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/products
+curl -sk https://$(oc get route products-service -o jsonpath='{.spec.host}')/products
 
 # Orders API
-curl -sk https://orders-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/orders
+curl -sk https://$(oc get route orders-service -o jsonpath='{.spec.host}')/orders
 
 # Analytics API
-curl -sk https://analytics-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/analytics/summary
+curl -sk https://$(oc get route analytics-service -o jsonpath='{.spec.host}')/analytics/summary
 
 # Health endpoints
-curl -sk https://products-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/healthz
-curl -sk https://orders-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/healthz
-curl -sk https://analytics-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/healthz
+curl -sk https://$(oc get route products-service -o jsonpath='{.spec.host}')/healthz
+curl -sk https://$(oc get route orders-service -o jsonpath='{.spec.host}')/healthz
+curl -sk https://$(oc get route analytics-service -o jsonpath='{.spec.host}')/healthz
 ```
 
 The `-sk` flags: `-s` suppresses the progress bar, `-k` skips TLS certificate verification (CRC uses a self-signed certificate).
@@ -298,14 +295,14 @@ The `-sk` flags: `-s` suppresses the progress bar, `-k` skips TLS certificate ve
 Because we set `insecureEdgeTerminationPolicy: Redirect`, HTTP requests are automatically redirected to HTTPS:
 
 ```bash
-curl -sI http://dashboard-ui-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/ 2>&1 | head -5
+curl -sI http://$(oc get route dashboard-ui -o jsonpath='{.spec.host}')/ 2>&1 | head -5
 ```
 
 Expected output:
 
 ```
 HTTP/1.1 302 Found
-location: https://dashboard-ui-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/
+location: https://dashboard-ui-<project>.<cluster-domain>/
 ```
 
 ### Step 7: View Routes in the Web Console
@@ -328,19 +325,19 @@ oc get routes -l app=shopinsights -o custom-columns=NAME:.metadata.name,HOST:.sp
 
 echo ""
 echo "=== Dashboard UI ==="
-curl -sk -o /dev/null -w "HTTP %{http_code}\n" https://dashboard-ui-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/
+curl -sk -o /dev/null -w "HTTP %{http_code}\n" https://$(oc get route dashboard-ui -o jsonpath='{.spec.host}')/
 
 echo "=== Products API ==="
-curl -sk -o /dev/null -w "HTTP %{http_code}\n" https://products-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/healthz
+curl -sk -o /dev/null -w "HTTP %{http_code}\n" https://$(oc get route products-service -o jsonpath='{.spec.host}')/healthz
 
 echo "=== Orders API ==="
-curl -sk -o /dev/null -w "HTTP %{http_code}\n" https://orders-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/healthz
+curl -sk -o /dev/null -w "HTTP %{http_code}\n" https://$(oc get route orders-service -o jsonpath='{.spec.host}')/healthz
 
 echo "=== Analytics API ==="
-curl -sk -o /dev/null -w "HTTP %{http_code}\n" https://analytics-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/healthz
+curl -sk -o /dev/null -w "HTTP %{http_code}\n" https://$(oc get route analytics-service -o jsonpath='{.spec.host}')/healthz
 
 echo "=== HTTP Redirect ==="
-curl -sk -o /dev/null -w "HTTP %{http_code}\n" http://dashboard-ui-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com/
+curl -sk -o /dev/null -w "HTTP %{http_code}\n" http://$(oc get route dashboard-ui -o jsonpath='{.spec.host}')/
 ```
 
 Expected output:
@@ -348,10 +345,10 @@ Expected output:
 ```
 === Routes ===
 NAME                HOST                                               TLS    SERVICE
-analytics-service   analytics-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com    edge   analytics-service
-dashboard-ui        dashboard-ui-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com         edge   dashboard-ui
-orders-service      orders-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com       edge   orders-service
-products-service    products-service-rh-ee-lkellers-dev.apps.rm1.0a51.p1.openshiftapps.com     edge   products-service
+analytics-service   analytics-service-<project>.<cluster-domain>    edge   analytics-service
+dashboard-ui        dashboard-ui-<project>.<cluster-domain>         edge   dashboard-ui
+orders-service      orders-service-<project>.<cluster-domain>       edge   orders-service
+products-service    products-service-<project>.<cluster-domain>     edge   products-service
 
 === Dashboard UI ===
 HTTP 200

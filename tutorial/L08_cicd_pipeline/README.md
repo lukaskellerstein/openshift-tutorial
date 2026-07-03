@@ -359,7 +359,7 @@ spec:
       description: Path to the build context relative to the workspace root
     - name: image-name
       type: string
-      description: Full image reference (e.g., ghcr.io/lukaskellerstein/shopinsights-products:v1.0)
+      description: Full image reference (e.g., ghcr.io/<your-username>/shopinsights-products:v1.0)
     - name: dockerfile
       type: string
       default: Dockerfile
@@ -578,13 +578,13 @@ spec:
     serviceAccountName: shopinsights-pipeline
   params:
     - name: repo-url
-      value: https://github.com/lukaskellerstein/shopinsights.git
+      value: https://github.com/<your-username>/shopinsights.git
     - name: revision
       value: main
     - name: service-path
       value: shared_app/products-service
     - name: image-name
-      value: ghcr.io/lukaskellerstein/shopinsights-products:latest
+      value: ghcr.io/<your-username>/shopinsights-products:latest
     - name: deployment-name
       value: products-service
     - name: container-name
@@ -609,10 +609,10 @@ Alternatively, use the `tkn` CLI to start the pipeline interactively:
 ```bash
 tkn pipeline start shopinsights-cicd \
   --serviceaccount shopinsights-pipeline \
-  --param repo-url=https://github.com/lukaskellerstein/shopinsights.git \
+  --param repo-url=https://github.com/<your-username>/shopinsights.git \
   --param revision=main \
   --param service-path=shared_app/products-service \
-  --param image-name=ghcr.io/lukaskellerstein/shopinsights-products:latest \
+  --param image-name=ghcr.io/<your-username>/shopinsights-products:latest \
   --param deployment-name=products-service \
   --param container-name=products-service \
   --param namespace=shopinsights \
@@ -723,7 +723,7 @@ spec:
           - name: service-path
             value: shared_app/products-service
           - name: image-name
-            value: ghcr.io/lukaskellerstein/shopinsights-products:latest
+            value: ghcr.io/<your-username>/shopinsights-products:latest
           - name: deployment-name
             value: products-service
           - name: container-name
@@ -767,7 +767,7 @@ echo "https://$(oc get route shopinsights-webhook -o jsonpath='{.spec.host}')"
 
 ### Step 12: Configure the GitHub Webhook
 
-1. Go to your GitHub repository: https://github.com/lukaskellerstein/shopinsights/settings/hooks
+1. Go to your GitHub repository: https://github.com/<your-username>/shopinsights/settings/hooks
 2. Click **Add webhook**
 3. Set the **Payload URL** to the Route URL from Step 11
 4. Set **Content type** to `application/json`
@@ -786,7 +786,7 @@ curl -sk -X POST "${WEBHOOK_URL}" \
   -d '{
     "after": "main",
     "repository": {
-      "clone_url": "https://github.com/lukaskellerstein/shopinsights.git"
+      "clone_url": "https://github.com/<your-username>/shopinsights.git"
     }
   }'
 ```

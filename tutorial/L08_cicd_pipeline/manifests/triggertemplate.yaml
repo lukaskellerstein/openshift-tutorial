@@ -38,7 +38,7 @@ spec:
           - name: service-path
             value: shared_app/products-service
           - name: image-name
-            value: ghcr.io/lukaskellerstein/shopinsights-products:latest
+            value: ghcr.io/<your-username>/shopinsights-products:latest
           - name: deployment-name
             value: products-service
           - name: container-name

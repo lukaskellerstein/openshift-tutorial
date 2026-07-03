@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: products-service
-          image: ghcr.io/lukaskellerstein/shopinsights-products:latest
+          image: ghcr.io/<your-username>/shopinsights-products:latest
           ports:
             - containerPort: 8080
           resources:
