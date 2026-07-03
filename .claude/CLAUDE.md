@@ -2,14 +2,7 @@
 
 ## Purpose
 
-This is a comprehensive, three-level tutorial for OpenShift targeting developers and DevOps engineers who already know Kubernetes. Every lesson starts from a Kubernetes concept the reader knows, then shows the OpenShift equivalent — what it adds, what it restricts, and why.
-
-The tutorial is structured in three progressive levels:
-- **Level 1 — Foundations**: Kubernetes → OpenShift. Touch every major platform difference (~20-30 min lessons).
-- **Level 2 — Practitioner**: Real-world workflows — CI/CD, operators, service mesh, security (~45-90 min lessons).
-- **Level 3 — Expert**: Production operations — multi-cluster, performance, migration, capstones.
-
-The full syllabus lives in `tutorial_syllabus.md` — always consult it for module structure, lesson topics, and time estimates before creating or modifying any lesson.
+This is a project-based OpenShift tutorial for developers who already know Kubernetes. One application ("ShopInsights"), ten lessons, ~8 hours. Each lesson adds an OpenShift capability to the same microservices stack — Routes, Service Mesh, CI/CD, GitOps, monitoring, and serverless.
 
 ## Technical Stack
 
@@ -28,38 +21,33 @@ The full syllabus lives in `tutorial_syllabus.md` — always consult it for modu
 ## Project Layout
 
 ```
-tutorial_syllabus.md                # Master syllabus — the source of truth
 tutorial/
-  level_1/                          # Level 1: Foundations
-    M1_platform_setup/
-    M2_projects_users_rbac/
-    M3_application_deployment/
-    M4_networking_routes/
-    M5_storage/
-    M6_monitoring_logging/
-  level_2/                          # Level 2: Practitioner
-    M1_cicd/
-    M2_operators/
-    M3_service_mesh_serverless/
-    M4_advanced_networking/
-    M5_security_hardening/
-    M6_developer_experience/
-  level_3/                          # Level 3: Expert
-    M1_cluster_administration/
-    M2_multi_cluster/
-    M3_performance_troubleshooting/
-    M4_advanced_workloads/
-    M5_migration_capstones/
+  README.md                        # Tutorial overview
+  shared_app/                      # ShopInsights application source code
+    products-service/
+    orders-service/
+    analytics-service/
+    dashboard-ui/
+  L01_deploy_microservices/
+  L02_expose_externally/
+  L03_service_mesh/
+  L04_builds_and_images/
+  L05_projects/
+  L06_auth_and_identity/
+  L07_monitoring_and_logging/
+  L08_cicd_pipeline/
+  L09_gitops/
+  L10_serverless/
+k8s_vs_openshift.md                # Full K8s ↔ OpenShift resource mapping
+tutorial_syllabus.md               # Original comprehensive syllabus (reference)
 ```
 
 Each lesson is a self-contained directory:
 ```
-N_lesson_name/
+LNN_lesson_name/
   README.md             # Lesson guide with explanation, steps, expected output
   manifests/            # YAML manifests (Deployments, Routes, BuildConfigs, etc.)
   scripts/              # Shell scripts for setup, teardown, demos
-  app/                  # Application source code (if the lesson deploys an app)
-  .gitignore            # Ignore temp files, credentials
 ```
 
 ## Environment Setup

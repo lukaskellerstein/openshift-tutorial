@@ -1,9 +1,0 @@
-# Namespace for centralized platform policies
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: platform-policies
-  labels:
-    app: capstone-platform
-    tutorial-level: "3"
-    tutorial-module: "M5"

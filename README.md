@@ -4,54 +4,31 @@
 [![OpenShift](https://img.shields.io/badge/OpenShift-4.x-EE0000?logo=redhatopenshift&logoColor=white)](https://www.redhat.com/en/technologies/cloud-computing/openshift)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-knowledge%20required-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 
-> A comprehensive, three-level tutorial for developers and DevOps engineers who already know Kubernetes and want to master OpenShift.
+> A project-based OpenShift tutorial for developers who already know Kubernetes. One app, ten lessons, ~8 hours.
 
-Every lesson starts from a Kubernetes concept you already know, then shows the OpenShift equivalent — what it adds, what it restricts, and why. 68 hands-on lessons, 500+ YAML manifests, structured across three progressive difficulty levels.
+You know Kubernetes. You use Traefik, Keycloak, and vanilla K8s. Now you want to understand OpenShift — not every feature, but the ones that matter for running real microservices. Each lesson adds an OpenShift capability to the same "ShopInsights" application. By the end, you have a production-ready microservices platform with Routes, Service Mesh, CI/CD, GitOps, monitoring, and serverless.
 
 ## Features
 
 - **K8s-first approach** — each topic bridges from what you know in vanilla Kubernetes to the OpenShift way
-- **Three progressive levels** — Foundations, Practitioner, and Expert, from 20-minute intro lessons to 2-hour production capstones
+- **Project-based** — one application (ShopInsights) evolves across all 10 lessons
 - **Fully hands-on** — every lesson includes manifests, CLI commands, and verification steps you can run on OpenShift Local (CRC)
 - **Self-contained lessons** — each lesson has its own README, manifests, scripts, and cleanup instructions
-- **Real-world workflows** — CI/CD pipelines with Tekton + ArgoCD, service mesh, operators, multi-cluster management
-- **Production patterns** — security hardening, disaster recovery, performance tuning, compliance scanning
+- **Real-world workflows** — CI/CD pipelines with Tekton, GitOps with ArgoCD, service mesh, monitoring, and serverless
 
 ## Architecture
 
 ```mermaid
-graph TD
-    subgraph "Level 1 — Foundations"
-        M1_1[M1: Platform Setup]
-        M2_1[M2: Projects & RBAC]
-        M3_1[M3: App Deployment]
-        M4_1[M4: Networking & Routes]
-        M5_1[M5: Storage]
-        M6_1[M6: Monitoring & Logging]
-    end
-
-    subgraph "Level 2 — Practitioner"
-        M1_2[M1: CI/CD]
-        M2_2[M2: Operators]
-        M3_2[M3: Service Mesh & Serverless]
-        M4_2[M4: Advanced Networking]
-        M5_2[M5: Security Hardening]
-        M6_2[M6: Developer Experience]
-    end
-
-    subgraph "Level 3 — Expert"
-        M1_3[M1: Cluster Administration]
-        M2_3[M2: Multi-Cluster]
-        M3_3[M3: Performance & Troubleshooting]
-        M4_3[M4: Advanced Workloads]
-        M5_3[M5: Migration & Capstones]
-    end
-
-    M1_1 --> M2_1 --> M3_1 --> M4_1 --> M5_1 --> M6_1
-    M6_1 --> M1_2
-    M1_2 --> M2_2 --> M3_2 --> M4_2 --> M5_2 --> M6_2
-    M6_2 --> M1_3
-    M1_3 --> M2_3 --> M3_3 --> M4_3 --> M5_3
+graph LR
+    L01[L01: Deploy] --> L02[L02: Routes]
+    L02 --> L03[L03: Service Mesh]
+    L03 --> L04[L04: Builds & Images]
+    L04 --> L05[L05: Projects]
+    L05 --> L06[L06: Auth & Identity]
+    L06 --> L07[L07: Monitoring]
+    L07 --> L08[L08: CI/CD]
+    L08 --> L09[L09: GitOps]
+    L09 --> L10[L10: Serverless]
 ```
 
 ## Quick Start
@@ -82,43 +59,24 @@ oc login -u developer -p developer https://api.crc.testing:6443
 
 ### Start Learning
 
-Open `tutorial/level_1/M1_platform_setup/1_architecture_overview/README.md` and follow the instructions. Each lesson links to the next.
+Open [`tutorial/L01_deploy_microservices/README.md`](tutorial/L01_deploy_microservices/) and follow the instructions. Each lesson links to the next.
 
-## Curriculum Overview
+## Lessons
 
-### Level 1 — Foundations (~20-30 min per lesson)
+| # | Lesson | Duration | What You'll Learn |
+|---|--------|----------|-------------------|
+| 01 | [Deploy the Microservices Stack](tutorial/L01_deploy_microservices/) | 1 hr | Deploy 3 services + UI with health probes, resource limits, ConfigMaps, Secrets. The SCC "no root" gotcha. |
+| 02 | [Expose Services Externally](tutorial/L02_expose_externally/) | 45 min | Routes with TLS. **Is Route a replacement for Traefik? Yes.** |
+| 03 | [Service Mesh with Istio](tutorial/L03_service_mesh/) | 1 hr | Envoy sidecars, mTLS, canary deployments, Kiali observability, circuit breakers. |
+| 04 | [Build & Image Resources](tutorial/L04_builds_and_images/) | 1 hr | BuildConfig, S2I, ImageStreams — the cluster builds your code. Internal registry. |
+| 05 | [Projects](tutorial/L05_projects/) | 20 min | Projects vs Namespaces. Multi-environment setup (dev + staging). |
+| 06 | [Authentication & Authorization](tutorial/L06_auth_and_identity/) | 45 min | OAuth, users, RBAC. **Is OAuth a replacement for Keycloak? For cluster auth, yes.** |
+| 07 | [Monitoring & Logging](tutorial/L07_monitoring_and_logging/) | 1 hr | Custom Prometheus metrics from Python, ServiceMonitor, alerts, log forwarding. |
+| 08 | [CI/CD Pipeline](tutorial/L08_cicd_pipeline/) | 1 hr 15 min | Tekton pipeline: GitHub → test → build → push to GHCR → deploy. |
+| 09 | [GitOps with ArgoCD](tutorial/L09_gitops/) | 1 hr | ArgoCD, Kustomize overlays, drift detection, auto-heal. |
+| 10 | [Serverless](tutorial/L10_serverless/) | 45 min | Knative, scale-to-zero, cold starts, eventing. |
 
-| Module | Topics | Lessons |
-|--------|--------|:-------:|
-| **M1: Platform Setup** | Architecture, CRC install, `oc` vs `kubectl`, Web Console | 4 |
-| **M2: Projects & RBAC** | Projects vs Namespaces, OAuth, RBAC, SCCs | 4 |
-| **M3: App Deployment** | `oc new-app`, S2I, BuildConfigs, ImageStreams, Templates | 5 |
-| **M4: Networking** | Services, Routes vs Ingress, TLS, Network Policies | 4 |
-| **M5: Storage** | PVs/PVCs, ODF, ConfigMaps & Secrets | 3 |
-| **M6: Monitoring** | Prometheus/Grafana, Alerts, Logging, Debugging | 4 |
-
-### Level 2 — Practitioner (~45-90 min per lesson)
-
-| Module | Topics | Lessons |
-|--------|--------|:-------:|
-| **M1: CI/CD** | Tekton Pipelines, Build-Test-Deploy, ArgoCD GitOps | 4 |
-| **M2: Operators** | OLM, OperatorHub, Database Operators, Building Operators | 4 |
-| **M3: Service Mesh & Serverless** | Istio, Canary Deployments, Knative, Event-Driven | 4 |
-| **M4: Advanced Networking** | Egress/Ingress Control, Multi-Cluster, Load Balancing | 3 |
-| **M5: Security** | Image Security, Pod Security, Secrets, Compliance | 4 |
-| **M6: Developer Experience** | Dev Spaces, odo, Helm, Autoscaling | 4 |
-
-### Level 3 — Expert (~30 min - 2 hr per lesson)
-
-| Module | Topics | Lessons |
-|--------|--------|:-------:|
-| **M1: Cluster Admin** | Installation Methods, Upgrades, Node Management, etcd | 5 |
-| **M2: Multi-Cluster** | RHACM, Observability, Multi-Cluster GitOps, Edge | 4 |
-| **M3: Performance** | Tuning, Troubleshooting, Disaster Recovery, Cost | 4 |
-| **M4: Advanced Workloads** | Virtualization (KubeVirt), AI/ML, Stateful, Batch/HPC | 4 |
-| **M5: Migration & Capstones** | K8s Migration, Legacy Apps, Production Capstones | 4 |
-
-See [`tutorial_syllabus.md`](tutorial_syllabus.md) for the complete syllabus with detailed descriptions.
+**Total:** ~8 hours
 
 ## K8s vs OpenShift at a Glance
 
@@ -140,39 +98,34 @@ For the full 85+ resource comparison, see [`k8s_vs_openshift.md`](k8s_vs_openshi
 ## Project Structure
 
 ```
-tutorial_syllabus.md                  # Master syllabus
-k8s_vs_openshift.md                   # Full K8s ↔ OpenShift resource mapping
 tutorial/
-  level_1/                            # Foundations (~20-30 min lessons)
-    M1_platform_setup/
-    M2_projects_users_rbac/
-    M3_application_deployment/
-    M4_networking_routes/
-    M5_storage/
-    M6_monitoring_logging/
-  level_2/                            # Practitioner (~45-90 min lessons)
-    M1_cicd/
-    M2_operators/
-    M3_service_mesh_serverless/
-    M4_advanced_networking/
-    M5_security_hardening/
-    M6_developer_experience/
-  level_3/                            # Expert (30 min - 2 hr lessons)
-    M1_cluster_administration/
-    M2_multi_cluster/
-    M3_performance_troubleshooting/
-    M4_advanced_workloads/
-    M5_migration_capstones/
+  README.md                        # Tutorial overview
+  shared_app/                      # Application source code
+    products-service/
+    orders-service/
+    analytics-service/
+    dashboard-ui/
+  L01_deploy_microservices/        # Lesson directories
+  L02_expose_externally/
+  L03_service_mesh/
+  L04_builds_and_images/
+  L05_projects/
+  L06_auth_and_identity/
+  L07_monitoring_and_logging/
+  L08_cicd_pipeline/
+  L09_gitops/
+  L10_serverless/
+k8s_vs_openshift.md                # Full K8s ↔ OpenShift resource mapping
+tutorial_syllabus.md               # Original comprehensive syllabus (reference)
 ```
 
 Each lesson directory contains:
 
 ```
-N_lesson_name/
+LNN_lesson_name/
   README.md             # Lesson guide with explanation, steps, expected output
   manifests/            # YAML manifests (Deployments, Routes, BuildConfigs, etc.)
   scripts/              # Shell scripts for setup, teardown, demos
-  app/                  # Application source code (if applicable)
 ```
 
 ## Environment Options
