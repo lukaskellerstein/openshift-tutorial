@@ -12,7 +12,7 @@ You know Kubernetes. You use Traefik, Keycloak, and vanilla K8s. Now you want to
 
 - **K8s-first approach** — each topic bridges from what you know in vanilla Kubernetes to the OpenShift way
 - **Project-based** — one application (ShopInsights) evolves across all 10 lessons
-- **Fully hands-on** — every lesson includes manifests, CLI commands, and verification steps you can run on OpenShift Local (CRC)
+- **Fully hands-on** — every lesson includes manifests, CLI commands, and verification steps you can run on the [Red Hat Developer Sandbox](https://sandbox.redhat.com/) or OpenShift Local (CRC)
 - **Self-contained lessons** — each lesson has its own README, manifests, scripts, and cleanup instructions
 - **Real-world workflows** — CI/CD pipelines with Tekton, GitOps with ArgoCD, service mesh, monitoring, and serverless
 
@@ -35,27 +35,38 @@ graph LR
 
 ### Prerequisites
 
-- **Hardware**: 4+ CPUs, 16+ GB RAM, 35+ GB free disk space
 - **Knowledge**: Solid understanding of Kubernetes (Deployments, Services, Ingress, RBAC, etc.)
-- **Tools**: `oc` CLI, [OpenShift Local (CRC)](https://crc.dev/crc/)
+- **Tools**: `oc` CLI installed ([download](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/))
+- **Cluster**: [Red Hat Developer Sandbox](https://sandbox.redhat.com/) (recommended, free, no install) or [OpenShift Local (CRC)](https://crc.dev/crc/)
 
-### Installation
+### Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/lukaskellerstein/openshift-tutorial.git
+git clone https://github.com/<your-username>/openshift-tutorial.git
 cd openshift-tutorial
+```
 
-# Install and start OpenShift Local
+#### Option A: Red Hat Developer Sandbox (recommended)
+
+1. Sign up at [sandbox.redhat.com](https://sandbox.redhat.com/) and launch your sandbox
+2. In the web console, click your username (top-right) → **Copy login command** → **Display Token**
+3. Run the `oc login` command it gives you:
+
+```bash
+oc login --token=sha256~XXXXX --server=https://api.sandbox-xxx.openshiftapps.com:6443
+```
+
+#### Option B: OpenShift Local (CRC)
+
+```bash
 crc setup
 crc start
-
-# Configure the CLI
 eval $(crc oc-env)
-
-# Log in
 oc login -u developer -p developer https://api.crc.testing:6443
 ```
+
+> Some lessons (L03, L08, L09, L10) install operators that require cluster-admin. These work on CRC but not on the Sandbox.
 
 ### Start Learning
 
@@ -130,24 +141,12 @@ LNN_lesson_name/
 
 ## Environment Options
 
-| Environment | Cost | Use Case |
-|-------------|------|----------|
-| [OpenShift Local (CRC)](https://crc.dev/crc/) | Free | Local development, full cluster |
-| [Red Hat Developer Sandbox](https://developers.redhat.com/developer-sandbox) | Free | Cloud-based, no install needed |
+| Environment | Cost | Use Case | Cluster Admin |
+|-------------|------|----------|:-------------:|
+| [Red Hat Developer Sandbox](https://sandbox.redhat.com/) | Free | Cloud-based, no install, quick start | No |
+| [OpenShift Local (CRC)](https://crc.dev/crc/) | Free | Local development, full cluster | Yes |
 
-### Default Users (CRC)
-
-| User | Password | Role |
-|------|----------|------|
-| `kubeadmin` | *(shown during `crc start`)* | Cluster admin |
-| `developer` | `developer` | Regular user |
-
-### Key URLs (CRC)
-
-| Service | URL |
-|---------|-----|
-| API Server | `https://api.crc.testing:6443` |
-| Web Console | `https://console-openshift-console.apps-crc.testing` |
+The Sandbox is the fastest way to get started — no hardware requirements, no setup. CRC gives you full cluster-admin access for lessons that install operators.
 
 ## Contributing
 
@@ -162,7 +161,7 @@ Contributions are welcome! Please follow these guidelines:
 ## Resources
 
 - [OpenShift Documentation](https://docs.openshift.com/)
-- [Red Hat Developer Sandbox](https://developers.redhat.com/developer-sandbox) (free cloud cluster)
+- [Red Hat Developer Sandbox](https://sandbox.redhat.com/) (free cloud cluster)
 - [OpenShift Interactive Learning](https://learn.openshift.com/)
 - [Operator SDK](https://sdk.operatorframework.io/)
 - [CRC (OpenShift Local)](https://crc.dev/crc/)
