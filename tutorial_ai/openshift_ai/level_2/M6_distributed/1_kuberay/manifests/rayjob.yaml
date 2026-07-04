@@ -1,0 +1,104 @@
+# RayJob custom resource for submitting a distributed processing job
+#
+# This job runs a Ray Data pipeline that processes text documents in parallel
+# across the Ray cluster workers. It references the existing ray-demo-cluster
+# via clusterSelector -- the cluster must be running before submitting this job.
+#
+# The entrypoint runs an inline Python script that demonstrates Ray Data.
+# For the full processing script, see scripts/ray_processing.py.
+#
+# API: ray.io/v1
+apiVersion: ray.io/v1
+kind: RayJob
+metadata:
+  name: doc-processing-job
+  labels:
+    app: doc-processing-job
+    tutorial-level: "2"
+    tutorial-module: "M6"
+spec:
+  # Inline entrypoint -- a self-contained Ray Data processing example
+  # This runs directly on the head node and distributes work to workers
+  entrypoint: |
+    python -c "
+    import ray
+    import time
+
+    ray.init()
+    print(f'Ray cluster resources: {ray.cluster_resources()}')
+    print(f'Available nodes: {len(ray.nodes())}')
+
+    # Generate sample documents
+    documents = []
+    topics = [
+        'machine learning model training and optimization',
+        'distributed computing and fault tolerance',
+        'natural language processing and transformers',
+        'kubernetes orchestration and scheduling',
+        'data pipeline engineering and stream processing',
+    ]
+    for i in range(100):
+        topic = topics[i % len(topics)]
+        text = ' '.join([
+            f'Document {i} paragraph {p}: This discusses {topic}. '
+            f'It covers resource allocation, performance tuning, and '
+            f'best practices for production deployments in enterprise systems.'
+            for p in range(10)
+        ])
+        documents.append({'doc_id': f'doc-{i:04d}', 'text': text})
+
+    print(f'Generated {len(documents)} documents')
+
+    # Create Ray Dataset and process in parallel
+    ds = ray.data.from_items(documents)
+
+    def process_doc(row):
+        import re
+        text = re.sub(r'\s+', ' ', row['text']).strip()
+        words = text.split()
+        return {
+            'doc_id': row['doc_id'],
+            'word_count': len(words),
+            'char_count': len(text),
+            'num_chunks': max(1, len(words) // 512),
+        }
+
+    start = time.time()
+    processed = ds.map(process_doc)
+    results = processed.take_all()
+    elapsed = time.time() - start
+
+    total_words = sum(r['word_count'] for r in results)
+    total_chunks = sum(r['num_chunks'] for r in results)
+    print(f'Processed {len(results)} documents in {elapsed:.2f}s')
+    print(f'Total words: {total_words:,}')
+    print(f'Total chunks: {total_chunks}')
+    print(f'Throughput: {len(results)/elapsed:.1f} docs/sec')
+
+    ray.shutdown()
+    print('Job complete.')
+    "
+
+  # Runtime environment -- no extra pip packages needed for this inline job
+  runtimeEnvYAML: |
+    env_vars:
+      RAY_DEDUP_LOGS: "0"
+
+  # Keep the cluster running after the job completes (for exploration)
+  shutdownAfterJobFinishes: false
+
+  # Auto-delete the RayJob CR 10 minutes after completion
+  ttlSecondsAfterFinished: 600
+
+  # Reference the existing RayCluster by label selector
+  clusterSelector:
+    ray.io/cluster: ray-demo-cluster
+
+  # Alternatively, embed a full RayCluster spec for auto-lifecycle management:
+  # The operator creates the cluster before the job and optionally deletes it after.
+  # rayClusterSpec:
+  #   rayVersion: "2.44.0"
+  #   headGroupSpec:
+  #     ...
+  #   workerGroupSpecs:
+  #     ...

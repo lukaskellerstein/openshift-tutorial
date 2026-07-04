@@ -1,0 +1,60 @@
+# LLMInferenceService for Gemma4-e4b on llm-d
+#
+# This manifest deploys the Gemma 4 E4B instruction-tuned model using the
+# LLMInferenceService CRD (llm-d stack). Unlike a standard InferenceService,
+# LLMInferenceService provisions the Endpoint Picker (EPP) sidecar for
+# cache-aware routing and integrates with the llm-d KV-cache management layer.
+#
+# The hf:// URI protocol downloads the model directly from Hugging Face.
+# Ensure a Secret named "hf-token" exists in the namespace with your
+# Hugging Face access token (required for gated models).
+#
+# Requirements:
+#   - At least 1 NVIDIA GPU (L4 minimum, 24 GB VRAM)
+#   - KServe component enabled in the DataScienceCluster
+#   - LLMInferenceServiceConfig "vllm-nvidia-cuda-gpu-llminferenceserviceconfig"
+#     available in redhat-ods-applications namespace
+#
+# Usage:
+#   oc apply -f llminferenceservice.yaml
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: LLMInferenceService
+metadata:
+  annotations:
+    opendatahub.io/hardware-profile-name: gpu-small
+    opendatahub.io/hardware-profile-namespace: redhat-ods-applications
+    opendatahub.io/model-type: generative
+    openshift.io/display-name: Gemma 4 E4B (llm-d)
+  name: gemma-4-e4b-llmd
+  namespace: llmd-serving
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  model:
+    name: gemma-4-e4b-llmd
+    uri: "hf://google/gemma-4-E4B-it"
+  replicas: 1
+  router:
+    gateway: {}
+    route: {}
+    scheduler: {}
+  template:
+    containers:
+      - name: main
+        resources:
+          limits:
+            cpu: "4"
+            memory: 24Gi
+            nvidia.com/gpu: "1"
+          requests:
+            cpu: "1"
+            memory: 8Gi
+            nvidia.com/gpu: "1"
+    tolerations:
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists

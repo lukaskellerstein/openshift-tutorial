@@ -1,0 +1,71 @@
+# Network Policy: Model Serving Ingress
+#
+# Controls which pods can reach the KServe predictor pods (the pods
+# that serve the Gemma4-e4b model). This policy works in conjunction
+# with the default-deny policy -- without default-deny, this policy
+# only adds rules but does not restrict anything.
+#
+# Two ingress sources are allowed:
+#   1. Pods from namespaces labeled access-model-serving=true
+#      (authorized application namespaces, e.g., agent-workloads)
+#   2. The OpenShift router namespace (openshift-ingress), so that
+#      external traffic via OpenShift Routes still reaches the model
+#
+# Any namespace NOT labeled access-model-serving=true will be blocked
+# by the default-deny policy. To grant a new namespace access, label it:
+#   oc label namespace <name> access-model-serving=true
+#
+# To revoke access:
+#   oc label namespace <name> access-model-serving-
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-model-serving-ingress
+  labels:
+    app: ai-network-policy
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  # Target: KServe predictor pods only.
+  # KServe labels predictor pods with component=predictor.
+  # This selector ensures the policy does NOT apply to other pods
+  # in the namespace (e.g., transformer pods, explainer pods).
+  podSelector:
+    matchLabels:
+      component: predictor
+  policyTypes:
+    - Ingress
+  ingress:
+    # Rule 1: Allow ingress from authorized application namespaces.
+    # Any namespace with the label access-model-serving=true can
+    # send traffic to predictor pods on port 8080 (the vLLM API port).
+    #
+    # This is a namespace-level selector, not a pod-level selector.
+    # Every pod in a labeled namespace can reach the model. For
+    # finer-grained control (specific pods within a namespace),
+    # add a podSelector under the from clause.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              access-model-serving: "true"
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Rule 2: Allow ingress from the OpenShift router.
+    # The OpenShift router (HAProxy) runs in the openshift-ingress
+    # namespace and forwards external traffic to backend pods.
+    # Without this rule, the model's external Route would stop working.
+    #
+    # The label network.openshift.io/policy-group=ingress is
+    # automatically applied to the openshift-ingress namespace by
+    # the OpenShift platform. This is an OpenShift-specific convention --
+    # on vanilla K8s you would need to label the ingress controller
+    # namespace manually.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+      ports:
+        - protocol: TCP
+          port: 8080

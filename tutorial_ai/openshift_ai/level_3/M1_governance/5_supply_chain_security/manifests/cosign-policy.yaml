@@ -1,0 +1,131 @@
+# =============================================================================
+# ClusterImagePolicy --- Enforce cosign signature verification for AI models
+# =============================================================================
+#
+# What this does:
+#   This policy tells OpenShift to verify that container images have a valid
+#   cosign signature before allowing them to be pulled and run. Without a
+#   matching signature, the kubelet will refuse to start the container.
+#
+# Why this matters for AI workloads:
+#   Model container images carry executable code (inference servers, custom
+#   handlers) and model weights. If an attacker tampers with an image after
+#   it leaves your build pipeline --- replacing model weights with a poisoned
+#   version, for example --- the signature will not match and deployment will
+#   be blocked.
+#
+# How to set up:
+#   1. Generate a cosign key pair:
+#        cosign generate-key-pair
+#      This creates cosign.key (private, keep secret) and cosign.pub (public).
+#
+#   2. Sign your images during CI/CD:
+#        cosign sign --key cosign.key quay.io/my-org/my-model-image:v1.0
+#
+#   3. Store the public key where this policy can reference it:
+#        oc create configmap cosign-public-key \
+#          --from-file=cosign.pub=cosign.pub \
+#          -n openshift-config
+#
+#   4. Apply this policy:
+#        oc apply -f cosign-policy.yaml
+#
+#   5. Test by deploying an unsigned image (should be rejected).
+#
+# Scope:
+#   This is a cluster-scoped resource. It applies to all namespaces that
+#   pull images matching the patterns below. To restrict enforcement to
+#   specific namespaces, use the matchPolicy and namespaceSelector fields.
+#
+# =============================================================================
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: cosign-model-verification
+  labels:
+    app: supply-chain-security
+    tutorial-level: "3"
+    tutorial-module: "M1"
+    component: image-signing
+spec:
+  # -------------------------------------------------------------------------
+  # images: which container image references this policy applies to.
+  # Only images matching these glob patterns will require signature
+  # verification. Images from other registries are unaffected.
+  # -------------------------------------------------------------------------
+  images:
+    # All images from your organization's Quay namespace.
+    # This covers model serving images, custom inference servers,
+    # and any model container images you build and sign.
+    - glob: "quay.io/my-org/*"
+
+  # -------------------------------------------------------------------------
+  # authorities: who is trusted to sign these images.
+  # Each authority entry specifies a verification method. The image must
+  # have a valid signature from at least one listed authority.
+  # -------------------------------------------------------------------------
+  authorities:
+    # --- Option A: Static key verification ---
+    # Use this when you manage your own cosign key pair.
+    # The public key is stored in a ConfigMap or Secret on the cluster.
+    - name: org-cosign-key
+      key:
+        # Reference to the public key stored in a ConfigMap.
+        # Create this ConfigMap with:
+        #   oc create configmap cosign-public-key \
+        #     --from-file=cosign.pub=cosign.pub \
+        #     -n openshift-config
+        secretRef:
+          name: cosign-public-key
+          namespace: openshift-config
+      # The public key data. Alternatively, you can inline the key
+      # directly here instead of using a secretRef:
+      #
+      # key:
+      #   data: |
+      #     -----BEGIN PUBLIC KEY-----
+      #     MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
+      #     -----END PUBLIC KEY-----
+
+    # --- Option B: Keyless verification with Sigstore Fulcio ---
+    # Use this for keyless signing tied to OIDC identities.
+    # Uncomment the block below if you use keyless signing in CI/CD.
+    #
+    # - name: sigstore-keyless
+    #   keyless:
+    #     # The OIDC issuer URL for your CI/CD identity provider.
+    #     # For GitHub Actions: https://token.actions.githubusercontent.com
+    #     # For OpenShift Pipelines: your cluster's OAuth server
+    #     url: "https://token.actions.githubusercontent.com"
+    #     identities:
+    #       - issuer: "https://token.actions.githubusercontent.com"
+    #         # The subject must match the CI/CD workflow identity.
+    #         # This ensures only your pipeline can produce valid signatures.
+    #         subjectRegExp: "https://github.com/my-org/.*"
+
+  # -------------------------------------------------------------------------
+  # policy: what happens when verification fails.
+  # "deny" blocks the image from being pulled.
+  # "warn" logs a warning but allows the image (useful during rollout).
+  # -------------------------------------------------------------------------
+  policy:
+    type: deny
+    # During initial rollout, consider using "warn" to identify unsigned
+    # images without breaking existing deployments:
+    # type: warn
+
+  # -------------------------------------------------------------------------
+  # match: further restrict which resources are subject to this policy.
+  # Use this to limit enforcement to specific namespaces or resource types.
+  # -------------------------------------------------------------------------
+  match:
+    - resource:
+        # Enforce on all resource types that create pods.
+        # This covers Deployments, StatefulSets, Jobs, InferenceServices, etc.
+        type: "*"
+      # Uncomment to restrict enforcement to specific namespaces:
+      # namespaceSelector:
+      #   matchLabels:
+      #     ai-workload: "true"
+      #   # Label your model serving namespaces:
+      #   #   oc label namespace your-model-project ai-workload=true

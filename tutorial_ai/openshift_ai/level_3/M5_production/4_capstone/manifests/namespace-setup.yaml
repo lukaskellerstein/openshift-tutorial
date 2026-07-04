@@ -1,0 +1,440 @@
+# Namespace and RBAC Setup for the AI Platform Capstone
+#
+# This file creates the complete foundation for a production AI platform:
+#   - Namespace with monitoring and tutorial labels
+#   - Service accounts for each workload type (model serving, agents, pipelines, monitoring)
+#   - RBAC roles and bindings for developer and viewer access
+#   - Network policies implementing a least-privilege network security model
+#
+# Apply this file first (ArgoCD sync wave 0) -- every other resource
+# depends on the namespace and RBAC being in place.
+#
+# The four service accounts follow the principle of least privilege:
+# each workload type gets its own identity so that RBAC, network policies,
+# and audit logs can distinguish between model inference, agent execution,
+# pipeline orchestration, and monitoring scraping.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-platform-prod
+  labels:
+    app: ai-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+    # Enable user-workload monitoring so Prometheus scrapes pods in this namespace.
+    # Without this label, ServiceMonitors in the namespace are ignored.
+    openshift.io/cluster-monitoring: "true"
+    # Descriptive label for the ArgoCD Application to target
+    environment: production
+  annotations:
+    # ArgoCD sync wave: namespace must exist before anything else deploys
+    argocd.argoproj.io/sync-wave: "0"
+    openshift.io/display-name: "AI Platform - Production"
+    openshift.io/description: >-
+      Production namespace for the AI platform capstone. Contains model serving,
+      LangGraph agents, MCP gateway, RAG pipeline, and observability components.
+---
+# -----------------------------------------------------------------------
+# Service Accounts
+# -----------------------------------------------------------------------
+# Each workload type gets a dedicated ServiceAccount so that:
+#   - RBAC can grant fine-grained permissions per workload
+#   - Network policies can target specific service accounts
+#   - Audit logs clearly identify which workload made each API call
+#   - Token projection provides workload-specific audience tokens
+# -----------------------------------------------------------------------
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: model-serving-sa
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: model-serving
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    description: >-
+      Runs vLLM inference pods. Granted access to GPU resources and
+      model storage. Used by the InferenceService predictor containers.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-runner-sa
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: agent
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    description: >-
+      Runs LangGraph agent pods. Needs access to model endpoints,
+      MCP gateway, RAG service, and guardrails. Token projection
+      provides an audience-scoped token for authenticating to the
+      InferenceService via Authorino.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline-runner-sa
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: pipeline
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    description: >-
+      Runs Tekton and KFP pipeline tasks. Needs access to create pods,
+      manage storage, and interact with model registry and model serving.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: monitoring-sa
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: monitoring
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    description: >-
+      Runs observability components (custom exporters, dashboard sidecars).
+      Needs read-only access to pods, services, and metrics endpoints.
+---
+# -----------------------------------------------------------------------
+# RBAC Roles
+# -----------------------------------------------------------------------
+# Two roles for human users:
+#   1. ai-platform-developer -- can deploy and manage AI workloads
+#   2. ai-platform-viewer    -- read-only access for stakeholders
+#
+# Service account permissions are handled by the built-in OpenShift AI
+# roles and the network policies below.
+# -----------------------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-platform-developer
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  # Standard K8s resources -- manage deployments, services, and config
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - pods/log
+      - services
+      - configmaps
+      - secrets
+      - persistentvolumeclaims
+      - events
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - replicasets
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+  # KServe model serving -- deploy and manage InferenceServices
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices
+      - servingruntimes
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+  # KServe status -- read deployment readiness
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices/status
+      - servingruntimes/status
+    verbs:
+      - get
+      - list
+      - watch
+  # Routes -- manage external access to services
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-platform-developer-binding
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ai-platform-developer
+subjects:
+  # Bind to a group rather than individual users so that membership
+  # can be managed centrally in the identity provider (LDAP, OIDC, etc.)
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: ai-platform-team
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-platform-viewer
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  # Read-only access to all common resources.
+  # Stakeholders can view deployments, logs, and metrics but cannot
+  # modify or delete anything.
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - pods/log
+      - services
+      - configmaps
+      - events
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+  # KServe -- view model deployments and their status
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices
+      - servingruntimes
+      - inferenceservices/status
+      - servingruntimes/status
+    verbs:
+      - get
+      - list
+      - watch
+  # Routes -- view external endpoints
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-platform-viewer-binding
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ai-platform-viewer
+subjects:
+  # Stakeholders group -- product managers, executives, auditors
+  # who need visibility into the platform but should not make changes
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: ai-stakeholders
+---
+# -----------------------------------------------------------------------
+# Network Policies
+# -----------------------------------------------------------------------
+# Network segmentation follows a zero-trust model:
+#   1. Deny all ingress by default
+#   2. Explicitly allow only the traffic paths the platform requires
+#
+# Four policies create the complete network topology:
+#   - default-deny-ingress:    block everything by default
+#   - allow-agent-to-model:    agents -> model serving on port 8080
+#   - allow-monitoring:        Prometheus -> all pods on metrics ports
+#   - allow-external-ingress:  OpenShift router -> agent pods
+# -----------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: network-policy
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  # Empty podSelector matches ALL pods in the namespace.
+  # Every pod is subject to this deny rule.
+  podSelector: {}
+  # Specifying Ingress with no ingress rules means "deny all inbound traffic."
+  # Other NetworkPolicy resources in this namespace will punch holes for
+  # authorized traffic paths.
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-agent-to-model
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: network-policy
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  # Target: KServe predictor pods only.
+  # KServe labels predictor pods with component=predictor.
+  podSelector:
+    matchLabels:
+      component: predictor
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow agent pods (labeled component=agent) to reach model serving
+    # on port 8080 (the vLLM OpenAI-compatible API port).
+    # This is the primary inference traffic path: agent -> model.
+    - from:
+        - podSelector:
+            matchLabels:
+              component: agent
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: network-policy
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  # Target: ALL pods in the namespace.
+  # Prometheus needs to scrape metrics from every component.
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow Prometheus (running in openshift-user-workload-monitoring
+    # or openshift-monitoring) to scrape metrics from any pod.
+    # The label openshift.io/cluster-monitoring=true is automatically
+    # applied to monitoring namespaces by the OpenShift platform.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              openshift.io/cluster-monitoring: "true"
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 9090
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-ingress
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: network-policy
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  # Target: agent pods only.
+  # Only the agent API should be reachable from outside the cluster.
+  # Model serving is internal-only -- agents mediate all external access.
+  podSelector:
+    matchLabels:
+      component: agent
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow traffic from the OpenShift router (HAProxy).
+    # The router runs in the openshift-ingress namespace and forwards
+    # external traffic from Routes to backend pods.
+    # The label network.openshift.io/policy-group=ingress is automatically
+    # applied to the openshift-ingress namespace by the platform.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+      ports:
+        - protocol: TCP
+          port: 8080

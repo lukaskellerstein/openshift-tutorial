@@ -1,0 +1,60 @@
+# MLServer ServingRuntime for Classical ML Models
+# Supports scikit-learn, XGBoost, LightGBM in native formats
+# Uses the V2 Inference Protocol (KFServing V2 Dataplane)
+#
+# MLServer is GA in RHOAI 3.4+. It runs CPU-only workloads,
+# so it does not require GPU nodes. Models are loaded from
+# their native serialized format (pickle, joblib) without
+# requiring a custom container image build.
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  annotations:
+    opendatahub.io/apiProtocol: REST
+    opendatahub.io/template-display-name: MLServer Runtime for Classical ML
+    opendatahub.io/template-name: mlserver-kserve-runtime
+    openshift.io/display-name: MLServer - Sklearn/XGBoost
+  labels:
+    opendatahub.io/dashboard: "true"
+    tutorial-level: "3"
+    tutorial-module: "M3"
+  name: mlserver-sklearn
+  namespace: multi-model-serving
+spec:
+  containers:
+    - env:
+        - name: MLSERVER_MODEL_IMPLEMENTATION
+          value: mlserver_sklearn.SKLearnModel
+        - name: MLSERVER_LISTEN_PORT
+          value: "8080"
+        - name: MLSERVER_GRPC_PORT
+          value: "9000"
+      image: quay.io/modh/mlserver:stable
+      name: kserve-container
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+        - containerPort: 9000
+          protocol: TCP
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        runAsNonRoot: true
+      resources:
+        limits:
+          cpu: "2"
+          memory: 4Gi
+        requests:
+          cpu: "1"
+          memory: 2Gi
+  multiModel: false
+  supportedModelFormats:
+    - autoSelect: true
+      name: sklearn
+      version: "1"
+      priority: 2
+    - autoSelect: true
+      name: xgboost
+      version: "1"

@@ -1,0 +1,69 @@
+# InferenceService -- deploys an income prediction model on OpenVINO Model
+# Server for TrustyAI bias and drift monitoring.
+#
+# The model predicts whether income exceeds $50K based on demographic features
+# (age, education, occupation, gender, etc.). The "gender" feature serves as
+# the protected attribute for bias monitoring with SPD and DIR metrics.
+#
+# This model uses the OpenVINO IR format and is served via the OVMS runtime
+# included with OpenShift AI.
+#
+# Tutorial: L2-M5.4 -- TrustyAI Model Monitoring
+# Docs: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: income-predictor
+  namespace: trustyai-tutorial
+  labels:
+    app: income-predictor
+    tutorial-level: "2"
+    tutorial-module: "M5"
+  annotations:
+    # -----------------------------------------------------------------------
+    # Deployment mode -- RawDeployment runs the model server as a standard
+    # Kubernetes Deployment (no Knative/serverless). Use this when you want
+    # the model to always be running (no scale-to-zero) and when TrustyAI
+    # needs a persistent endpoint to monitor.
+    # -----------------------------------------------------------------------
+    serving.kserve.io/deploymentMode: RawDeployment
+spec:
+  predictor:
+    model:
+      # -------------------------------------------------------------------
+      # Model format -- openvino_ir is the native format for OpenVINO Model
+      # Server. Models in this format include .xml (graph) and .bin (weights).
+      # The OVMS runtime also supports ONNX, TensorFlow SavedModel, and
+      # PaddlePaddle formats.
+      # -------------------------------------------------------------------
+      modelFormat:
+        name: openvino_ir
+
+      # -------------------------------------------------------------------
+      # Runtime -- ovms (OpenVINO Model Server) is pre-installed with
+      # OpenShift AI. It provides high-performance inference for tabular,
+      # vision, and NLP models on CPU and Intel accelerators.
+      # -------------------------------------------------------------------
+      runtime: ovms
+
+      # -------------------------------------------------------------------
+      # Storage URI -- location of the model artifact. This can be an S3
+      # path (s3://bucket/path), an HTTP URL, or a PVC path (pvc://name/path).
+      #
+      # Replace this with your own model storage location if you have a
+      # pre-trained income prediction model. The setup_monitoring.py script
+      # can upload sample data even without a live model endpoint.
+      # -------------------------------------------------------------------
+      storageUri: "https://huggingface.co/OpenVINO/income-prediction/resolve/main"
+
+      # -------------------------------------------------------------------
+      # Resources -- Level 2 lessons include resource requests and limits.
+      # The income prediction model is small and runs efficiently on CPU.
+      # -------------------------------------------------------------------
+      resources:
+        requests:
+          cpu: 500m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi

@@ -1,0 +1,30 @@
+# Configuration for the OpenShift MCP Server
+# Controls which toolsets are enabled and server behavior
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openshift-mcp-server-config
+  labels:
+    app: openshift-mcp-server
+    tutorial-level: "2"
+    tutorial-module: "M2"
+data:
+  config.toml: |
+    # Server configuration
+    log_level = 5
+    port = "8080"
+
+    # Safety settings — read-only by default
+    # read_only = true: disables ALL write operations (create, update, delete)
+    # disable_destructive = true: blocks only delete/update (allows creates)
+    read_only = true
+
+    # Enabled toolsets
+    # core: pods, resources, events, namespaces, projects, nodes
+    # config: kubeconfig contexts, targets
+    # Available optional toolsets: helm, tekton, kiali, kubevirt, metrics, traces, ossm, oadp
+    toolsets = ["core", "config"]
+
+    # Deny access to sensitive resources
+    [denied_resources]
+    resources = ["secrets"]

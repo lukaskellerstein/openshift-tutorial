@@ -1,0 +1,90 @@
+# TrainJob -- submits a distributed LoRA fine-tuning job
+# References the torch-lora-finetuning ClusterTrainingRuntime for
+# container images, FSDP settings, and checkpoint volumes.
+# Includes Kueue integration via the queue-name label.
+# Used in L2-M6.3 for distributed fine-tuning with Kubeflow Trainer v2.
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  name: gemma-lora-distributed
+  labels:
+    app: gemma-lora-distributed
+    tutorial-level: "2"
+    tutorial-module: "M6"
+    # Kueue integration -- assign to a LocalQueue for quota-aware scheduling.
+    # Requires Kueue to be configured (see L2-M6.2).
+    # Remove this label if Kueue is not installed.
+    kueue.x-k8s.io/queue-name: prod-queue
+spec:
+  # Reference the ClusterTrainingRuntime that defines the training setup
+  runtimeRef:
+    name: torch-lora-finetuning
+    kind: ClusterTrainingRuntime
+    apiGroup: trainer.kubeflow.org
+
+  # -------------------------------------------------------
+  # Model configuration -- what model to fine-tune
+  # -------------------------------------------------------
+  modelConfig:
+    # Hugging Face model identifier (downloaded at job start)
+    input:
+      storageUri: "hf://google/gemma-3-4b-it"
+    # Where to save the fine-tuned LoRA adapter
+    output:
+      storageUri: "pvc://training-output/gemma-lora-adapter"
+
+  # -------------------------------------------------------
+  # Dataset configuration -- training data
+  # -------------------------------------------------------
+  datasetConfig:
+    storageUri: "hf://tatsu-lab/alpaca"
+
+  # -------------------------------------------------------
+  # Trainer configuration -- command, hyperparameters, resources
+  # -------------------------------------------------------
+  trainer:
+    # Training command -- torchrun handles distributed launch
+    command:
+      - torchrun
+    args:
+      - "--nproc_per_node=1"
+      - "train.py"
+      # Model and dataset
+      - "--model_name_or_path=google/gemma-3-4b-it"
+      - "--dataset_name=tatsu-lab/alpaca"
+      - "--output_dir=/output"
+      # Training hyperparameters
+      - "--per_device_train_batch_size=4"
+      - "--gradient_accumulation_steps=4"
+      - "--num_train_epochs=3"
+      - "--learning_rate=2e-4"
+      - "--warmup_ratio=0.03"
+      - "--lr_scheduler_type=cosine"
+      - "--bf16=true"
+      # Logging and checkpointing
+      - "--logging_steps=10"
+      - "--save_strategy=steps"
+      - "--save_steps=100"
+      - "--save_total_limit=3"
+      - "--resume_from_checkpoint=true"
+      # LoRA parameters
+      - "--use_peft=true"
+      - "--lora_r=16"
+      - "--lora_alpha=32"
+      - "--lora_dropout=0.05"
+      - "--lora_target_modules=q_proj,v_proj,k_proj,o_proj"
+      # FSDP parameters (complement the env vars in the runtime)
+      - "--fsdp=full_shard auto_wrap"
+      - "--fsdp_config=fsdp_config.json"
+
+    # Distributed topology -- 2 nodes, 1 GPU each
+    numNodes: 2
+    resourcesPerNode:
+      requests:
+        cpu: "4"
+        memory: 32Gi
+        nvidia.com/gpu: "1"
+      limits:
+        cpu: "8"
+        memory: 64Gi
+        nvidia.com/gpu: "1"

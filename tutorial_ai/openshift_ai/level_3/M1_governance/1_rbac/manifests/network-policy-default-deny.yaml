@@ -1,0 +1,42 @@
+# Default Deny Network Policy
+#
+# Denies ALL ingress traffic to every pod in the namespace.
+# This is the foundation of a least-privilege network security model:
+# start by blocking everything, then add explicit allow rules for each
+# legitimate communication path.
+#
+# Without this policy, any pod in the cluster can send traffic to any
+# pod in this namespace. With it, a new pod is completely unreachable
+# until an administrator creates a NetworkPolicy that explicitly allows
+# the traffic it needs.
+#
+# On OpenShift, this policy is enforced immediately by OVN-Kubernetes.
+# On vanilla Kubernetes, enforcement depends on the CNI plugin --
+# many clusters run without a CNI that supports NetworkPolicy, so
+# the policy resource exists but does nothing.
+#
+# IMPORTANT: This policy does NOT affect egress (outbound) traffic.
+# Pods can still make outbound connections. For full lockdown, add
+# a separate default-deny egress policy. We omit it here to keep
+# the lesson focused on ingress control for model endpoints.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all-ingress
+  labels:
+    app: ai-network-policy
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  # Empty podSelector matches ALL pods in the namespace.
+  # Every pod is subject to this deny rule.
+  podSelector: {}
+  # Specifying Ingress in policyTypes with no ingress rules
+  # means "deny all ingress traffic."
+  policyTypes:
+    - Ingress
+  # No ingress rules -- all inbound traffic is denied.
+  # Explicit allow rules in other NetworkPolicy resources
+  # (e.g., network-policy-model-serving.yaml) will punch
+  # holes for authorized traffic.

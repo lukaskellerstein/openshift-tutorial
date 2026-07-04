@@ -1,0 +1,87 @@
+# Example ServingRuntime for vLLM on OpenShift AI
+#
+# This is a TEMPLATE showing the structure of a ServingRuntime resource.
+# Do not apply this directly — the next lesson (L1-M2.2) creates a
+# production-ready runtime for Gemma4-e4b.
+#
+# A ServingRuntime defines HOW to run an inference server.
+# An InferenceService (separate resource) defines WHICH model to serve on it.
+
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  # --- Annotations ---
+  # These annotations are used by the OpenShift AI dashboard and operator.
+  annotations:
+    # Protocol the runtime exposes (REST or gRPC)
+    opendatahub.io/apiProtocol: REST
+    # Which accelerators this runtime is designed for (shown in dashboard)
+    opendatahub.io/recommended-accelerators: '["nvidia.com/gpu"]'
+    # Display name shown in the dashboard's runtime selection dropdown
+    opendatahub.io/template-display-name: vLLM NVIDIA GPU ServingRuntime for KServe
+    # Internal template name used by the dashboard
+    opendatahub.io/template-name: vllm-cuda-runtime-template
+    # Human-readable name for this specific runtime instance
+    openshift.io/display-name: Example vLLM Runtime
+  # --- Labels ---
+  labels:
+    # Makes this runtime visible in the OpenShift AI dashboard
+    opendatahub.io/dashboard: "true"
+    # Standard app label for resource identification
+    app: example-vllm-runtime
+  # Runtime name — referenced by InferenceService's spec.predictor.model.runtime
+  name: example-vllm-runtime
+spec:
+  # --- Pod-level annotations ---
+  # Applied to the pods created by this runtime
+  annotations:
+    # Prometheus metrics scraping configuration
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+
+  # --- Container specification ---
+  containers:
+    - # vLLM command-line arguments
+      args:
+        # Port the inference server listens on (must match containerPort below)
+        - --port=8080
+        # Path where KServe mounts the model files inside the container.
+        # For hf:// or S3 storage, KServe downloads the model to /mnt/models.
+        # For OCI/ModelCar, the model image is mounted at /mnt/models.
+        - --model=/mnt/models
+        # {{.Name}} is a Go template variable replaced by KServe with the
+        # InferenceService name. This sets the model name returned by /v1/models.
+        - --served-model-name={{.Name}}
+
+      # Command to start vLLM's OpenAI-compatible API server
+      command:
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+
+      # Container image — Red Hat AI Inference Server (UBI-based vLLM)
+      # Use quay.io/modh/vllm:stable for the Red Hat-supported image.
+      # The tag "stable" tracks the latest supported vLLM version.
+      image: quay.io/modh/vllm:stable
+
+      # Container name MUST be "kserve-container" — KServe looks for this name
+      # to inject model storage volumes and environment variables.
+      name: kserve-container
+
+      # Port configuration
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+
+  # --- Serving mode ---
+  # false = single-model serving (one model per pod). Always false for vLLM.
+  # true = multi-model serving (multiple models in one pod). Used by MLServer/Triton.
+  multiModel: false
+
+  # --- Supported model formats ---
+  # Declares which model formats this runtime can serve.
+  # The InferenceService's spec.predictor.model.modelFormat.name must match
+  # one of these entries.
+  supportedModelFormats:
+    - autoSelect: true
+      name: vLLM

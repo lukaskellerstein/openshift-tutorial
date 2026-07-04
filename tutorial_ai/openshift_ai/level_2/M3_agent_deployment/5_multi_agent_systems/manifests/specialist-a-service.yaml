@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: specialist-research
+  labels:
+    app: specialist-research
+    role: specialist
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  selector:
+    app: specialist-research
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

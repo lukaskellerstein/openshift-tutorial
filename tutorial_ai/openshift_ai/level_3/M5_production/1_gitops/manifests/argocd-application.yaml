@@ -1,0 +1,116 @@
+# ArgoCD Application for AI Workloads (Production)
+#
+# This Application CR tells ArgoCD to sync the overlays/prod/ Kustomize
+# directory from the Git repository to the ai-workloads-prod namespace.
+#
+# Key AI-specific features:
+# - ignoreDifferences: excludes KServe controller-managed fields from drift detection
+# - Custom resource health checks: Lua scripts for InferenceService readiness
+# - Sync waves: infrastructure deploys before model serving
+# - Automated self-heal: reverts manual cluster changes to match Git
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ai-workloads-prod
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: ai-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  finalizers:
+    # Cascade delete: when the Application is deleted, also delete the
+    # resources it created on the cluster.
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    # IMPORTANT: Replace with your actual Git repository URL.
+    # This should be a repository containing the base/ and overlays/
+    # directories created in this lesson.
+    repoURL: https://github.com/<your-org>/ai-gitops-repo.git
+    targetRevision: main
+    path: overlays/prod
+
+  destination:
+    # Deploy to the local cluster (in-cluster)
+    server: https://kubernetes.default.svc
+    namespace: ai-workloads-prod
+
+  # Sync policy: automated with self-heal to prevent configuration drift
+  syncPolicy:
+    automated:
+      # Prune: delete resources from the cluster when they are removed from Git
+      prune: true
+      # Self-heal: revert manual changes on the cluster to match Git
+      selfHeal: true
+    syncOptions:
+      # Create the namespace if it does not exist
+      - CreateNamespace=true
+      # Respect ignoreDifferences when calculating sync status
+      - RespectIgnoreDifferences=true
+      # Apply resources server-side to handle large CRDs correctly
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences in fields managed by KServe controllers.
+  # Without this, ArgoCD would constantly detect controller-managed updates
+  # (status, last rollout revision) as drift and trigger unnecessary syncs.
+  ignoreDifferences:
+    - group: serving.kserve.io
+      kind: InferenceService
+      jsonPointers:
+        - /status
+        - /metadata/annotations/serving.kserve.io~1lastRolledoutRevision
+        - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
+    - group: serving.kserve.io
+      kind: ServingRuntime
+      jsonPointers:
+        - /status
+        - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
+    - group: infrastructure.opendatahub.io
+      kind: HardwareProfile
+      jsonPointers:
+        - /status
+
+  # Resource customizations: custom health check for InferenceService.
+  # ArgoCD does not natively understand KServe CRDs, so we provide a Lua
+  # script that inspects the InferenceService status conditions to determine
+  # whether the resource is truly healthy (model is loaded and serving).
+  #
+  # NOTE: In a production setup, this health check is typically configured
+  # globally in the ArgoCD ConfigMap (argocd-cm) rather than per-Application.
+  # To configure it globally:
+  #
+  # oc edit configmap argocd-cm -n openshift-gitops
+  #
+  # Add under data:
+  #   resource.customizations.health.serving.kserve.io_InferenceService: |
+  #     hs = {}
+  #     if obj.status ~= nil then
+  #       if obj.status.conditions ~= nil then
+  #         for _, condition in ipairs(obj.status.conditions) do
+  #           if condition.type == "Ready" then
+  #             if condition.status == "True" then
+  #               hs.status = "Healthy"
+  #               hs.message = "InferenceService is ready and serving traffic"
+  #             elseif condition.status == "False" then
+  #               hs.status = "Degraded"
+  #               hs.message = condition.message or "InferenceService is not ready"
+  #             else
+  #               hs.status = "Progressing"
+  #               hs.message = condition.message or "InferenceService readiness unknown"
+  #             end
+  #             return hs
+  #           end
+  #         end
+  #       end
+  #     end
+  #     hs.status = "Progressing"
+  #     hs.message = "Waiting for InferenceService status"
+  #     return hs

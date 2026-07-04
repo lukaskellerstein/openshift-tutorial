@@ -1,0 +1,42 @@
+# Base HardwareProfile for GPU Inference
+#
+# Defines the GPU hardware profile used by model inference workloads.
+# Overlays patch the nodeSelectors and tolerations for environment-specific
+# GPU types (T4 for dev, A100 for prod).
+#
+# Sync wave 1: deploys alongside ServingRuntime, before InferenceService.
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  name: gpu-inference
+  labels:
+    app: gpu-inference
+spec:
+  # Display name shown in the OpenShift AI dashboard dropdown.
+  # Overridden by overlays to indicate the environment.
+  displayName: "GPU Inference Profile"
+  description: "GPU profile for model inference workloads"
+  enabled: true
+
+  # Resource identifiers -- maps to Kubernetes extended resources
+  # registered by the NVIDIA device plugin.
+  identifiers:
+    - displayName: "NVIDIA GPU"
+      identifier: "nvidia.com/gpu"
+      defaultCount: 1
+      minCount: 1
+      maxCount: 1
+
+  # Node selectors -- constrain workloads to nodes with the target GPU.
+  # Default: T4 (overridden by overlays for other GPU types).
+  nodeSelectors:
+    - key: "nvidia.com/gpu.product"
+      value: "Tesla-T4"
+
+  # Tolerations -- allow pods to schedule on tainted GPU nodes.
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"

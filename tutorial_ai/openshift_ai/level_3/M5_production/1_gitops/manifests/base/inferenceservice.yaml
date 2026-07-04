@@ -1,0 +1,46 @@
+# Base InferenceService for Gemma 4 E4B
+#
+# This is the shared definition used by all environments (dev, staging, prod).
+# Environment-specific values (replicas, memory, GPU type) are patched by
+# Kustomize overlays.
+#
+# The model is referenced by name in the ServingRuntime container args
+# (google/gemma-4-E4B-it on Hugging Face). The actual model weights are
+# downloaded at runtime by vLLM -- they are NOT stored in Git.
+#
+# Sync wave 2: deploys after ServingRuntime (wave 1) is available.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    openshift.io/display-name: gemma-4-e4b
+    serving.kserve.io/deploymentMode: RawDeployment
+    security.opendatahub.io/enable-auth: "false"
+    opendatahub.io/model-type: generative
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+  name: gemma-4-e4b
+spec:
+  predictor:
+    # Default replicas -- overridden by overlays.
+    # Dev: 1/1, Prod: 2/4
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: vLLM
+      name: ""
+      resources:
+        # Default resource allocation -- overridden by overlays.
+        # These values are suitable for a single T4 GPU (16 GB VRAM).
+        limits:
+          cpu: "4"
+          memory: 24Gi
+          nvidia.com/gpu: "1"
+        requests:
+          cpu: "1"
+          memory: 8Gi
+          nvidia.com/gpu: "1"
+      runtime: gemma-4-e4b

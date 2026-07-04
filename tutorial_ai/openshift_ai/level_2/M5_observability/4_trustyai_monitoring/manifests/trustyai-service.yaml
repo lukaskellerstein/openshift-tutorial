@@ -1,0 +1,60 @@
+# TrustyAIService -- deploys the TrustyAI monitoring service into this
+# namespace, providing bias detection, data drift analysis, and explainability
+# for tabular models served via OpenVINO Model Server.
+#
+# The service intercepts inference payloads, stores them in a PVC, and computes
+# fairness and drift metrics on the configured schedule. Metrics are exported
+# as Prometheus metrics via a ServiceMonitor created by the operator.
+#
+# Tutorial: L2-M5.4 -- TrustyAI Model Monitoring
+# Docs: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: TrustyAIService
+metadata:
+  name: trustyai-service
+  namespace: trustyai-tutorial
+  labels:
+    app: trustyai
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  # -------------------------------------------------------------------------
+  # Storage -- where TrustyAI persists captured inference data and computed
+  # metrics. PVC-based storage is the default and simplest option.
+  #
+  # Options:
+  #   format: PVC       -- uses a PersistentVolumeClaim (created automatically)
+  #   format: DATABASE   -- uses an external database (requires additional config)
+  # -------------------------------------------------------------------------
+  storage:
+    format: PVC
+    # Directory inside the PVC where inference data is stored.
+    folder: /data
+    # Size of the PVC. 1Gi is sufficient for tutorial workloads. For production,
+    # size based on expected inference volume and retention period.
+    size: 1Gi
+
+  # -------------------------------------------------------------------------
+  # Data -- configuration for how inference payloads are stored.
+  # TrustyAI captures request/response pairs from the model server and stores
+  # them in this format for metric computation.
+  # -------------------------------------------------------------------------
+  data:
+    # Filename for the stored inference data.
+    filename: data.csv
+    # Storage format for captured inference data.
+    # CSV is human-readable and suitable for tabular models.
+    format: CSV
+
+  # -------------------------------------------------------------------------
+  # Metrics -- controls how frequently TrustyAI recomputes bias and drift
+  # metrics. The computed values are exported on the /metrics endpoint for
+  # Prometheus scraping.
+  #
+  # For this tutorial, we use a 5-second interval for fast feedback. In
+  # production, use a longer interval (e.g., 5m or 15m) to reduce compute
+  # overhead.
+  # -------------------------------------------------------------------------
+  metrics:
+    # How often to recompute all configured metric monitors.
+    schedule: 5s

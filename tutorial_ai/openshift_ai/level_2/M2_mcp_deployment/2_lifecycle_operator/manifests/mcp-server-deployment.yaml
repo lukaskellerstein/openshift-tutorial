@@ -1,0 +1,44 @@
+# MCPServer custom resource for the MCP Lifecycle Operator
+# This deploys the ShopInsights MCP server on OpenShift AI
+#
+# The operator creates the Deployment, Service, and health checks automatically.
+# You only need to specify the container image and configuration.
+#
+# API: mcp.x-k8s.io/v1alpha1 (Dev Preview — API may change)
+apiVersion: mcp.x-k8s.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: shopinsights-mcp
+  labels:
+    app: shopinsights-mcp
+    tutorial-level: "2"
+    tutorial-module: "M2"
+spec:
+  # Container image for the MCP server
+  # Replace with your image registry URL after building
+  image: quay.io/<your-username>/shopinsights-mcp:latest
+
+  # Transport configuration
+  transport:
+    type: StreamableHTTP
+    port: 8080
+    path: /mcp
+
+  # Environment variables
+  env:
+    - name: MCP_PORT
+      value: "8080"
+    - name: PYTHONUNBUFFERED
+      value: "1"
+
+  # Resource limits (appropriate for a lightweight MCP server)
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  # Number of replicas
+  replicas: 1

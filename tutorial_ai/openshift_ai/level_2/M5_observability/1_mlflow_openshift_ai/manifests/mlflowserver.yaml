@@ -1,0 +1,10 @@
+apiVersion: mlflow.opendatahub.io/v1alpha1
+kind: MLflowServer
+metadata:
+  name: mlflow
+  namespace: mlflow-tutorial
+  labels:
+    app: mlflow
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec: {}

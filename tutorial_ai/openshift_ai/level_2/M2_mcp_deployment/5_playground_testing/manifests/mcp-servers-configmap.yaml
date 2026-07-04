@@ -1,0 +1,28 @@
+# ConfigMap that registers MCP servers with the GenAI Playground
+# This must be created in the redhat-ods-applications namespace
+# by a cluster administrator.
+#
+# Each key is the display name of the MCP server.
+# Each value is JSON with url and description.
+#
+# After applying, refresh the browser — servers appear in the
+# Playground's MCP tab with toggle switches.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gen-ai-aa-mcp-servers
+  namespace: redhat-ods-applications
+  labels:
+    tutorial-level: "2"
+    tutorial-module: "M2"
+data:
+  ShopInsights: |
+    {
+      "url": "http://shopinsights-mcp.mcp-servers.svc.cluster.local:8080/mcp",
+      "description": "Product catalog and order analytics tools for ShopInsights."
+    }
+  OpenShift-Resources: |
+    {
+      "url": "http://openshift-mcp-server.mcp-servers.svc.cluster.local:8080/mcp",
+      "description": "Read-only access to Kubernetes and OpenShift cluster resources."
+    }

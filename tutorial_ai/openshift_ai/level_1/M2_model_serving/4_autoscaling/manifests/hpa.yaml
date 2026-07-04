@@ -1,0 +1,38 @@
+# HPA for Gemma4-e4b predictor Deployment
+# Scales based on CPU utilization -- a simple but limited approach for LLM workloads.
+# CPU does not reflect GPU load; consider KEDA with Prometheus metrics instead.
+# Compare with keda-scaledobject.yaml for the recommended approach.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gemma-4-e4b-hpa
+  namespace: gemma-model
+  labels:
+    app: gemma-4-e4b
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gemma-4-e4b-predictor
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 300

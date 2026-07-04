@@ -1,0 +1,109 @@
+# L3-M4.3 -- Continuous Learning Patterns
+# Feedback collection service: PVC + Deployment + Service
+# Deploys a FastAPI application that accepts user feedback on model predictions
+# and stores it as JSON Lines for consumption by the retraining pipeline.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: feedback-data
+  labels:
+    app: feedback-service
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feedback-service
+  labels:
+    app: feedback-service
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feedback-service
+  template:
+    metadata:
+      labels:
+        app: feedback-service
+        tutorial-level: "3"
+        tutorial-module: "M4"
+    spec:
+      containers:
+        - name: feedback-service
+          image: python:3.11-slim
+          command:
+            - bash
+            - -c
+            - |
+              pip install --quiet fastapi uvicorn pydantic &&
+              python /app/feedback_collector.py
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: FEEDBACK_DATA_DIR
+              value: /data/feedback
+            - name: PORT
+              value: "8080"
+            - name: LOG_LEVEL
+              value: INFO
+          volumeMounts:
+            - name: feedback-data
+              mountPath: /data/feedback
+            - name: app-code
+              mountPath: /app
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+      volumes:
+        - name: feedback-data
+          persistentVolumeClaim:
+            claimName: feedback-data
+        - name: app-code
+          configMap:
+            name: feedback-collector-code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feedback-service
+  labels:
+    app: feedback-service
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  selector:
+    app: feedback-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP

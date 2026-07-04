@@ -1,0 +1,36 @@
+# InferenceService for the FP8-quantized Granite model
+# Uses the pre-quantized RedHatAI/granite-3.3-8b-instruct-FP8-dynamic checkpoint
+# The model is ~50% smaller in VRAM compared to the full-precision equivalent
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    openshift.io/display-name: Granite 3.3 8B FP8
+    serving.kserve.io/deploymentMode: RawDeployment
+    security.opendatahub.io/enable-auth: "false"
+    opendatahub.io/model-type: generative
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+    tutorial-level: "3"
+    tutorial-module: "M3"
+  name: granite-3-3-8b-fp8
+  namespace: quantized-models
+spec:
+  predictor:
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: vLLM
+      name: ""
+      resources:
+        limits:
+          cpu: "4"
+          memory: 16Gi
+          nvidia.com/gpu: "1"
+        requests:
+          cpu: "1"
+          memory: 8Gi
+          nvidia.com/gpu: "1"
+      runtime: granite-3-3-8b-fp8

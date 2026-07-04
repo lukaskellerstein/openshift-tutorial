@@ -1,0 +1,43 @@
+# KEDA ScaledObject for Gemma4-e4b predictor Deployment
+# Scales based on vLLM's num_requests_waiting metric via Prometheus.
+# This is the recommended autoscaling approach for LLM workloads.
+# Requires: Custom Metrics Autoscaler operator (KEDA) from OperatorHub
+#           TriggerAuthentication "keda-prometheus-auth" in the same namespace
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: gemma-4-e4b-scaler
+  namespace: gemma-model
+  labels:
+    app: gemma-4-e4b
+spec:
+  scaleTargetRef:
+    name: gemma-4-e4b-predictor
+  minReplicaCount: 0
+  maxReplicaCount: 3
+  pollingInterval: 15
+  cooldownPeriod: 300
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 300
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: https://thanos-querier.openshift-monitoring.svc.cluster.local:9091
+        query: sum(vllm:num_requests_waiting{namespace="gemma-model"})
+        threshold: "5"
+        authModes: "bearer"
+      authenticationRef:
+        name: keda-prometheus-auth

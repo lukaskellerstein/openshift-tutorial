@@ -1,11 +1,14 @@
 # Lesson Content — README.md Format
 
-Every lesson's README.md follows this structure:
+Every lesson's README.md follows this structure. The title format differs by track:
+
+- **Platform track:** `# L<NN> — <Lesson Title>` (e.g., `# L01 — Projects`)
+- **AI tracks:** `# L<level>-M<module>.<lesson> — <Lesson Title>` (e.g., `# L1-2.2 — Model Serving with KServe`)
 
 ## Template
 
 ```markdown
-# L<level>-M<module>.<lesson> — <Lesson Title>
+# <Title per track convention above>
 
 **Level:** <Foundations | Practitioner | Expert>
 **Duration:** <estimated time>
@@ -92,9 +95,9 @@ oc delete ...
 
 ## General Guidelines
 
-- Write for someone who knows Kubernetes well but is new to OpenShift.
-- Always explain WHY OpenShift does something differently, not just WHAT is different.
+- **Platform track:** Write for someone who knows Kubernetes well but is new to OpenShift. Always explain WHY OpenShift does something differently. Include a K8s vs OpenShift comparison table in every lesson.
+- **AI tracks:** Write for someone who knows OpenShift (from the Platform track) and is learning OpenShift AI. The "K8s Context" section can be replaced with an "OpenShift Context" or "Prerequisites" section as appropriate. Comparison tables can contrast vanilla ML tooling with OpenShift AI equivalents.
 - Show full `oc` commands — don't assume the reader knows OpenShift CLI flags.
 - Include both CLI and Web Console instructions when relevant.
-- Always include a Cleanup section — CRC has limited resources.
+- Always include a Cleanup section — CRC and Demo Platform have limited resources.
 - Every lesson should have a Verification section so users know they succeeded.

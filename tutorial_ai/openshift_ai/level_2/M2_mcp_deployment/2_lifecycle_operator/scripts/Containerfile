@@ -1,0 +1,29 @@
+# Containerfile for ShopInsights MCP Server
+# Built on UBI (Universal Base Image) for OpenShift compatibility
+#
+# Build:  podman build -t shopinsights-mcp:latest -f Containerfile .
+# Run:    podman run -p 8080:8080 shopinsights-mcp:latest
+
+FROM registry.access.redhat.com/ubi9/python-311:latest
+
+# Set working directory (UBI Python image uses /opt/app-root/src)
+WORKDIR /opt/app-root/src
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY mcp_server.py .
+
+# Expose the MCP server port
+EXPOSE 8080
+
+# Set environment variables
+ENV MCP_PORT=8080
+ENV PYTHONUNBUFFERED=1
+
+# Run the MCP server
+# Note: UBI Python image runs as non-root user by default (UID 1001)
+# This is compatible with OpenShift's restricted SCC
+CMD ["python", "mcp_server.py"]

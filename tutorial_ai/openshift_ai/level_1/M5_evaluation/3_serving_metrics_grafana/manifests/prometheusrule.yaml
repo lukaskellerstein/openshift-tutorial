@@ -1,0 +1,105 @@
+# PrometheusRule for vLLM serving alerts
+# Fires when latency SLOs or KV cache thresholds are breached
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vllm-alerts
+  labels:
+    app: vllm-serving
+    tutorial-level: "1"
+    tutorial-module: "M5"
+spec:
+  groups:
+    - name: vllm.latency
+      rules:
+        # Alert: end-to-end P99 latency exceeds 10 seconds for 5 minutes
+        - alert: VLLMHighE2ELatency
+          expr: |
+            histogram_quantile(0.99,
+              rate(vllm:e2e_request_latency_seconds_bucket[5m])
+            ) > 10
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "vLLM P99 end-to-end latency exceeds 10s"
+            description: >-
+              The 99th-percentile end-to-end request latency for vLLM has been
+              above 10 seconds for the last 5 minutes. Current value:
+              {{ $value | humanizeDuration }}.
+            runbook_url: "https://docs.example.com/runbooks/vllm-latency"
+
+        # Alert: time-to-first-token P95 exceeds 3 seconds for 5 minutes
+        - alert: VLLMHighTimeToFirstToken
+          expr: |
+            histogram_quantile(0.95,
+              rate(vllm:time_to_first_token_seconds_bucket[5m])
+            ) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "vLLM P95 time-to-first-token exceeds 3s"
+            description: >-
+              The 95th-percentile time-to-first-token has been above 3 seconds
+              for the last 5 minutes. Users may experience noticeable delays
+              before any output appears. Current value:
+              {{ $value | humanizeDuration }}.
+
+    - name: vllm.capacity
+      rules:
+        # Alert: KV cache usage above 90% for 5 minutes
+        - alert: VLLMHighKVCacheUsage
+          expr: vllm:kv_cache_usage_perc > 0.9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "vLLM KV cache usage is above 90%"
+            description: >-
+              KV cache utilization has exceeded 90% for 5 minutes. New requests
+              may queue or fail. Consider scaling the deployment or reducing
+              max_model_len. Current value: {{ $value | humanizePercentage }}.
+
+        # Alert: GPU cache usage above 95% for 5 minutes
+        - alert: VLLMHighGPUCacheUsage
+          expr: vllm:gpu_cache_usage_perc > 0.95
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "vLLM GPU cache usage is above 95%"
+            description: >-
+              GPU cache utilization has exceeded 95% for 5 minutes. The serving
+              instance is near memory exhaustion. Current value:
+              {{ $value | humanizePercentage }}.
+
+    - name: vllm.errors
+      rules:
+        # Alert: request failure rate above 5% for 10 minutes
+        - alert: VLLMHighFailureRate
+          expr: |
+            rate(vllm:request_failure_total[5m])
+            / (rate(vllm:request_success_total[5m]) + rate(vllm:request_failure_total[5m]))
+            > 0.05
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "vLLM request failure rate exceeds 5%"
+            description: >-
+              More than 5% of vLLM requests have been failing for the last
+              10 minutes. Investigate pod logs and GPU health.
+
+        # Alert: requests queuing for extended period
+        - alert: VLLMRequestsQueuing
+          expr: vllm:num_requests_waiting > 10
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "vLLM has more than 10 requests waiting in queue"
+            description: >-
+              The vLLM request queue has had more than 10 waiting requests for
+              10 minutes. The serving instance may be under-provisioned.
+              Current queue depth: {{ $value }}.

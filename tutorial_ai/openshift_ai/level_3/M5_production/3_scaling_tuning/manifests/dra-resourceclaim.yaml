@@ -1,0 +1,112 @@
+# Dynamic Resource Allocation (DRA) example for GPU scheduling.
+#
+# DRA reached GA in OpenShift 4.21.  It replaces the opaque
+# nvidia.com/gpu integer model with structured device attributes,
+# enabling requests like "give me a GPU with >= 40GB memory."
+#
+# This file defines:
+#   1. DeviceClass -- a category of GPU devices (cluster-scoped)
+#   2. ResourceClaimTemplate -- what a workload needs (namespace-scoped)
+#   3. Example Pod using the ResourceClaim
+#
+# Cross-references:
+#   - DRA concepts: L3-M5.3, Section 3
+#   - Kubernetes DRA documentation
+#   - NVIDIA GPU Operator DRA integration
+#
+# Prerequisites:
+#   - OpenShift 4.21+ with DRA feature gate enabled
+#   - NVIDIA GPU Operator with DRA driver configured
+#   - GPU nodes with DRA-published device attributes
+#
+# Usage:
+#   oc apply -f manifests/dra-resourceclaim.yaml
+
+---
+# DeviceClass: defines a category of GPU devices
+#
+# This DeviceClass matches GPUs with at least 40GB of memory.
+# The GPU Operator's DRA driver publishes device attributes
+# (memory, compute capability, product name) that the scheduler
+# uses to match claims to devices.
+apiVersion: resource.k8s.io/v1beta1
+kind: DeviceClass
+metadata:
+  name: gpu-high-memory
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  # CEL expression that filters devices by attributes.
+  # The GPU Operator publishes attributes like:
+  #   device.memory: <bytes>
+  #   device.computeCapability: <major.minor>
+  #   device.productName: <string>
+  selectors:
+    - cel:
+        expression: >
+          device.driver == "gpu.nvidia.com" &&
+          device.attributes["gpu.nvidia.com"].memory >= quantity("40Gi")
+
+---
+# ResourceClaimTemplate: what a workload needs
+#
+# Each pod created from a workload using this template gets its own
+# ResourceClaim, similar to how PVCs are created from PVC templates
+# in StatefulSets.
+apiVersion: resource.k8s.io/v1beta1
+kind: ResourceClaimTemplate
+metadata:
+  name: gpu-high-memory-claim
+  namespace: gemma-model
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  spec:
+    devices:
+      requests:
+        - name: gpu
+          deviceClassName: gpu-high-memory
+          count: 1
+
+---
+# Example Pod using DRA
+#
+# Instead of requesting nvidia.com/gpu: 1 in resource limits, the pod
+# references a ResourceClaim.  The scheduler matches the claim to a
+# device that satisfies the DeviceClass constraints.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dra-gpu-demo
+  namespace: gemma-model
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  containers:
+    - name: gpu-workload
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      command:
+        - sh
+        - -c
+        - |
+          echo "GPU allocated via DRA"
+          nvidia-smi
+          echo "GPU memory:"
+          nvidia-smi --query-gpu=memory.total --format=csv,noheader
+          sleep 30
+      resources:
+        claims:
+          - name: gpu
+  # Reference the ResourceClaimTemplate -- Kubernetes creates a
+  # ResourceClaim from this template for each pod instance.
+  resourceClaims:
+    - name: gpu
+      resourceClaimTemplateName: gpu-high-memory-claim
+  restartPolicy: Never
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"

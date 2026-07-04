@@ -1,0 +1,72 @@
+# RBAC RoleBindings for OpenShift AI Workloads
+#
+# Binds the three custom roles to specific users and service accounts:
+#   1. admin-user       -> ai-platform-admin (ClusterRoleBinding, cluster-wide)
+#   2. scientist-user   -> ai-data-scientist (RoleBinding, gemma-model namespace)
+#   3. agent-sa         -> ai-agent-consumer (RoleBinding, gemma-model namespace)
+#
+# The agent-sa ServiceAccount lives in the agent-workloads namespace but is
+# granted read-only access to the gemma-model namespace via a cross-namespace
+# RoleBinding. This is standard K8s RBAC -- a RoleBinding in namespace A can
+# reference a subject in namespace B.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ai-platform-admin-binding
+  labels:
+    app: ai-rbac
+    tutorial-level: "3"
+    tutorial-module: "M1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ai-platform-admin
+subjects:
+  # Platform administrator -- full access to all OpenShift AI resources
+  # across the entire cluster
+  - kind: User
+    apiGroup: rbac.authorization.k8s.io
+    name: admin-user
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-data-scientist-binding
+  namespace: gemma-model
+  labels:
+    app: ai-rbac
+    tutorial-level: "3"
+    tutorial-module: "M1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ai-data-scientist
+subjects:
+  # Data scientist -- can create workbenches, deploy models, run pipelines,
+  # and register models within the gemma-model namespace
+  - kind: User
+    apiGroup: rbac.authorization.k8s.io
+    name: scientist-user
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-agent-consumer-binding
+  namespace: gemma-model
+  labels:
+    app: ai-rbac
+    tutorial-level: "3"
+    tutorial-module: "M1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ai-agent-consumer
+subjects:
+  # Agent service account -- lives in the agent-workloads namespace but
+  # needs read-only access to gemma-model to discover inference endpoints.
+  # This cross-namespace binding is a standard K8s pattern for granting
+  # service accounts access to resources in other namespaces.
+  - kind: ServiceAccount
+    name: agent-sa
+    namespace: agent-workloads

@@ -1,0 +1,64 @@
+# ServingRuntime for the fine-tuned Gemma4-e4b model
+# Compare with ../../M2_model_serving/2_deploying_gemma/manifests/gemma4-e4b-servingruntime.yaml
+# for the base model version.
+#
+# Key differences from the base model runtime:
+#   - --model=/mnt/models/  (loads from S3-mounted local path, not Hugging Face)
+#   - HF_HUB_OFFLINE=1      (no Hugging Face downloads at startup)
+#   - TRANSFORMERS_OFFLINE=1 (no Hugging Face downloads at startup)
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  annotations:
+    opendatahub.io/apiProtocol: REST
+    opendatahub.io/recommended-accelerators: '["nvidia.com/gpu"]'
+    opendatahub.io/template-display-name: vLLM NVIDIA GPU ServingRuntime for KServe
+    opendatahub.io/template-name: vllm-cuda-runtime-template
+    openshift.io/display-name: Gemma 4 E4B Fine-Tuned vLLM Runtime
+  labels:
+    opendatahub.io/dashboard: "true"
+  name: gemma-4-e4b-finetuned
+  namespace: gemma-model
+spec:
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+  containers:
+    - args:
+        - --port=8080
+        - --model=/mnt/models/
+        - --served-model-name={{.Name}}
+        - --dtype=half
+        - --max-model-len=8192
+        - --gpu-memory-utilization=0.95
+        - --enforce-eager
+      command:
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+      env:
+        - name: HOME
+          value: /tmp
+        - name: HF_HOME
+          value: /tmp/hf_home
+        - name: XDG_CACHE_HOME
+          value: /tmp/.cache
+        - name: VLLM_CACHE_DIR
+          value: /tmp/.cache/vllm
+        - name: HF_HUB_OFFLINE
+          value: "1"
+        - name: TRANSFORMERS_OFFLINE
+          value: "1"
+        - name: NUMBA_CACHE_DIR
+          value: /tmp/numba_cache
+        - name: TRITON_CACHE_DIR
+          value: /tmp/.triton
+      image: docker.io/vllm/vllm-openai:gemma4
+      name: kserve-container
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+  multiModel: false
+  supportedModelFormats:
+    - autoSelect: true
+      name: vLLM

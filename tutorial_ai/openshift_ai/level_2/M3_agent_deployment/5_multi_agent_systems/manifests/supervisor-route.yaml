@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: supervisor-agent
+  labels:
+    app: supervisor-agent
+    role: supervisor
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  to:
+    kind: Service
+    name: supervisor-agent
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge

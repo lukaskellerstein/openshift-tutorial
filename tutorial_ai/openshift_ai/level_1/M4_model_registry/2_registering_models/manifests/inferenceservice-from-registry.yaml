@@ -1,0 +1,45 @@
+# InferenceService deployed from the Model Registry
+# The modelregistry/* labels link this deployment back to the registry,
+# so the dashboard shows deployment status on the registry page.
+#
+# Replace the storageUri with your actual model storage URI.
+# Replace the modelregistry/* label values with actual IDs from your registry.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: gemma4-e4b-from-registry
+  annotations:
+    openshift.io/display-name: Gemma 4 E4B (from Registry)
+    serving.kserve.io/deploymentMode: RawDeployment
+    security.opendatahub.io/enable-auth: "false"
+    opendatahub.io/model-type: generative
+  labels:
+    app: gemma4-e4b-from-registry
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+    # These labels link the InferenceService to the Model Registry.
+    # Update these values to match the IDs from your registry.
+    modelregistry/registered-model-id: "1"
+    modelregistry/model-version-id: "2"
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  predictor:
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: vLLM
+      name: ""
+      resources:
+        limits:
+          cpu: "4"
+          memory: 24Gi
+          nvidia.com/gpu: "1"
+        requests:
+          cpu: "1"
+          memory: 8Gi
+          nvidia.com/gpu: "1"
+      runtime: gemma-4-e4b
+      # Replace with the actual URI from the registry artifact
+      storageUri: "s3://models/gemma4-e4b/finetuned-lora-merged/"

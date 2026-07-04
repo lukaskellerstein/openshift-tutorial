@@ -1,0 +1,44 @@
+# GuideLLM Benchmark Job
+# Runs inference performance benchmarking against the Gemma-4-E4B model endpoint.
+# See the lesson README (L1-M5.2) for how to interpret the results.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: guidellm-benchmark
+  namespace: gemma-model
+  labels:
+    app: guidellm-benchmark
+    tutorial-level: "1"
+    tutorial-module: "M5"
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: guidellm-benchmark
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: guidellm
+          image: ghcr.io/neuralmagic/guidellm:latest
+          command:
+            - "guidellm"
+            - "benchmark"
+            - "--target"
+            - "http://gemma-4-e4b-predictor.gemma-model.svc.cluster.local:8080/v1"
+            - "--model"
+            - "gemma-4-e4b"
+            - "--rate"
+            - "sweep"
+            - "--max-seconds"
+            - "90"
+            - "--max-requests"
+            - "50"
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi

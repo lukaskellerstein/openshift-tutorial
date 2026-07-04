@@ -1,0 +1,43 @@
+# InferenceService for the fine-tuned Gemma4-e4b model
+# Compare with ../../M2_model_serving/2_deploying_gemma/manifests/gemma4-e4b-inferenceservice.yaml
+# for the base model version.
+#
+# Key differences from the base model InferenceService:
+#   - runtime: gemma-4-e4b-finetuned  (references the fine-tuned ServingRuntime)
+#   - storageUri: s3://models/gemma-4-e4b-finetuned/  (merged model in S3)
+#
+# The storageUri tells KServe to download the model from S3 at pod startup.
+# KServe reads S3 credentials from the service account's attached Secrets
+# (annotated with serving.kserve.io/s3-endpoint, etc.).
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    openshift.io/display-name: gemma-4-e4b-finetuned
+    serving.kserve.io/deploymentMode: RawDeployment
+    security.opendatahub.io/enable-auth: "false"
+    opendatahub.io/model-type: generative
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+  name: gemma-4-e4b-finetuned
+  namespace: gemma-model
+spec:
+  predictor:
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: vLLM
+      name: ""
+      resources:
+        limits:
+          cpu: "4"
+          memory: 24Gi
+          nvidia.com/gpu: "1"
+        requests:
+          cpu: "1"
+          memory: 8Gi
+          nvidia.com/gpu: "1"
+      runtime: gemma-4-e4b-finetuned
+      storageUri: s3://models/gemma-4-e4b-finetuned/

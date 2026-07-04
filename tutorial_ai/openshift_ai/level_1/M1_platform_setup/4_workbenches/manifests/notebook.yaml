@@ -1,0 +1,124 @@
+# OpenShift AI Workbench — Notebook CRD manifest
+#
+# This manifest creates a JupyterLab workbench using the CUDA notebook image.
+# It is equivalent to creating a workbench from the OpenShift AI dashboard.
+#
+# The Notebook Controller reconciles this CR into:
+#   - A Pod running JupyterLab + OAuth proxy sidecar
+#   - A Service exposing port 8888
+#   - A Route for browser access
+#
+# Usage:
+#   oc apply -f notebook.yaml
+#
+# Prerequisites:
+#   - Namespace "ai-tutorial" exists with label opendatahub.io/dashboard=true
+#   - Secret "minio-storage" exists in the namespace (S3 data connection)
+#   - PVC "ai-tutorial-workbench-data" will be created separately or already exists
+#
+apiVersion: kubeflow.org/v1
+kind: Notebook
+metadata:
+  name: ai-tutorial-workbench
+  namespace: ai-tutorial
+  labels:
+    app: ai-tutorial-workbench
+    opendatahub.io/notebook-image: "true"
+    opendatahub.io/dashboard: "true"
+    tutorial-level: "1"
+    tutorial-module: "M1"
+  annotations:
+    notebooks.opendatahub.io/notebook-image-name: "CUDA"
+    notebooks.opendatahub.io/notebook-image-order: "2"
+    opendatahub.io/username: "developer"
+    openshift.io/display-name: "AI Tutorial Workbench"
+    openshift.io/description: "JupyterLab workbench with CUDA support for the OpenShift AI tutorial"
+spec:
+  template:
+    spec:
+      containers:
+        - name: ai-tutorial-workbench
+          image: image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/cuda-notebook:2024.2
+          ports:
+            - containerPort: 8888
+              name: notebook-port
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "2"
+              memory: 8Gi
+            limits:
+              cpu: "2"
+              memory: 8Gi
+          volumeMounts:
+            - name: workbench-data
+              mountPath: /opt/app-root/src
+          env:
+            # Notebook server configuration — disable token auth
+            # (OAuth proxy sidecar handles authentication)
+            - name: NOTEBOOK_ARGS
+              value: "--NotebookApp.token='' --NotebookApp.password=''"
+            # S3 data connection — injected from the minio-storage Secret
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: minio-storage
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-storage
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: minio-storage
+                  key: AWS_S3_ENDPOINT
+            - name: AWS_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: minio-storage
+                  key: AWS_S3_BUCKET
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: minio-storage
+                  key: AWS_DEFAULT_REGION
+          livenessProbe:
+            httpGet:
+              path: /api
+              port: notebook-port
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api
+              port: notebook-port
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: workbench-data
+          persistentVolumeClaim:
+            claimName: ai-tutorial-workbench-data
+---
+# PersistentVolumeClaim for the workbench's persistent storage.
+# Files saved under /opt/app-root/src persist across Pod restarts.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ai-tutorial-workbench-data
+  namespace: ai-tutorial
+  labels:
+    app: ai-tutorial-workbench
+    tutorial-level: "1"
+    tutorial-module: "M1"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi

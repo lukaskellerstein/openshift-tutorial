@@ -1,0 +1,80 @@
+# Example PipelineRun for manual testing of the AI CI/CD pipeline.
+#
+# This PipelineRun provides all parameters explicitly so you can
+# trigger the pipeline without a GitHub webhook.  Useful for initial
+# testing and debugging.
+#
+# Usage:
+#   oc apply -f manifests/tekton-pipelinerun.yaml -n ai-cicd
+#
+# Monitor:
+#   tkn pipelinerun logs ai-cicd-manual-run -f
+#
+# Clean up after testing:
+#   oc delete pipelinerun ai-cicd-manual-run
+
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: ai-cicd-manual-run
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+    tekton.dev/pipeline: ai-cicd-pipeline
+  annotations:
+    # Mark this as a manual test run for easy identification
+    ai-cicd/trigger: manual
+    ai-cicd/purpose: tutorial-demo
+spec:
+  pipelineRef:
+    name: ai-cicd-pipeline
+  params:
+    # ---- Source code repository ----
+    - name: git-url
+      value: "https://github.com/your-org/your-ai-app.git"
+    - name: git-revision
+      value: main
+    # ---- Container image ----
+    # Uses the internal OpenShift image registry.  Replace the
+    # namespace (ai-cicd) if you are using a different project.
+    - name: image-name
+      value: "image-registry.openshift-image-registry.svc:5000/ai-cicd/model-server:latest"
+    # ---- Model configuration ----
+    - name: model-name
+      value: "my-llm-agent"
+    # ---- Evaluation ----
+    - name: eval-threshold
+      value: "0.85"
+    - name: eval-dataset
+      value: "default-eval-set"
+    # ---- GitOps ----
+    - name: gitops-repo-url
+      value: "https://github.com/your-org/your-ai-app-gitops.git"
+    - name: target-environment
+      value: staging
+  workspaces:
+    # Shared workspace uses a VolumeClaimTemplate so each run gets
+    # its own PVC.  The PVC is deleted when the PipelineRun is
+    # garbage-collected.
+    - name: shared-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+    # Git credentials for pushing to the GitOps repository.
+    # Create this secret before running:
+    #   oc create secret generic git-credentials \
+    #     --from-file=.git-credentials=$HOME/.git-credentials \
+    #     --from-file=.gitconfig=$HOME/.gitconfig
+    - name: git-credentials
+      secret:
+        secretName: git-credentials
+  # Timeout for the entire pipeline run.  Model evaluation can take
+  # a long time, so allow up to 2 hours.
+  timeouts:
+    pipeline: "2h"
+    tasks: "1h"

@@ -1,0 +1,20 @@
+# LocalQueue for the prod team namespace.
+# Production workloads submitted here get higher priority
+# via WorkloadPriorityClass labels on the jobs.
+#
+# Resources created:
+#   - LocalQueue: prod-queue (in namespace prod-team)
+
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: prod-queue
+  namespace: prod-team
+  labels:
+    tutorial-level: "2"
+    tutorial-module: "M6"
+spec:
+  # References the same ClusterQueue as dev-queue.
+  # Both teams share the gpu-cluster-queue resource pool,
+  # with borrowing and preemption policies controlling fair access.
+  clusterQueue: gpu-cluster-queue

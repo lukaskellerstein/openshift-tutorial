@@ -1,0 +1,172 @@
+# Production InferenceService for Gemma 4 E4B
+#
+# This file deploys the core model serving infrastructure:
+#   1. ServingRuntime -- defines the vLLM container configuration and args
+#   2. InferenceService -- the KServe CR that manages the model deployment
+#
+# Production hardening compared to the Level 1 deployment:
+#   - --enforce-eager: disables CUDA graphs for deterministic behavior and
+#     avoids memory fragmentation issues under sustained load
+#   - --enable-chunked-prefill: overlaps prefill and decode phases to reduce
+#     time-to-first-token for long prompts
+#   - --max-num-seqs=128: caps concurrent sequences to prevent OOM under burst
+#   - --gpu-memory-utilization=0.92: reserves 8% GPU memory headroom for
+#     transient allocations (lower than dev's 0.95 for stability)
+#   - Auth enabled via Authorino: all inference requests must carry a valid
+#     ServiceAccount token with the correct audience claim
+#   - Autoscaling: 1-3 replicas based on request load
+#   - Explicit resource requests and limits for predictable scheduling
+#
+# Apply after namespace-setup.yaml (ArgoCD sync wave 2).
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: gemma-4-e4b-prod
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: model-serving
+    opendatahub.io/dashboard: "true"
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    opendatahub.io/apiProtocol: REST
+    opendatahub.io/recommended-accelerators: '["nvidia.com/gpu"]'
+    opendatahub.io/template-display-name: "vLLM NVIDIA GPU ServingRuntime (Production)"
+    opendatahub.io/template-name: vllm-cuda-runtime-template
+    openshift.io/display-name: "Gemma 4 E4B vLLM Runtime - Production"
+spec:
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+  containers:
+    - name: kserve-container
+      image: docker.io/vllm/vllm-openai:gemma4
+      command:
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+      args:
+        # ---- Server configuration ----
+        - --port=8080
+        - --model=google/gemma-4-E4B-it
+        - --served-model-name={{.Name}}
+        - --dtype=half
+        # ---- Memory and performance tuning ----
+        # 8192 tokens max context: balances memory usage with useful context length.
+        # Gemma 4 E4B supports longer, but 8K is sufficient for most agent tasks
+        # and keeps KV cache memory predictable.
+        - --max-model-len=8192
+        # Single GPU -- no tensor parallelism needed for this model size.
+        # For larger models (70B+), increase to match available GPUs.
+        - --tensor-parallel-size=1
+        # Reserve 8% GPU memory as headroom for transient allocations.
+        # Production uses 0.92 (not 0.95) to avoid OOM under burst traffic.
+        - --gpu-memory-utilization=0.92
+        # Overlap prefill and decode phases to reduce time-to-first-token.
+        # Particularly beneficial when agents send long system prompts.
+        - --enable-chunked-prefill
+        # ---- Concurrency limits ----
+        # Cap concurrent sequences to prevent memory exhaustion.
+        # 128 is generous for a single GPU -- adjust based on observed
+        # KV cache utilization in Grafana.
+        - --max-num-seqs=128
+        # ---- Stability ----
+        # Disable CUDA graphs (eager mode) for deterministic behavior.
+        # CUDA graphs can cause subtle memory fragmentation under sustained
+        # load. The throughput penalty (~5-10%) is worth the stability gain
+        # in production.
+        - --enforce-eager
+      env:
+        # vLLM requires writable directories for caches and temporary files.
+        # These are set to /tmp subdirectories because OpenShift's restricted
+        # SCC does not allow writing to the default HOME directory.
+        - name: HOME
+          value: /tmp
+        - name: HF_HOME
+          value: /tmp/hf_home
+        - name: XDG_CACHE_HOME
+          value: /tmp/.cache
+        - name: VLLM_CACHE_DIR
+          value: /tmp/.cache/vllm
+        - name: HF_HUB_OFFLINE
+          value: "0"
+        - name: TRANSFORMERS_OFFLINE
+          value: "0"
+        - name: NUMBA_CACHE_DIR
+          value: /tmp/numba_cache
+        - name: TRITON_CACHE_DIR
+          value: /tmp/.triton
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+      resources:
+        requests:
+          cpu: "1"
+          memory: 8Gi
+        limits:
+          cpu: "4"
+          memory: 24Gi
+  # Multi-model serving disabled -- each InferenceService gets its own
+  # runtime pod with dedicated GPU memory. This simplifies resource
+  # accounting and avoids GPU memory contention between models.
+  multiModel: false
+  supportedModelFormats:
+    - name: vLLM
+      autoSelect: true
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: gemma-4-e4b
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: model-serving
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    openshift.io/display-name: "gemma-4-e4b (Production)"
+    # RawDeployment mode: KServe creates a standard Kubernetes Deployment
+    # instead of a Knative Service. This avoids the Knative dependency
+    # and gives full control over the pod spec (probes, volumes, etc.).
+    serving.kserve.io/deploymentMode: RawDeployment
+    # Enable Authorino-based authentication. Every inference request must
+    # carry a valid bearer token. Agents use projected ServiceAccount tokens
+    # with audience=https://kubernetes.default.svc to authenticate.
+    security.opendatahub.io/enable-auth: "true"
+    # Mark as a generative AI model for dashboard categorization
+    opendatahub.io/model-type: generative
+spec:
+  predictor:
+    # Autoscaling: start with 1 replica, scale up to 3 under load.
+    # KServe uses the Kubernetes HPA with target concurrency metrics
+    # to decide when to scale.
+    minReplicas: 1
+    maxReplicas: 3
+    # Use the dedicated model-serving ServiceAccount for RBAC isolation.
+    # This SA has only the permissions needed for inference -- it cannot
+    # modify other resources in the namespace.
+    serviceAccountName: model-serving-sa
+    model:
+      modelFormat:
+        name: vLLM
+      # Empty name tells KServe to use the served-model-name from the
+      # ServingRuntime args ({{.Name}} resolves to the InferenceService name).
+      name: ""
+      # Reference the production ServingRuntime defined above
+      runtime: gemma-4-e4b-prod
+      resources:
+        requests:
+          cpu: "1"
+          memory: 8Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "4"
+          memory: 24Gi
+          nvidia.com/gpu: "1"

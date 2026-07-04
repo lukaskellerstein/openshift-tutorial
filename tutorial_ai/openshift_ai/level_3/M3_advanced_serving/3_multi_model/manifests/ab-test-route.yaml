@@ -1,0 +1,39 @@
+# A/B Test Route for Model Comparison
+# Splits traffic between two InferenceService backends:
+#   - gemma-4-e4b (original, full precision): 80% traffic
+#   - gemma-4-e4b-fp8 (FP8 quantized from L3-M3.2): 20% traffic
+#
+# OpenShift Routes support weighted traffic splitting via
+# alternateBackends. The HAProxy router distributes requests
+# proportionally based on the configured weights.
+#
+# Adjust weights dynamically without redeploying:
+#   oc set route-backends ab-test-llm \
+#     gemma-4-e4b-predictor=50 gemma-4-e4b-fp8-predictor=50
+#
+# Weight values are integers 0-256. The default weight is 100.
+# Setting a weight to 0 sends no traffic to that backend.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ab-test-llm
+  namespace: multi-model-serving
+  annotations:
+    haproxy.router.openshift.io/balance: roundrobin
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M3"
+spec:
+  to:
+    kind: Service
+    name: gemma-4-e4b-predictor
+    weight: 80
+  alternateBackends:
+    - kind: Service
+      name: gemma-4-e4b-fp8-predictor
+      weight: 20
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supervisor-agent
+  labels:
+    app: supervisor-agent
+    role: supervisor
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supervisor-agent
+  template:
+    metadata:
+      labels:
+        app: supervisor-agent
+        role: supervisor
+        tutorial-level: "2"
+        tutorial-module: "M3"
+    spec:
+      containers:
+        - name: supervisor-agent
+          # Replace PROJECT with your OpenShift project name
+          image: image-registry.openshift-image-registry.svc:5000/PROJECT/supervisor-agent:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: VLLM_ENDPOINT
+              value: "http://vllm-server:8000/v1"
+            - name: VLLM_MODEL_NAME
+              value: "granite-3.3-8b-instruct"
+            - name: SPECIALIST_RESEARCH_URL
+              value: "http://specialist-research:8080"
+            - name: SPECIALIST_CODE_URL
+              value: "http://specialist-code:8080"
+            - name: LOG_LEVEL
+              value: "INFO"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base resources for AI workloads.
+# These manifests define the canonical InferenceService, ServingRuntime,
+# and HardwareProfile. Environment-specific overlays (dev, staging, prod)
+# patch these with appropriate GPU resources, replica counts, and vLLM args.
+#
+# Deployment order is controlled by sync-wave annotations on each resource:
+#   Wave 1: ServingRuntime, HardwareProfile (infrastructure)
+#   Wave 2: InferenceService (depends on ServingRuntime)
+
+resources:
+  - servingruntime.yaml
+  - inferenceservice.yaml
+  - hardware-profile.yaml
+
+commonLabels:
+  app.kubernetes.io/managed-by: argocd
+  app.kubernetes.io/part-of: ai-platform
+  tutorial-level: "3"
+  tutorial-module: "M5"

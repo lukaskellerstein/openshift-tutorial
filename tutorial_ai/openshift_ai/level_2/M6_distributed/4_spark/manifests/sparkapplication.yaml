@@ -1,0 +1,101 @@
+# SparkApplication -- submits a PySpark data processing job to the Spark Operator
+#
+# This manifest demonstrates a Spark job running in cluster mode, where the driver
+# runs as a pod inside the cluster. The Spark Operator creates the driver pod, which
+# in turn creates executor pods to process data in parallel.
+#
+# This example uses the bundled wordcount.py from the Spark distribution as a
+# lightweight demonstration. In production, mount your own scripts via ConfigMap
+# or bake them into a custom container image.
+#
+# Tutorial: L2-M6.4 -- Apache Spark on OpenShift AI
+# Docs: https://github.com/kubeflow/spark-operator/blob/master/docs/user-guide.md
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: text-data-preprocessing
+  namespace: spark-tutorial
+  labels:
+    app: text-data-preprocessing
+    tutorial-level: "2"
+    tutorial-module: "M6"
+spec:
+  # -------------------------------------------------------------------------
+  # Application type and mode
+  # type: Python | Scala | Java | R
+  # mode: cluster (driver runs as a pod) | client (driver runs locally)
+  # Always use cluster mode on Kubernetes -- client mode requires a local
+  # Spark installation and network access to the cluster.
+  # -------------------------------------------------------------------------
+  type: Python
+  mode: cluster
+
+  # -------------------------------------------------------------------------
+  # Spark image -- Red Hat-provided image with PySpark and common libraries.
+  # For custom dependencies, build a derived image with additional pip packages.
+  # -------------------------------------------------------------------------
+  image: quay.io/opendatahub/spark:3.5.3
+  imagePullPolicy: IfNotPresent
+  sparkVersion: "3.5.3"
+
+  # -------------------------------------------------------------------------
+  # Application entrypoint -- the Python file (or JAR) to run.
+  # "local://" means the file is on the container filesystem (baked into the
+  # image). For files on S3 or HDFS, use "s3a://" or "hdfs://" prefixes.
+  # -------------------------------------------------------------------------
+  mainApplicationFile: "local:///opt/spark/examples/src/main/python/wordcount.py"
+
+  # Arguments passed to the application (positional args after the script name)
+  arguments:
+    - "/opt/spark/README.md"
+
+  # -------------------------------------------------------------------------
+  # Spark configuration -- key-value pairs passed as --conf to spark-submit.
+  # These override defaults in spark-defaults.conf.
+  # -------------------------------------------------------------------------
+  sparkConf:
+    # Port for the Spark UI web interface on the driver pod
+    spark.ui.port: "4040"
+    # Disable event logging (no persistent history server in this tutorial)
+    spark.eventLog.enabled: "false"
+    # Number of partitions for shuffle operations -- keep low for small data
+    spark.sql.shuffle.partitions: "4"
+
+  # -------------------------------------------------------------------------
+  # Driver pod configuration -- the driver plans the execution DAG,
+  # distributes tasks to executors, and collects results.
+  # -------------------------------------------------------------------------
+  driver:
+    cores: 1
+    memory: "1g"
+    # Service account with permissions to create executor pods
+    serviceAccount: spark
+    labels:
+      app: text-data-preprocessing
+      role: driver
+
+  # -------------------------------------------------------------------------
+  # Executor pod configuration -- executors run tasks in parallel.
+  # instances: number of executor pods to create
+  # For GPU workloads, add nvidia.com/gpu to resources.
+  # -------------------------------------------------------------------------
+  executor:
+    cores: 1
+    instances: 2
+    memory: "1g"
+    labels:
+      app: text-data-preprocessing
+      role: executor
+    # Uncomment for GPU-accelerated processing (e.g., RAPIDS):
+    # gpu:
+    #   name: nvidia.com/gpu
+    #   quantity: 1
+
+  # -------------------------------------------------------------------------
+  # Restart policy -- controls what happens when the application fails.
+  # Never: do not restart (appropriate for batch jobs in tutorials)
+  # OnFailure: restart on non-zero exit code
+  # Always: restart regardless of exit code
+  # -------------------------------------------------------------------------
+  restartPolicy:
+    type: Never

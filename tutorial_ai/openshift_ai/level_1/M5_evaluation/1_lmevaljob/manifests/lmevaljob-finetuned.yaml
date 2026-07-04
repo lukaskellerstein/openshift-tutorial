@@ -1,0 +1,68 @@
+# LMEvalJob — Benchmark the fine-tuned Gemma4-e4b model
+# This job loads the fine-tuned model from a PVC and evaluates it
+# against the same benchmarks used for the base model.
+# Compare with lmevaljob-base.yaml for the base model evaluation.
+#
+# Prerequisites:
+#   - Fine-tuned model stored on PVC "gemma-4-e4b-finetuned-pvc"
+#     (created in L1-M3.3 — Deploying the Fine-Tuned Model)
+#   - The PVC contains the merged model (base + LoRA adapter)
+#     at the root directory
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: LMEvalJob
+metadata:
+  name: eval-finetuned-gemma-4-e4b
+  namespace: gemma-model
+  labels:
+    app: lmeval-finetuned
+    tutorial-level: "1"
+    tutorial-module: "M5"
+    eval-target: finetuned-model
+spec:
+  # "hf" = load a Hugging Face Transformers model from a local path
+  model: hf
+  modelArgs:
+    - name: pretrained
+      value: /opt/models/gemma-4-e4b-finetuned
+    - name: dtype
+      value: float16
+    - name: trust_remote_code
+      value: "True"
+  # Same tasks as the base model evaluation — required for comparison
+  taskList:
+    - taskName: mmlu_abstract_algebra
+      numFewShot: 5
+    - taskName: hellaswag
+      numFewShot: 0
+    - taskName: arc_easy
+      numFewShot: 0
+    - taskName: truthfulqa_mc2
+      numFewShot: 0
+  # Same limit as the base model — must match for fair comparison
+  limit: "50"
+  logSamples: true
+  batchSize: "auto"
+  pod:
+    container:
+      env:
+        - name: HF_HOME
+          value: /tmp/hf_home
+        - name: TRANSFORMERS_CACHE
+          value: /tmp/hf_home
+      resources:
+        requests:
+          cpu: "2"
+          memory: 8Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "4"
+          memory: 24Gi
+          nvidia.com/gpu: "1"
+      volumeMounts:
+        - name: finetuned-model
+          mountPath: /opt/models/gemma-4-e4b-finetuned
+          readOnly: true
+    volumes:
+      - name: finetuned-model
+        persistentVolumeClaim:
+          claimName: gemma-4-e4b-finetuned-pvc

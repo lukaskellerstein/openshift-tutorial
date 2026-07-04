@@ -1,0 +1,98 @@
+# ClusterTrainingRuntime -- defines a reusable distributed training configuration
+# Extends the pre-built torch-distributed runtime with Hugging Face Transformers,
+# PEFT (LoRA), FSDP environment variables, and checkpoint storage.
+# Used in L2-M6.3 for distributed LoRA fine-tuning with Kubeflow Trainer v2.
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: ClusterTrainingRuntime
+metadata:
+  name: torch-lora-finetuning
+  labels:
+    tutorial-level: "2"
+    tutorial-module: "M6"
+spec:
+  # Number of training nodes (head + workers)
+  numNodes: 2
+
+  # Startup policy -- all pods must be ready before training begins.
+  # InOrder ensures node-0 (head) starts first, then workers join.
+  startupPolicy:
+    startupPolicyOrder: InOrder
+
+  # ML policy -- framework-specific settings
+  mlPolicy:
+    torch:
+      # Number of processes per node (matches GPU count per node)
+      numProcPerNode: "1"
+      # ElasticPolicy for fault tolerance (optional, uncomment for elastic training)
+      # elasticPolicy:
+      #   minReplicas: 1
+      #   maxReplicas: 4
+
+  # Pod group policy -- integrate with Kueue for gang scheduling.
+  # All training pods are scheduled as a single unit: either all start or none do.
+  podGroupPolicy:
+    podGroupPolicySource: Kueue
+
+  # Template for the training pods
+  template:
+    spec:
+      numNodes: 2
+      replicatedJobs:
+        - name: node
+          template:
+            spec:
+              template:
+                spec:
+                  containers:
+                    - name: trainer
+                      # Red Hat-maintained training image with PyTorch, Transformers, PEFT
+                      image: quay.io/modh/training:py311-cu124-torch241
+                      env:
+                        # -------------------------------------------------------
+                        # FSDP configuration via environment variables
+                        # -------------------------------------------------------
+                        # FULL_SHARD: shard parameters, gradients, and optimizer
+                        # state across all GPUs (maximum memory savings)
+                        - name: FSDP_SHARDING_STRATEGY
+                          value: "FULL_SHARD"
+                        # TRANSFORMER_BASED_WRAP: automatically wrap each
+                        # transformer layer as a separate FSDP unit
+                        - name: FSDP_AUTO_WRAP_POLICY
+                          value: "TRANSFORMER_BASED_WRAP"
+                        # BACKWARD_PRE: prefetch the next layer's parameters
+                        # during backward pass (reduces communication stalls)
+                        - name: FSDP_BACKWARD_PREFETCH
+                          value: "BACKWARD_PRE"
+                        # SHARDED_STATE_DICT: save checkpoints in sharded format
+                        # (faster, less memory than gathering full state)
+                        - name: FSDP_STATE_DICT_TYPE
+                          value: "SHARDED_STATE_DICT"
+                        # Checkpoint directory for fault tolerance
+                        - name: CHECKPOINT_DIR
+                          value: "/checkpoints"
+                      resources:
+                        requests:
+                          cpu: "4"
+                          memory: 32Gi
+                          nvidia.com/gpu: "1"
+                        limits:
+                          cpu: "8"
+                          memory: 64Gi
+                          nvidia.com/gpu: "1"
+                      volumeMounts:
+                        # Checkpoint storage -- PVC-backed for persistence across
+                        # pod restarts and node failures
+                        - name: checkpoints
+                          mountPath: /checkpoints
+                        # Shared memory -- required by PyTorch DataLoader
+                        # (num_workers > 0) and NCCL for inter-GPU communication
+                        - name: shm
+                          mountPath: /dev/shm
+                  volumes:
+                    - name: checkpoints
+                      persistentVolumeClaim:
+                        claimName: training-checkpoints
+                    - name: shm
+                      emptyDir:
+                        medium: Memory
+                        sizeLimit: 8Gi

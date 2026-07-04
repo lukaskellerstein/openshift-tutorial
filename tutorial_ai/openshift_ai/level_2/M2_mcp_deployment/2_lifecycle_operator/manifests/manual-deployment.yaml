@@ -1,0 +1,88 @@
+# Manual deployment of the ShopInsights MCP server (without the Lifecycle Operator)
+# Use this if the MCP Lifecycle Operator is not available in your environment.
+#
+# This creates the same result as the MCPServer CR, but requires you to manage
+# the Deployment, Service, and Route yourself.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shopinsights-mcp
+  labels:
+    app: shopinsights-mcp
+    tutorial-level: "2"
+    tutorial-module: "M2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shopinsights-mcp
+  template:
+    metadata:
+      labels:
+        app: shopinsights-mcp
+    spec:
+      containers:
+        - name: mcp-server
+          # Replace with your image registry URL after building
+          image: quay.io/<your-username>/shopinsights-mcp:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: MCP_PORT
+              value: "8080"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /mcp
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /mcp
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shopinsights-mcp
+  labels:
+    app: shopinsights-mcp
+    tutorial-level: "2"
+    tutorial-module: "M2"
+spec:
+  selector:
+    app: shopinsights-mcp
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: shopinsights-mcp
+  labels:
+    app: shopinsights-mcp
+    tutorial-level: "2"
+    tutorial-module: "M2"
+spec:
+  to:
+    kind: Service
+    name: shopinsights-mcp
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
