@@ -9,7 +9,7 @@ OpenShift has a built-in OAuth server that handles cluster authentication — us
 
 ## Prerequisites
 
-- Completed: [L05 — Projects](../L05_projects/) (dev and staging projects exist)
+- Completed: [L01 — Projects](../L01_projects/) (dev and staging projects exist)
 - Projects `shopinsights-dev` and `shopinsights-staging` created
 - OpenShift cluster running (CRC or Developer Sandbox)
 - Logged in as `kubeadmin` (some steps require cluster-admin privileges):

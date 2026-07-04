@@ -19,11 +19,11 @@ You know Kubernetes. You use Traefik, Keycloak, and vanilla K8s. Now you want to
 ## Architecture
 
 ```mermaid
-graph LR
-    L01[L01: Deploy] --> L02[L02: Routes]
-    L02 --> L03[L03: Service Mesh]
-    L03 --> L04[L04: Builds & Images]
-    L04 --> L05[L05: Projects]
+graph TD
+    L01[L01: Projects] --> L02[L02: Builds & Images]
+    L02 --> L03[L03: Deploy]
+    L03 --> L04[L04: Routes]
+    L04 --> L05[L05: Service Mesh]
     L05 --> L06[L06: Auth & Identity]
     L06 --> L07[L07: Monitoring]
     L07 --> L08[L08: CI/CD]
@@ -57,6 +57,8 @@ cd openshift-tutorial
 oc login --token=sha256~XXXXX --server=https://api.sandbox-xxx.openshiftapps.com:6443
 ```
 
+> **Important:** Sandbox tokens expire daily. Each day before you start a lesson, repeat step 2-3 to get a fresh token. If `oc` commands fail with `Unauthorized` or `error: You must be logged in to the server`, you need a new token.
+
 #### Option B: OpenShift Local (CRC)
 
 ```bash
@@ -66,21 +68,21 @@ eval $(crc oc-env)
 oc login -u developer -p developer https://api.crc.testing:6443
 ```
 
-> Some lessons (L03, L08, L09, L10) install operators that require cluster-admin. These work on CRC but not on the Sandbox.
+> Some lessons (L05, L08, L09, L10) install operators that require cluster-admin. These work on CRC but not on the Sandbox.
 
 ### Start Learning
 
-Open [`tutorial/L01_deploy_microservices/README.md`](tutorial/L01_deploy_microservices/) and follow the instructions. Each lesson links to the next.
+Open [`tutorial/L01_projects/README.md`](tutorial/L01_projects/) and follow the instructions. Each lesson links to the next.
 
 ## Lessons
 
 | # | Lesson | Duration | What You'll Learn |
 |---|--------|----------|-------------------|
-| 01 | [Deploy the Microservices Stack](tutorial/L01_deploy_microservices/) | 1 hr | Deploy 3 services + UI with health probes, resource limits, ConfigMaps, Secrets. The SCC "no root" gotcha. |
-| 02 | [Expose Services Externally](tutorial/L02_expose_externally/) | 45 min | Routes with TLS. **Is Route a replacement for Traefik? Yes.** |
-| 03 | [Service Mesh with Istio](tutorial/L03_service_mesh/) | 1 hr | Envoy sidecars, mTLS, canary deployments, Kiali observability, circuit breakers. |
-| 04 | [Build & Image Resources](tutorial/L04_builds_and_images/) | 1 hr | BuildConfig, S2I, ImageStreams — the cluster builds your code. Internal registry. |
-| 05 | [Projects](tutorial/L05_projects/) | 20 min | Projects vs Namespaces. Multi-environment setup (dev + staging). |
+| 01 | [Projects](tutorial/L01_projects/) | 20 min | Projects vs Namespaces. Create the ShopInsights project, multi-environment setup (dev + staging). |
+| 02 | [Build & Image Resources](tutorial/L02_builds_and_images/) | 1 hr | BuildConfig, S2I, ImageStreams — the cluster builds your code. Internal registry. |
+| 03 | [Deploy the Microservices Stack](tutorial/L03_deploy_microservices/) | 45 min | Deploy 3 services + UI from ImageStreams with health probes, resource limits, ConfigMaps, Secrets. The SCC "no root" gotcha. |
+| 04 | [Expose Services Externally](tutorial/L04_expose_externally/) | 45 min | Routes with TLS. **Is Route a replacement for Traefik? Yes.** |
+| 05 | [Service Mesh with Istio](tutorial/L05_service_mesh/) | 1 hr | Istio ambient mode, mTLS, canary deployments, Kiali observability, circuit breakers. |
 | 06 | [Authentication & Authorization](tutorial/L06_auth_and_identity/) | 45 min | OAuth, users, RBAC. **Is OAuth a replacement for Keycloak? For cluster auth, yes.** |
 | 07 | [Monitoring & Logging](tutorial/L07_monitoring_and_logging/) | 1 hr | Custom Prometheus metrics from Python, ServiceMonitor, alerts, log forwarding. |
 | 08 | [CI/CD Pipeline](tutorial/L08_cicd_pipeline/) | 1 hr 15 min | Tekton pipeline: GitHub → test → build → push to GHCR → deploy. |
@@ -116,11 +118,11 @@ tutorial/
     orders-service/
     analytics-service/
     dashboard-ui/
-  L01_deploy_microservices/        # Lesson directories
-  L02_expose_externally/
-  L03_service_mesh/
-  L04_builds_and_images/
-  L05_projects/
+  L01_projects/                    # Lesson directories
+  L02_builds_and_images/
+  L03_deploy_microservices/
+  L04_expose_externally/
+  L05_service_mesh/
   L06_auth_and_identity/
   L07_monitoring_and_logging/
   L08_cicd_pipeline/

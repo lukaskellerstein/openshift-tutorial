@@ -1,0 +1,37 @@
+# Istio control plane (Istiod) — managed by the Sail Operator
+# profile: ambient enables ambient mesh mode (ztunnel-based, no sidecars)
+apiVersion: sailoperator.io/v1
+kind: Istio
+metadata:
+  name: default
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "05"
+spec:
+  version: v1.28-latest
+  namespace: istio-system
+  profile: ambient
+  values:
+    pilot:
+      env:
+        CA_TRUSTED_NODE_ACCOUNTS: "ztunnel/ztunnel,kube-system/ztunnel"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    meshConfig:
+      extensionProviders:
+        - name: tempo
+          opentelemetry:
+            service: otel-collector-collector.istio-system.svc.cluster.local
+            port: 4318
+            http:
+              path: /v1/traces
+              timeout: 5s
+      defaultProviders:
+        tracing:
+          - tempo

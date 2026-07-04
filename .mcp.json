@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "playwright-openshift-tutor": {
+            "command": "npx",
+            "args": [
+                "@playwright/mcp@latest",
+                "--isolated"
+            ]
+        }
+    }
+}

@@ -1,0 +1,34 @@
+# DestinationRule with circuit breaker and outlier detection for orders-service
+# Requires a waypoint proxy — L7 policies are enforced by the waypoint, not ztunnel
+# No tls.mode needed — ztunnel handles mTLS automatically via HBONE
+#
+# connectionPool: limits concurrent connections and pending requests
+# outlierDetection: ejects unhealthy pods based on consecutive errors
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: orders-service
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    component: orders-service
+    tutorial: personalized
+    lesson: "05"
+spec:
+  host: orders-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 50
+      http:
+        h2UpgradePolicy: DEFAULT
+        http1MaxPendingRequests: 10
+        http2MaxRequests: 50
+        maxRequestsPerConnection: 5
+        maxRetries: 3
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 100
+      minHealthPercent: 0

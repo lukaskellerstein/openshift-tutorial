@@ -1,0 +1,64 @@
+# NetworkPolicy — restricts ingress to ShopInsights pods
+# Defense in depth: even with mTLS, restrict which pods can establish connections.
+#
+# This policy allows:
+#   1. ShopInsights pods on ports 8080 (app) and 15008 (HBONE) from within the namespace
+#   2. Istio control plane (istio-system) to reach pods for config and telemetry
+#   3. Ztunnel (ztunnel namespace) to reach pods via HBONE on port 15008
+#   4. Kubelet health probes (host-network IPs) on app ports
+#   5. OpenShift ingress controller to reach pods exposed via Routes
+# Note: In ambient mode, ztunnel HBONE traffic to the waypoint appears to originate
+# from the source pod, so port 15008 must be allowed from app: shopinsights pods.
+# All other ingress traffic is denied.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: shopinsights-mesh-policy
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "05"
+spec:
+  podSelector:
+    matchLabels:
+      app: shopinsights
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: shopinsights
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 15008
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ztunnel
+      ports:
+        - protocol: TCP
+          port: 15008
+    - from:
+        - ipBlock:
+            cidr: 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress

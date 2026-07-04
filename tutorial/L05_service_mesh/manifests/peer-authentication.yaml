@@ -1,0 +1,16 @@
+# PeerAuthentication — enforces strict mTLS for all services in the namespace
+# In ambient mode, mTLS is already automatic between ztunnels (HBONE).
+# STRICT mode adds an extra guarantee: reject ANY plaintext traffic,
+# ensuring only mesh-enrolled workloads can reach these services.
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "05"
+spec:
+  mtls:
+    mode: STRICT

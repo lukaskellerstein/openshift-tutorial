@@ -1,0 +1,31 @@
+# Kiali instance — service mesh observability dashboard
+# Uses OpenShift auth strategy for SSO login
+apiVersion: kiali.io/v1alpha1
+kind: Kiali
+metadata:
+  name: kiali
+  namespace: istio-system
+spec:
+  auth:
+    strategy: openshift
+  deployment:
+    accessible_namespaces:
+      - shopinsights
+    namespace: istio-system
+  external_services:
+    istio:
+      config_map_name: istio
+      root_namespace: istio-system
+    prometheus:
+      url: https://thanos-querier.openshift-monitoring.svc:9091
+      auth:
+        type: bearer
+        use_kiali_token: true
+        insecure_skip_verify: true
+    tracing:
+      provider: tempo
+      tempo_config:
+        org_id: "dev"
+        datasource_uid: ""
+      in_cluster_url: http://tempo-sample-gateway.istio-system.svc:3200
+      use_grpc: false

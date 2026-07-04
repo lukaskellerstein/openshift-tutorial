@@ -1,0 +1,40 @@
+# OpenTelemetry Collector — bridges traces from Istio waypoint to Tempo gateway
+# Receives OTLP HTTP from waypoint, adds tenant header + bearer token auth,
+# forwards to Tempo gateway via OTLP gRPC with TLS
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel-collector
+  namespace: istio-system
+spec:
+  serviceAccount: otel-collector
+  config:
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+          grpc:
+            endpoint: 0.0.0.0:4317
+    exporters:
+      otlp/tempo:
+        endpoint: tempo-sample-gateway.istio-system.svc.cluster.local:4317
+        tls:
+          insecure: false
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+        auth:
+          authenticator: bearertokenauth
+        headers:
+          X-Scope-OrgID: "dev"
+    extensions:
+      bearertokenauth:
+        filename: /var/run/secrets/kubernetes.io/serviceaccount/token
+    service:
+      extensions:
+        - bearertokenauth
+      pipelines:
+        traces:
+          receivers:
+            - otlp
+          exporters:
+            - otlp/tempo

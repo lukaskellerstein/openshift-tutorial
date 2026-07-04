@@ -1,0 +1,19 @@
+# OpenShift Service Mesh 3 Operator — manages Istio control plane, CNI, and ztunnel
+# Uses the Red Hat-supported servicemeshoperator3 package from OperatorHub
+# (the community equivalent is "sailoperator" from community-operators)
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: servicemeshoperator3
+  namespace: openshift-operators
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "05"
+spec:
+  channel: stable-3.3
+  startingCSV: servicemeshoperator3.v3.3.5
+  installPlanApproval: Automatic
+  name: servicemeshoperator3
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

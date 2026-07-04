@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopinsights-config
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "03"
+data:
+  PRODUCTS_SERVICE_URL: "http://products-service:8080"
+  ORDERS_SERVICE_URL: "http://orders-service:8080"
+  ANALYTICS_SERVICE_URL: "http://analytics-service:8080"

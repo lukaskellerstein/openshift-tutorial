@@ -5,13 +5,13 @@
 
 ## Overview
 
-In L04 you used BuildConfig to build images inside the cluster and push them to the internal registry. That is a single build step. In this lesson, you build a complete CI/CD pipeline using OpenShift Pipelines (Tekton): clone source code from GitHub, run tests, build a container image with buildah, push it to GitHub Container Registry (GHCR), and deploy the new image to OpenShift. Then you wire up a webhook so the pipeline fires automatically on every `git push`.
+In L02 you used BuildConfig to build images inside the cluster and push them to the internal registry. That is a single build step. In this lesson, you build a complete CI/CD pipeline using OpenShift Pipelines (Tekton): clone source code from GitHub, run tests, build a container image with buildah, push it to GitHub Container Registry (GHCR), and deploy the new image to OpenShift. Then you wire up a webhook so the pipeline fires automatically on every `git push`.
 
 This is the difference between "the cluster can build" and "the cluster runs your entire software delivery lifecycle."
 
 ## Prerequisites
 
-- Completed: [L01](../L01_deploy_microservices/) through [L07](../L07_monitoring_and_logging/)
+- Completed: [L01](../L01_projects/) through [L07](../L07_monitoring_and_logging/)
 - All ShopInsights services running in the `shopinsights` project
 - GitHub account with a repository containing the ShopInsights application code
 - GitHub Personal Access Token (PAT) with `write:packages` scope (for pushing to GHCR)

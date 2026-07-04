@@ -1,0 +1,31 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    openshift.io/display-name: gemma-4-e4b
+    serving.kserve.io/deploymentMode: RawDeployment
+    security.opendatahub.io/enable-auth: "false"
+    opendatahub.io/model-type: generative
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+  name: gemma-4-e4b
+  namespace: gemma-model
+spec:
+  predictor:
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: vLLM
+      name: ""
+      resources:
+        limits:
+          cpu: "4"
+          memory: 24Gi
+          nvidia.com/gpu: "1"
+        requests:
+          cpu: "1"
+          memory: 8Gi
+          nvidia.com/gpu: "1"
+      runtime: gemma-4-e4b

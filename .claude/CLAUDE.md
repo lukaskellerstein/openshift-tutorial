@@ -28,11 +28,11 @@ tutorial/
     orders-service/
     analytics-service/
     dashboard-ui/
-  L01_deploy_microservices/
-  L02_expose_externally/
-  L03_service_mesh/
-  L04_builds_and_images/
-  L05_projects/
+  L01_projects/
+  L02_builds_and_images/
+  L03_deploy_microservices/
+  L04_expose_externally/
+  L05_service_mesh/
   L06_auth_and_identity/
   L07_monitoring_and_logging/
   L08_cicd_pipeline/

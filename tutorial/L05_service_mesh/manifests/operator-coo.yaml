@@ -1,0 +1,13 @@
+# Cluster Observability Operator — provides the distributed tracing UI plugin
+# for the OpenShift Console (Observe > Traces), replacing the deprecated Jaeger UI
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: cluster-observability-operator
+  namespace: openshift-operators
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: cluster-observability-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

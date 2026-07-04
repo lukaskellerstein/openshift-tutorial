@@ -1,0 +1,20 @@
+# Waypoint proxy — an on-demand L7 proxy for the shopinsights namespace
+# Uses the Kubernetes Gateway API with gatewayClassName: istio-waypoint
+# Only needed when you want L7 features: HTTP routing, canary splits,
+# circuit breakers, retries, distributed tracing, L7 authorization policies
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waypoint
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    istio.io/waypoint-for: service
+    tutorial: personalized
+    lesson: "05"
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE

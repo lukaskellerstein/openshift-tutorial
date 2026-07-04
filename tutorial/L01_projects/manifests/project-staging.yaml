@@ -1,0 +1,10 @@
+apiVersion: project.openshift.io/v1
+kind: ProjectRequest
+metadata:
+  name: shopinsights-staging
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "01"
+displayName: "ShopInsights Staging"
+description: "Staging environment for ShopInsights — resource-constrained to mirror production limits"

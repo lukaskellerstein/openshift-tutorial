@@ -1,0 +1,76 @@
+# Sample Project Template — defines defaults applied to every new Project
+# This requires cluster-admin to install. It is provided as a reference.
+#
+# To install (as kubeadmin):
+#   oc apply -f project-template.yaml
+#   oc edit project.config.openshift.io/cluster
+#   # Set spec.projectRequestTemplate.name: shopinsights-project-template
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: shopinsights-project-template
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "01"
+objects:
+  # The Project itself
+  - apiVersion: project.openshift.io/v1
+    kind: Project
+    metadata:
+      name: ${PROJECT_NAME}
+      annotations:
+        openshift.io/display-name: ${PROJECT_DISPLAYNAME}
+        openshift.io/description: ${PROJECT_DESCRIPTION}
+
+  # Default ResourceQuota — every project gets resource limits
+  - apiVersion: v1
+    kind: ResourceQuota
+    metadata:
+      name: default-quota
+      namespace: ${PROJECT_NAME}
+    spec:
+      hard:
+        pods: "20"
+        requests.cpu: "8"
+        requests.memory: 16Gi
+        limits.cpu: "8"
+        limits.memory: 16Gi
+        persistentvolumeclaims: "10"
+
+  # Default NetworkPolicy — deny ingress from other namespaces
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: deny-other-namespaces
+      namespace: ${PROJECT_NAME}
+    spec:
+      podSelector: {}
+      ingress:
+        - from:
+            - podSelector: {}
+      policyTypes:
+        - Ingress
+
+  # Admin RoleBinding for the project creator
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: admin
+      namespace: ${PROJECT_NAME}
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: admin
+    subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: User
+        name: ${PROJECT_ADMIN_USER}
+
+parameters:
+  - name: PROJECT_NAME
+    required: true
+  - name: PROJECT_DISPLAYNAME
+  - name: PROJECT_DESCRIPTION
+  - name: PROJECT_ADMIN_USER
+    required: true

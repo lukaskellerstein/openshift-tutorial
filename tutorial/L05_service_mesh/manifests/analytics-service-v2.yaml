@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service-v2
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    component: analytics-service
+    tutorial: personalized
+    lesson: "05"
+spec:
+  selector:
+    app: shopinsights
+    component: analytics-service
+    version: v2
+  ports:
+    - port: 8080
+      targetPort: 8080

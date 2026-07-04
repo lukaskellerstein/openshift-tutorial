@@ -11,7 +11,7 @@ In this lesson, you install the OpenShift GitOps operator (which provides ArgoCD
 
 ## Prerequisites
 
-- Completed: [L01](../L01_deploy_microservices/) through [L08](../L08_cicd_pipeline/)
+- Completed: [L01](../L01_projects/) through [L08](../L08_cicd_pipeline/)
 - OpenShift cluster running (CRC or Developer Sandbox)
 - Logged in: `oc login -u developer -p developer https://api.crc.testing:6443`
 - `kubeadmin` access available (needed to install the GitOps operator)

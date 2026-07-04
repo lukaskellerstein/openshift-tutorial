@@ -1,0 +1,15 @@
+# Istio CNI — installs a DaemonSet that configures pod traffic redirection
+# Required for ambient mode: the CNI agent adds iptables rules inside pod
+# network namespaces to redirect traffic through ztunnel
+apiVersion: sailoperator.io/v1
+kind: IstioCNI
+metadata:
+  name: default
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "05"
+spec:
+  version: v1.28-latest
+  namespace: istio-cni
+  profile: ambient

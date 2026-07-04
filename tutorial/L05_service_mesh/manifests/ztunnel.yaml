@@ -1,0 +1,16 @@
+# ZTunnel — the per-node L4 proxy that provides automatic mTLS (HBONE)
+# Deployed as a DaemonSet; written in Rust for low overhead
+# Handles: mTLS encryption/decryption, L4 authorization, TCP telemetry
+# Does NOT handle L7 (HTTP routing, headers) — that requires a waypoint proxy
+apiVersion: sailoperator.io/v1
+kind: ZTunnel
+metadata:
+  name: default
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "05"
+spec:
+  version: v1.28-latest
+  namespace: ztunnel
+  profile: ambient

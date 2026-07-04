@@ -1,0 +1,32 @@
+# HTTPRoute — canary traffic split for analytics-service using Gateway API
+# 90% of traffic to v1 (stable), 10% to v2 (canary)
+# Requires a waypoint proxy and separate Services for each version
+# To shift traffic: update the weights and re-apply
+#   50/50:  weight: 50 / weight: 50
+#   full:   weight: 0  / weight: 100  (promote canary)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: analytics-service-canary
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    component: analytics-service
+    tutorial: personalized
+    lesson: "05"
+spec:
+  parentRefs:
+    - kind: Service
+      group: ""
+      name: analytics-service
+      port: 8080
+  rules:
+    - backendRefs:
+        - kind: Service
+          name: analytics-service-v1
+          port: 8080
+          weight: 90
+        - kind: Service
+          name: analytics-service-v2
+          port: 8080
+          weight: 10

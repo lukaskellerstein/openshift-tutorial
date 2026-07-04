@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-ui
+  labels:
+    app: shopinsights
+    component: dashboard-ui
+    tutorial: personalized
+    lesson: "03"
+  annotations:
+    image.openshift.io/triggers: >-
+      [{"from":{"kind":"ImageStreamTag","name":"dashboard-ui:latest"},
+        "fieldPath":"spec.template.spec.containers[?(@.name==\"dashboard-ui\")].image"}]
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shopinsights
+      component: dashboard-ui
+  template:
+    metadata:
+      labels:
+        app: shopinsights
+        component: dashboard-ui
+    spec:
+      containers:
+        - name: dashboard-ui
+          image: dashboard-ui:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10

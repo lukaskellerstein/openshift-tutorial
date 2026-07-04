@@ -1,9 +1,9 @@
-# Knative Service for Analytics — replaces the Deployment + Service from L01
+# Knative Service for Analytics — replaces the Deployment + Service from L03
 # The container spec is the same as the original Deployment, but wrapped in
 # the Knative Service format. Knative handles scaling (including to zero),
 # routing, and revision management automatically.
 #
-# Compare with ../L01_deploy_microservices/manifests/analytics-deployment.yaml
+# Compare with ../L03_deploy_microservices/manifests/analytics-deployment.yaml
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:

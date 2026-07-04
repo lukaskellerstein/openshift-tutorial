@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-ui
+  labels:
+    app: shopinsights
+    component: dashboard-ui
+    tutorial: personalized
+    lesson: "03"
+spec:
+  selector:
+    app: shopinsights
+    component: dashboard-ui
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

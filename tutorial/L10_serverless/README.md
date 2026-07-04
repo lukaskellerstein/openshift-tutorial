@@ -9,7 +9,7 @@ The Analytics Service runs 24/7 as a Deployment with a constant pod — but it g
 
 ## Prerequisites
 
-- Completed: [L01](../L01_deploy_microservices/) through [L09](../L09_gitops/)
+- Completed: [L01](../L01_projects/) through [L09](../L09_gitops/)
 - OpenShift cluster running (CRC with at least 16 GB RAM, or Developer Sandbox)
 - Logged in as `kubeadmin` (operator installation requires cluster-admin)
 - `oc` CLI installed and on PATH
@@ -773,9 +773,9 @@ oc delete broker default -n shopinsights 2>/dev/null
 # Remove the HPA demo (if created)
 oc delete -f manifests/k8s-deployment-hpa.yaml 2>/dev/null
 
-# Restore the original Analytics Deployment and Service from L01
-oc apply -f ../L01_deploy_microservices/manifests/analytics-deployment.yaml
-oc apply -f ../L01_deploy_microservices/manifests/analytics-service.yaml
+# Restore the original Analytics Deployment and Service from L03
+oc apply -f ../L03_deploy_microservices/manifests/analytics-deployment.yaml
+oc apply -f ../L03_deploy_microservices/manifests/analytics-service.yaml
 
 # Remove KnativeServing and namespace
 oc delete knativeserving knative-serving -n knative-serving

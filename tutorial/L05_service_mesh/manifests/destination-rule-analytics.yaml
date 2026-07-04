@@ -1,0 +1,23 @@
+# DestinationRule — defines v1 and v2 subsets for the analytics-service
+# Subsets map to pod labels (version: v1, version: v2)
+# Used by the waypoint proxy for traffic splitting and load balancing
+# No tls.mode needed — ztunnel handles mTLS automatically via HBONE
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: analytics-service
+  namespace: shopinsights
+  labels:
+    app: shopinsights
+    component: analytics-service
+    tutorial: personalized
+    lesson: "05"
+spec:
+  host: analytics-service
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+    - name: v2
+      labels:
+        version: v2

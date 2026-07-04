@@ -1,0 +1,25 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: products-service
+  labels:
+    app: shopinsights
+    component: products-service
+    tutorial: personalized
+    lesson: "02"
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/<your-username>/openshift-tutorial.git
+    contextDir: tutorial/shared_app/products-service
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: products-service:latest
+  triggers:
+    - type: ConfigChange

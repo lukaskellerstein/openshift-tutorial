@@ -1,0 +1,17 @@
+# Tempo Operator — distributed tracing (replaces Jaeger, which is deprecated)
+# Tempo stores and queries traces; pair with OpenTelemetry Collector for ingestion
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: tempo-product
+  namespace: openshift-operators
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "05"
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: tempo-product
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
