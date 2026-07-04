@@ -1,0 +1,23 @@
+# LangGraph Agent -- UBI9 Python 3.11 base image
+# SCC-compatible: runs as non-root user (default UID 1001)
+FROM registry.access.redhat.com/ubi9/python-311:latest
+
+LABEL name="langgraph-agent" \
+      version="1.0" \
+      summary="LangGraph ReAct agent with MCP tool integration" \
+      description="FastAPI application wrapping a LangGraph agent that connects to vLLM for inference and MCP servers for tool calling." \
+      io.k8s.display-name="LangGraph Agent" \
+      io.openshift.tags="ai,agent,langgraph,langchain,mcp"
+
+# Install Python dependencies
+COPY requirements.txt /opt/app-root/src/requirements.txt
+RUN pip install --no-cache-dir -r /opt/app-root/src/requirements.txt
+
+# Copy application code
+COPY agent_app.py /opt/app-root/src/agent_app.py
+
+WORKDIR /opt/app-root/src
+
+EXPOSE 8080
+
+CMD ["uvicorn", "agent_app:app", "--host", "0.0.0.0", "--port", "8080"]

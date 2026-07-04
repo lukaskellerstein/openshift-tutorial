@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: supervisor-agent
+  labels:
+    app: supervisor-agent
+    role: supervisor
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  selector:
+    app: supervisor-agent
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

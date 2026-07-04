@@ -1,0 +1,36 @@
+# PersistentVolumeClaim for LAB-tuning storage.
+#
+# Stores taxonomy files, SDG output, training checkpoints, and final
+# adapter weights. Sized for a single model fine-tuning run; increase
+# storage for larger models or multiple training iterations.
+#
+# Usage:
+#   oc apply -f manifests/lab-tuning-pvc.yaml -n <your-project>
+#
+# Mount this PVC in your workbench or pipeline pod at /opt/app-root/src/lab-tuning
+# to persist training artifacts across pod restarts.
+#
+# Storage breakdown (approximate for a 4B parameter model):
+#   - Base model cache: ~8 GB
+#   - SDG output: ~1 MB (scales with num_examples)
+#   - Phase 1 adapter: ~20 MB
+#   - Phase 2 adapter: ~20 MB
+#   - Training checkpoints: ~100 MB (3 epochs x ~33 MB each)
+#   - Total: ~9 GB (rounded up to 20Gi for headroom)
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lab-tuning-storage
+  labels:
+    app: lab-tuning
+    tutorial-level: "3"
+    tutorial-module: "M4"
+  annotations:
+    description: "Storage for InstructLab LAB-tuning workflow artifacts"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi

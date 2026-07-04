@@ -1,0 +1,65 @@
+# LMEvalJob — Benchmark the base Gemma4-e4b model
+# This job downloads the model from Hugging Face and evaluates it
+# against a subset of standard benchmarks.
+# Compare with lmevaljob-finetuned.yaml for the fine-tuned model evaluation.
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: LMEvalJob
+metadata:
+  name: eval-base-gemma-4-e4b
+  namespace: gemma-model
+  labels:
+    app: lmeval-base
+    tutorial-level: "1"
+    tutorial-module: "M5"
+    eval-target: base-model
+spec:
+  # "hf" = load a Hugging Face Transformers model directly
+  model: hf
+  modelArgs:
+    - name: pretrained
+      value: google/gemma-4-E4B-it
+    - name: dtype
+      value: float16
+    - name: trust_remote_code
+      value: "True"
+  taskList:
+    # MMLU — Massive Multitask Language Understanding
+    # Using a single subject (abstract_algebra) for tutorial speed
+    - taskName: mmlu_abstract_algebra
+      numFewShot: 5
+    # HellaSwag — Commonsense reasoning via sentence completion
+    - taskName: hellaswag
+      numFewShot: 0
+    # ARC-Easy — AI2 Reasoning Challenge (easy subset)
+    - taskName: arc_easy
+      numFewShot: 0
+    # TruthfulQA — Measures tendency to produce truthful answers
+    # mc2 variant uses multiple-choice scoring (normalized)
+    - taskName: truthfulqa_mc2
+      numFewShot: 0
+  # Limit to 50 samples per task for tutorial speed
+  # Remove this field for a full evaluation
+  limit: "50"
+  logSamples: true
+  batchSize: "auto"
+  pod:
+    container:
+      env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token-secret
+              key: token
+        - name: HF_HOME
+          value: /tmp/hf_home
+        - name: TRANSFORMERS_CACHE
+          value: /tmp/hf_home
+      resources:
+        requests:
+          cpu: "2"
+          memory: 8Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "4"
+          memory: 24Gi
+          nvidia.com/gpu: "1"

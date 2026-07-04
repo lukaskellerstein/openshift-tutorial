@@ -1,0 +1,107 @@
+# DataSciencePipelinesApplication -- deploys a full Kubeflow Pipelines v2 stack
+# into this namespace, including API server, Argo Workflows engine, ML Metadata
+# store (MariaDB), and S3 artifact storage (bundled Minio).
+#
+# This manifest uses the bundled Minio for artifact storage, which is suitable
+# for development and tutorials. For production, replace the objectStorage
+# section with an external S3 configuration (see commented-out example below).
+#
+# Tutorial: L2-M4.1 -- Pipeline Setup
+# Docs: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/
+apiVersion: datasciencepipelines.opendatahub.io/v1alpha1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: dspa
+  namespace: ml-pipelines-tutorial
+  labels:
+    app: ml-pipelines-tutorial
+    tutorial-level: "2"
+    tutorial-module: "M4"
+spec:
+  # -------------------------------------------------------------------------
+  # API Server -- the REST API that accepts pipeline definitions and manages
+  # runs. This is the main entry point for the KFP SDK and the dashboard.
+  # -------------------------------------------------------------------------
+  apiServer:
+    deploy: true
+    # Set to true to deploy a sample "Hello World" pipeline automatically.
+    # We disable it here so you start with a clean slate.
+    enableSamplePipeline: false
+
+  # -------------------------------------------------------------------------
+  # Persistence Agent -- watches Argo Workflow resources and syncs their
+  # execution status back into the API server's database.
+  # -------------------------------------------------------------------------
+  persistenceAgent:
+    deploy: true
+
+  # -------------------------------------------------------------------------
+  # Scheduled Workflow Controller -- enables cron-like recurring pipeline
+  # runs. Without this, you can only trigger pipelines manually or via the
+  # API. Deploy it even if you don't need scheduling yet -- it's lightweight.
+  # -------------------------------------------------------------------------
+  scheduledWorkflow:
+    deploy: true
+
+  # -------------------------------------------------------------------------
+  # ML Metadata (MLMD) -- MariaDB database that stores pipeline run metadata,
+  # artifact lineage, and execution history. This is the backend for the
+  # ML Metadata gRPC service used by KFP internally.
+  # -------------------------------------------------------------------------
+  mlmd:
+    deploy: true
+
+  # -------------------------------------------------------------------------
+  # Object Storage -- S3-compatible storage for pipeline artifacts (compiled
+  # pipeline YAMLs, step input/output artifacts, logs).
+  #
+  # Option 1 (below): Bundled Minio -- good for development and tutorials.
+  # Option 2 (commented out): External S3 -- use for production.
+  # -------------------------------------------------------------------------
+  objectStorage:
+    # When true, the DSP controller skips the S3 health check on startup.
+    # Keep false so you get early feedback if storage is misconfigured.
+    disableHealthCheck: false
+
+    # When true, creates an OpenShift Route exposing Minio externally.
+    # Not needed for pipeline operation -- only enable if you need to browse
+    # artifacts from outside the cluster.
+    enableExternalRoute: false
+
+    # --- Option 1: Bundled Minio (default for this tutorial) ---------------
+    minio:
+      deploy: true
+      image: "quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance"
+      # S3 bucket name where pipeline artifacts are stored.
+      bucket: mlpipeline
+      # Secret containing S3 credentials. When minio.deploy is true, the DSP
+      # controller auto-creates this Secret with default credentials.
+      s3CredentialsSecret:
+        accessKey: AWS_ACCESS_KEY_ID
+        secretKey: AWS_SECRET_ACCESS_KEY
+        secretName: dspa-object-storage
+
+    # --- Option 2: External S3 (uncomment for production) ------------------
+    # To use an external S3-compatible endpoint (AWS S3, OpenShift Data
+    # Foundation, etc.), comment out the entire minio block above and
+    # uncomment the externalStorage block below. You must create the
+    # credentials Secret yourself before applying this manifest.
+    #
+    # First, create the Secret:
+    #   oc create secret generic dspa-external-s3 \
+    #     --from-literal=AWS_ACCESS_KEY_ID=<your-access-key> \
+    #     --from-literal=AWS_SECRET_ACCESS_KEY=<your-secret-key> \
+    #     -n ml-pipelines-tutorial
+    #
+    # Then use this configuration:
+    #
+    # externalStorage:
+    #   host: s3.amazonaws.com          # S3 endpoint (without https://)
+    #   port: "443"                     # Port (usually 443 for HTTPS)
+    #   scheme: https                   # https or http
+    #   region: us-east-1               # AWS region (or leave empty for Minio)
+    #   bucket: my-pipeline-artifacts   # Bucket name (must exist already)
+    #   s3CredentialsSecret:
+    #     accessKey: AWS_ACCESS_KEY_ID
+    #     secretKey: AWS_SECRET_ACCESS_KEY
+    #     secretName: dspa-external-s3  # Name of the Secret you created above

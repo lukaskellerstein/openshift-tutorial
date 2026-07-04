@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: langgraph-agent
+  labels:
+    app: langgraph-agent
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  to:
+    kind: Service
+    name: langgraph-agent
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge

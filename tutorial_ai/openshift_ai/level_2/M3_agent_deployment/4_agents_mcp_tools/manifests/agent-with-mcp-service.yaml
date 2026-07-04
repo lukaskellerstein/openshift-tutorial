@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: langgraph-agent-mcp
+  labels:
+    app: langgraph-agent-mcp
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  selector:
+    app: langgraph-agent-mcp
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

@@ -1,0 +1,40 @@
+# InferenceService for a scikit-learn classification model
+# The model artifact (model.joblib) is stored in S3-compatible storage
+#
+# This InferenceService uses the V2 Inference Protocol, which is
+# different from the OpenAI-compatible API used by vLLM. The V2
+# protocol uses /v2/models/{model}/infer for predictions, with a
+# structured JSON request body specifying input tensors.
+#
+# No GPU is required -- MLServer runs entirely on CPU.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    openshift.io/display-name: Product Classifier (sklearn)
+    serving.kserve.io/deploymentMode: RawDeployment
+    security.opendatahub.io/enable-auth: "false"
+  labels:
+    opendatahub.io/dashboard: "true"
+    tutorial-level: "3"
+    tutorial-module: "M3"
+  name: product-classifier
+  namespace: multi-model-serving
+spec:
+  predictor:
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: sklearn
+        version: "1"
+      name: ""
+      runtime: mlserver-sklearn
+      storageUri: "s3://models/product-classifier/"
+      resources:
+        limits:
+          cpu: "2"
+          memory: 4Gi
+        requests:
+          cpu: "500m"
+          memory: 1Gi

@@ -1,0 +1,71 @@
+# Dev overlay for AI workloads
+#
+# Patches the base manifests for a development environment:
+# - Single replica (no HA needed)
+# - Reduced memory allocation (smaller GPU, less VRAM)
+# - Shorter context length (--max-model-len=4096) for faster loading
+# - Lower GPU memory utilization (leaves headroom for debugging)
+# - T4 GPU node selector
+#
+# Usage:
+#   oc kustomize overlays/dev/ | oc apply -f -
+#   OR: reference this path in an ArgoCD Application
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ai-workloads-dev
+
+resources:
+  - ../../base
+
+patches:
+  # Dev InferenceService: single replica, reduced memory
+  - target:
+      kind: InferenceService
+      name: gemma-4-e4b
+    patch: |-
+      - op: replace
+        path: /spec/predictor/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/predictor/maxReplicas
+        value: 1
+      - op: replace
+        path: /spec/predictor/model/resources/limits/memory
+        value: "16Gi"
+      - op: replace
+        path: /spec/predictor/model/resources/requests/memory
+        value: "4Gi"
+
+  # Dev ServingRuntime: shorter context, lower GPU utilization
+  - target:
+      kind: ServingRuntime
+      name: gemma-4-e4b
+    patch: |-
+      - op: replace
+        path: /spec/containers/0/args
+        value:
+          - --port=8080
+          - --model=google/gemma-4-E4B-it
+          - --served-model-name={{.Name}}
+          - --dtype=half
+          - --max-model-len=4096
+          - --gpu-memory-utilization=0.90
+          - --enforce-eager
+
+  # Dev HardwareProfile: T4 GPU with dev labels
+  - target:
+      kind: HardwareProfile
+      name: gpu-inference
+    patch: |-
+      - op: replace
+        path: /spec/displayName
+        value: "GPU Inference Profile (Dev)"
+      - op: replace
+        path: /spec/description
+        value: "Dev GPU profile -- single T4, reduced resources for fast iteration"
+      - op: replace
+        path: /spec/nodeSelectors
+        value:
+          - key: "nvidia.com/gpu.product"
+            value: "Tesla-T4"

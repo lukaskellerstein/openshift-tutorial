@@ -1,0 +1,177 @@
+# =============================================================================
+# Image Policy and SCC Resources for AI Model Serving
+# =============================================================================
+#
+# This file contains two resources:
+#
+#   1. ImagePolicy --- restricts which container registries can supply images
+#      for model serving workloads. This prevents unvetted images from Docker
+#      Hub or other untrusted sources from running in production.
+#
+#   2. RoleBinding --- grants the "anyuid" SCC to a specific ServiceAccount.
+#      This is provided as an example for the rare case where a third-party
+#      ML image cannot be rebuilt. Read the security warnings carefully.
+#
+# =============================================================================
+
+# =============================================================================
+# Resource 1: ImagePolicy --- Registry Allowlist
+# =============================================================================
+#
+# Why restrict registries?
+#   In production AI deployments, you should control exactly where container
+#   images come from. Docker Hub images are often:
+#   - Built by unknown parties with no provenance
+#   - Running as root (incompatible with OpenShift's restricted-v2 SCC)
+#   - Missing security patches for months
+#   - Potentially backdoored or typosquatted
+#
+#   By allowing only Red Hat's AI images (quay.io/modh/*) and your
+#   organization's signed images (quay.io/my-org/*), you eliminate an
+#   entire class of supply chain attacks.
+#
+# How enforcement works:
+#   When a pod spec references an image, OpenShift checks the image
+#   reference against the rules in this policy. If the image comes from
+#   a registry that is not in the allowlist, the pod admission is denied.
+#
+# =============================================================================
+apiVersion: image.openshift.io/v1alpha1
+kind: ImagePolicy
+metadata:
+  name: allowed-model-registries
+  namespace: your-model-project
+  labels:
+    app: supply-chain-security
+    tutorial-level: "3"
+    tutorial-module: "M1"
+    component: registry-restriction
+spec:
+  # ---------------------------------------------------------------------------
+  # resolvePolicy: determines how image references are resolved.
+  # "Required" means images must resolve to a digest (sha256:...) before
+  # being admitted. This prevents tag mutation attacks where an attacker
+  # pushes a different image to the same tag.
+  # ---------------------------------------------------------------------------
+  resolvePolicy: Required
+
+  # ---------------------------------------------------------------------------
+  # rules: define which registries and repositories are allowed.
+  # Images not matching any rule are denied by default.
+  # ---------------------------------------------------------------------------
+  rules:
+    # ---- Red Hat OpenShift AI model serving images ----
+    # These are the official runtime images for vLLM, TGI, OpenVINO,
+    # and other model serving frameworks shipped by Red Hat.
+    # They are built on UBI (Universal Base Image), scanned for CVEs,
+    # and compatible with restricted-v2 SCC.
+    - name: redhat-ai-images
+      policy: Allow
+      registries:
+        - quay.io/modh
+
+    # ---- Organization's own signed images ----
+    # These are model container images built by your team, signed with
+    # cosign (see cosign-policy.yaml), and stored in your Quay namespace.
+    # Only images that pass the ClusterImagePolicy signature check will
+    # actually run.
+    - name: org-signed-images
+      policy: Allow
+      registries:
+        - quay.io/my-org
+
+    # ---- Red Hat certified operator images ----
+    # Required for OpenShift AI operators and their operands.
+    - name: redhat-operators
+      policy: Allow
+      registries:
+        - registry.redhat.io
+        - registry.access.redhat.com
+
+    # ---- Docker Hub (BLOCKED) ----
+    # Uncomment the rule below ONLY if you have a specific, documented need
+    # for a Docker Hub image that cannot be mirrored to Quay. In that case,
+    # pin to a digest (sha256), not a tag, and document the exception.
+    #
+    # - name: dockerhub-exception
+    #   policy: Allow
+    #   registries:
+    #     - docker.io/specific-vendor
+
+---
+
+# =============================================================================
+# Resource 2: RoleBinding --- anyuid SCC for a legacy ML ServiceAccount
+# =============================================================================
+#
+# SECURITY WARNING:
+#   Granting "anyuid" allows containers to run as UID 0 (root). If a
+#   container running as root is compromised, the attacker has root
+#   privileges inside the container, which significantly increases the
+#   blast radius of a container escape vulnerability.
+#
+# When is this necessary?
+#   Some third-party ML images (particularly older TensorFlow Serving,
+#   certain Hugging Face Spaces containers, and some NVIDIA Triton
+#   builds) are hardcoded to run as root. If you cannot rebuild these
+#   images with a non-root user, granting anyuid to a dedicated
+#   ServiceAccount is the least-privilege alternative to granting it
+#   cluster-wide.
+#
+# Best practices:
+#   1. ALWAYS try restricted-v2 first. Most failures are fixable:
+#        - Image writes to /tmp or /var/log --> mount an emptyDir volume
+#        - Image listens on port 80 --> change to 8080 (non-privileged)
+#        - Image runs as root for no reason --> rebuild with USER 1001
+#
+#   2. If you must grant anyuid:
+#        - Create a DEDICATED ServiceAccount (never use "default")
+#        - Grant anyuid ONLY to that ServiceAccount, not the namespace
+#        - Document WHY it is needed and set a review date
+#        - Monitor the pod's behavior with Falco or a similar runtime
+#          security tool
+#
+#   3. NEVER grant "privileged" SCC to model serving pods. The privileged
+#      SCC is reserved for infrastructure components (GPU device plugins,
+#      node-level agents). A model serving pod does not need host
+#      networking, host PID, or device access.
+#
+# How to verify which SCC a pod is using:
+#   oc get pod <pod-name> -o jsonpath='{.metadata.annotations.openshift\.io/scc}'
+#
+# How to check if a pod actually needs root:
+#   oc debug pod/<pod-name> -- id
+#   # If this shows uid=0(root), the image runs as root.
+#   # Check if the image can be rebuilt with a non-root user.
+#
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: anyuid-legacy-ml-sa
+  namespace: your-model-project
+  labels:
+    app: supply-chain-security
+    tutorial-level: "3"
+    tutorial-module: "M1"
+    component: scc-exception
+  annotations:
+    # Document the justification and review schedule
+    supply-chain-security/justification: >-
+      Legacy TensorFlow Serving 2.x image runs as root and cannot be
+      rebuilt. Vendor provides no non-root variant. Review quarterly
+      for updated image availability.
+    supply-chain-security/review-date: "2025-03-15"
+    supply-chain-security/approved-by: "ml-security-team"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  # This ClusterRole is built into OpenShift. It grants the anyuid SCC.
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    # Use a DEDICATED ServiceAccount --- never grant anyuid to "default".
+    # Create this SA with:
+    #   oc create sa legacy-ml-serving -n your-model-project
+    name: legacy-ml-serving
+    namespace: your-model-project

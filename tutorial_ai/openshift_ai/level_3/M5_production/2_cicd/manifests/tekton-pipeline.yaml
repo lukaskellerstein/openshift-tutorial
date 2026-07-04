@@ -1,0 +1,542 @@
+# AI CI/CD Pipeline for OpenShift AI.
+#
+# This file defines the full Tekton Pipeline and its custom Tasks for
+# building, evaluating, and deploying AI applications.  The pipeline
+# integrates Tekton (build orchestration), KFP (model evaluation), and
+# ArgoCD (GitOps deployment).
+#
+# The pipeline uses two ClusterTasks (git-clone, buildah) and four
+# custom Tasks (trigger-evaluation, check-quality-gate,
+# register-model-version, update-gitops-repo).
+#
+# Usage:
+#   oc apply -f manifests/tekton-pipeline.yaml -n ai-cicd
+#   tkn pipeline start ai-cicd-pipeline --use-param-defaults ...
+
+---
+# Task: trigger-evaluation
+#
+# Bridges Tekton and Kubeflow Pipelines.  Creates a KFP PipelineRun
+# for model evaluation, waits for it to complete, and writes the
+# primary evaluation score to a Tekton result.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: trigger-evaluation
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  description: >
+    Trigger a Kubeflow Pipelines evaluation run and wait for the
+    result.  Outputs the primary evaluation score and KFP run ID.
+  params:
+    - name: model-endpoint
+      type: string
+      description: URL of the model inference endpoint to evaluate
+    - name: eval-dataset
+      type: string
+      description: Name or path of the evaluation dataset
+      default: "default-eval-set"
+    - name: kfp-endpoint
+      type: string
+      description: Kubeflow Pipelines API endpoint URL
+      default: "https://ds-pipeline-dspa.redhat-ods-applications.svc.cluster.local:8443"
+    - name: eval-pipeline-name
+      type: string
+      description: Name of the KFP evaluation pipeline to trigger
+      default: "model-evaluation-pipeline"
+    - name: poll-interval
+      type: string
+      description: Seconds between status polls
+      default: "30"
+    - name: timeout
+      type: string
+      description: Maximum seconds to wait for evaluation
+      default: "1800"
+  results:
+    - name: eval-score
+      description: Primary evaluation score (float between 0 and 1)
+    - name: eval-run-id
+      description: KFP PipelineRun ID for traceability
+  workspaces:
+    - name: source
+      description: Workspace containing the application source code
+  steps:
+    - name: run-evaluation
+      image: registry.redhat.io/ubi9/python-311:latest
+      env:
+        - name: KFP_ENDPOINT
+          value: "$(params.kfp-endpoint)"
+        - name: MODEL_ENDPOINT
+          value: "$(params.model-endpoint)"
+        - name: EVAL_DATASET
+          value: "$(params.eval-dataset)"
+        - name: EVAL_PIPELINE
+          value: "$(params.eval-pipeline-name)"
+        - name: POLL_INTERVAL
+          value: "$(params.poll-interval)"
+        - name: TIMEOUT
+          value: "$(params.timeout)"
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        echo "Installing dependencies..."
+        pip install kfp requests > /dev/null 2>&1
+
+        echo "Triggering evaluation pipeline..."
+        python3 "$(workspaces.source.path)/scripts/trigger_evaluation.py" \
+          --endpoint "${MODEL_ENDPOINT}" \
+          --dataset "${EVAL_DATASET}" \
+          --kfp-endpoint "${KFP_ENDPOINT}" \
+          --pipeline-name "${EVAL_PIPELINE}" \
+          --poll-interval "${POLL_INTERVAL}" \
+          --timeout "${TIMEOUT}" \
+          --output-file /tmp/eval-results.json
+
+        # Extract results for downstream Tekton tasks
+        SCORE=$(python3 -c "import json; d=json.load(open('/tmp/eval-results.json')); print(d['primary_score'])")
+        RUN_ID=$(python3 -c "import json; d=json.load(open('/tmp/eval-results.json')); print(d['run_id'])")
+
+        echo "Evaluation complete."
+        echo "  Primary score: ${SCORE}"
+        echo "  KFP Run ID:    ${RUN_ID}"
+
+        echo -n "${SCORE}" > "$(results.eval-score.path)"
+        echo -n "${RUN_ID}" > "$(results.eval-run-id.path)"
+
+---
+# Task: check-quality-gate
+#
+# Compares the evaluation score against a configurable threshold.
+# Fails the pipeline if the score is below the threshold, preventing
+# deployment of a model that does not meet quality standards.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: check-quality-gate
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  description: >
+    Compare evaluation metrics against quality thresholds.  Fails the
+    task (and therefore the pipeline) if any metric is below its
+    threshold.
+  params:
+    - name: eval-score
+      type: string
+      description: Primary evaluation score from the evaluation run
+    - name: threshold
+      type: string
+      description: Minimum acceptable primary score
+      default: "0.85"
+  steps:
+    - name: check-threshold
+      image: registry.redhat.io/ubi9/python-311:latest
+      script: |
+        #!/usr/bin/env python3
+        """Quality gate: block deployment if evaluation score is too low."""
+        import sys
+
+        score = float("$(params.eval-score)")
+        threshold = float("$(params.threshold)")
+
+        print("=" * 50)
+        print("  AI CI/CD Quality Gate")
+        print("=" * 50)
+        print(f"  Evaluation score: {score:.4f}")
+        print(f"  Threshold:        {threshold:.4f}")
+        print("=" * 50)
+
+        if score >= threshold:
+            print("  Result: PASSED")
+            print("  The model meets quality standards for deployment.")
+            sys.exit(0)
+        else:
+            print("  Result: FAILED")
+            print("  The model does NOT meet quality standards.")
+            print("  Deployment is blocked.  Review evaluation results")
+            print("  and retrain or adjust the model before retrying.")
+            sys.exit(1)
+
+---
+# Task: register-model-version
+#
+# Registers the validated model version in the OpenShift AI Model
+# Registry.  Tags the version with the Git commit, pipeline run ID,
+# and evaluation scores for full traceability.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: register-model-version
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  description: >
+    Register a model version in Model Registry with metadata linking
+    it to the pipeline run and evaluation results.
+  params:
+    - name: model-name
+      type: string
+      description: Name of the registered model
+    - name: image-name
+      type: string
+      description: Full container image reference (includes tag or digest)
+    - name: git-revision
+      type: string
+      description: Git commit SHA
+    - name: eval-score
+      type: string
+      description: Primary evaluation score
+    - name: eval-run-id
+      type: string
+      description: KFP PipelineRun ID
+    - name: pipeline-run-id
+      type: string
+      description: Tekton PipelineRun name
+    - name: registry-endpoint
+      type: string
+      description: Model Registry service endpoint
+      default: "https://model-registry-service.redhat-ods-applications.svc.cluster.local"
+    - name: registry-port
+      type: string
+      description: Model Registry service port
+      default: "8443"
+  results:
+    - name: model-version-id
+      description: Registered model version ID
+  steps:
+    - name: register
+      image: registry.redhat.io/ubi9/python-311:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        echo "Installing model-registry SDK..."
+        pip install model-registry > /dev/null 2>&1
+
+        python3 << 'PYTHON_SCRIPT'
+        import os
+        import sys
+        from model_registry import ModelRegistry
+
+        # Parameters passed via Tekton
+        model_name   = "$(params.model-name)"
+        image_name   = "$(params.image-name)"
+        git_revision = "$(params.git-revision)"
+        eval_score   = "$(params.eval-score)"
+        eval_run_id  = "$(params.eval-run-id)"
+        pipeline_run = "$(params.pipeline-run-id)"
+        registry_url = "$(params.registry-endpoint)"
+        registry_port = int("$(params.registry-port)")
+
+        print(f"Connecting to Model Registry at {registry_url}:{registry_port}...")
+        registry = ModelRegistry(
+            server_address=registry_url,
+            port=registry_port,
+            is_secure=True,
+        )
+
+        metadata = {
+            "git_commit":   git_revision,
+            "pipeline_run": pipeline_run,
+            "eval_score":   eval_score,
+            "eval_run_id":  eval_run_id,
+            "source":       "ai-cicd-pipeline",
+        }
+
+        # Check if the model is already registered
+        try:
+            rm = registry.get_registered_model(model_name)
+            print(f"Model '{model_name}' already registered.  Adding new version...")
+        except Exception:
+            rm = None
+
+        if rm is None:
+            print(f"Registering new model '{model_name}'...")
+            rm = registry.register_model(
+                model_name,
+                uri=f"oci://{image_name}",
+                version=git_revision[:12],
+                description="Registered by AI CI/CD pipeline",
+                metadata=metadata,
+            )
+            version_id = git_revision[:12]
+        else:
+            mv = registry.register_model_version(
+                rm,
+                uri=f"oci://{image_name}",
+                version=git_revision[:12],
+                description="Registered by AI CI/CD pipeline",
+                metadata=metadata,
+            )
+            version_id = git_revision[:12]
+
+        print(f"Model version registered successfully.")
+        print(f"  Model:   {model_name}")
+        print(f"  Version: {version_id}")
+        print(f"  Image:   {image_name}")
+        print(f"  Score:   {eval_score}")
+
+        # Write the version ID for downstream tasks
+        with open("$(results.model-version-id.path)", "w") as f:
+            f.write(version_id)
+        PYTHON_SCRIPT
+
+---
+# Task: update-gitops-repo
+#
+# Clones the GitOps repository, updates the Kustomize overlay with
+# the new image tag, commits, and pushes.  The commit triggers ArgoCD
+# to sync the new version to the target environment.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: update-gitops-repo
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  description: >
+    Update the GitOps repository with the new container image tag
+    and push the change to trigger ArgoCD sync.
+  params:
+    - name: gitops-repo-url
+      type: string
+      description: HTTPS URL of the GitOps repository
+    - name: image-name
+      type: string
+      description: Full container image reference (includes tag or digest)
+    - name: git-revision
+      type: string
+      description: Git commit SHA of the source code change
+    - name: environment
+      type: string
+      description: Target environment overlay (staging, production)
+      default: staging
+    - name: pipeline-run-name
+      type: string
+      description: Tekton PipelineRun name for the commit message
+  workspaces:
+    - name: git-credentials
+      description: >
+        Workspace containing Git credentials.  Expects either a
+        .gitconfig and .git-credentials file, or an SSH key.
+  steps:
+    - name: update-and-push
+      image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        echo "Cloning GitOps repository..."
+        # Configure credentials from the workspace
+        if [ -f "$(workspaces.git-credentials.path)/.git-credentials" ]; then
+          cp "$(workspaces.git-credentials.path)/.git-credentials" ~/.git-credentials
+          git config --global credential.helper store
+        fi
+        if [ -f "$(workspaces.git-credentials.path)/.gitconfig" ]; then
+          cp "$(workspaces.git-credentials.path)/.gitconfig" ~/.gitconfig
+        fi
+
+        git clone "$(params.gitops-repo-url)" /tmp/gitops-repo
+        cd /tmp/gitops-repo
+
+        echo "Updating overlay for environment: $(params.environment)..."
+        cd "overlays/$(params.environment)"
+
+        # Update the image reference in the Kustomize overlay
+        # This assumes the overlay uses kustomize edit set image
+        kustomize edit set image "model-server=$(params.image-name)"
+
+        # Check if anything changed
+        if git diff --quiet; then
+          echo "No changes to commit -- image tag is already up to date."
+          exit 0
+        fi
+
+        # Commit and push
+        git config user.email "tekton-pipeline@openshift.local"
+        git config user.name "Tekton AI CI/CD Pipeline"
+        git add .
+        git commit -m "chore: update model-server to $(params.git-revision)
+
+        Image: $(params.image-name)
+        Pipeline: $(params.pipeline-run-name)
+        Source commit: $(params.git-revision)
+        Environment: $(params.environment)
+
+        Deployed by AI CI/CD pipeline after passing quality gate."
+
+        git push origin main
+
+        echo "GitOps repository updated.  ArgoCD will sync shortly."
+
+---
+# Pipeline: ai-cicd-pipeline
+#
+# The full six-task pipeline.  Uses ClusterTasks for git-clone and
+# buildah (container build), and the four custom Tasks defined above
+# for the AI-specific stages.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: ai-cicd-pipeline
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  description: >
+    End-to-end CI/CD pipeline for AI applications.  Builds the
+    container image, runs model evaluation via KFP, enforces a
+    quality gate, registers the model version, and updates the
+    GitOps repository to trigger ArgoCD deployment.
+  params:
+    - name: git-url
+      type: string
+      description: Git repository URL for the AI application source code
+    - name: git-revision
+      type: string
+      description: Git branch, tag, or commit SHA to build
+      default: main
+    - name: image-name
+      type: string
+      description: >
+        Full container image name including registry and tag, e.g.
+        image-registry.openshift-image-registry.svc:5000/ai-cicd/model-server:latest
+    - name: model-name
+      type: string
+      description: Name of the model in Model Registry
+    - name: eval-threshold
+      type: string
+      description: Minimum evaluation score to pass the quality gate
+      default: "0.85"
+    - name: eval-dataset
+      type: string
+      description: Name or path of the evaluation dataset
+      default: "default-eval-set"
+    - name: gitops-repo-url
+      type: string
+      description: HTTPS URL of the GitOps repository
+      default: "https://github.com/your-org/your-ai-app-gitops.git"
+    - name: target-environment
+      type: string
+      description: Target deployment environment
+      default: staging
+  workspaces:
+    - name: shared-workspace
+      description: >
+        Shared workspace for pipeline tasks.  Holds the cloned source
+        code and intermediate build artifacts.
+    - name: git-credentials
+      description: >
+        Git credentials for pushing to the GitOps repository.
+        Must contain .git-credentials or an SSH key.
+  tasks:
+    # ---- Task 1: Clone source code ----
+    - name: git-clone
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      params:
+        - name: url
+          value: "$(params.git-url)"
+        - name: revision
+          value: "$(params.git-revision)"
+        - name: deleteExisting
+          value: "true"
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+
+    # ---- Task 2: Build container image ----
+    - name: build-image
+      runAfter:
+        - git-clone
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: "$(params.image-name)"
+        - name: CONTEXT
+          value: "$(workspaces.source.path)"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    # ---- Task 3: Trigger KFP evaluation ----
+    - name: trigger-eval
+      runAfter:
+        - build-image
+      taskRef:
+        name: trigger-evaluation
+      params:
+        - name: model-endpoint
+          value: "$(params.image-name)"
+        - name: eval-dataset
+          value: "$(params.eval-dataset)"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    # ---- Task 4: Check quality gate ----
+    - name: check-quality-gate
+      runAfter:
+        - trigger-eval
+      taskRef:
+        name: check-quality-gate
+      params:
+        - name: eval-score
+          value: "$(tasks.trigger-eval.results.eval-score)"
+        - name: threshold
+          value: "$(params.eval-threshold)"
+
+    # ---- Task 5: Register model version ----
+    - name: register-model
+      runAfter:
+        - check-quality-gate
+      taskRef:
+        name: register-model-version
+      params:
+        - name: model-name
+          value: "$(params.model-name)"
+        - name: image-name
+          value: "$(params.image-name)"
+        - name: git-revision
+          value: "$(params.git-revision)"
+        - name: eval-score
+          value: "$(tasks.trigger-eval.results.eval-score)"
+        - name: eval-run-id
+          value: "$(tasks.trigger-eval.results.eval-run-id)"
+        - name: pipeline-run-id
+          value: "$(context.pipelineRun.name)"
+
+    # ---- Task 6: Update GitOps repository ----
+    - name: update-gitops
+      runAfter:
+        - register-model
+      taskRef:
+        name: update-gitops-repo
+      params:
+        - name: gitops-repo-url
+          value: "$(params.gitops-repo-url)"
+        - name: image-name
+          value: "$(params.image-name)"
+        - name: git-revision
+          value: "$(params.git-revision)"
+        - name: environment
+          value: "$(params.target-environment)"
+        - name: pipeline-run-name
+          value: "$(context.pipelineRun.name)"
+      workspaces:
+        - name: git-credentials
+          workspace: git-credentials

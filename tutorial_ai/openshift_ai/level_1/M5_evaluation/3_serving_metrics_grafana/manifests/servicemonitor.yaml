@@ -1,0 +1,30 @@
+# ServiceMonitor for vLLM model serving metrics
+# Tells the Prometheus Operator to scrape vLLM's /metrics endpoint
+# Requires user-workload monitoring to be enabled on the cluster
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-metrics
+  labels:
+    app: vllm-serving
+    tutorial-level: "1"
+    tutorial-module: "M5"
+spec:
+  selector:
+    matchLabels:
+      # KServe predictor services carry these labels by default.
+      # Adjust if your InferenceService uses a different label set.
+      component: predictor
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scheme: http
+      # Drop high-cardinality labels that inflate Prometheus storage
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: "vllm:.*"
+          action: keep
+  namespaceSelector:
+    matchNames:
+      - gemma-model

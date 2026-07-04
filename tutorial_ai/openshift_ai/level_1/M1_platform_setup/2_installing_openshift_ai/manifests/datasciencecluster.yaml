@@ -1,0 +1,79 @@
+# DataScienceCluster -- controls which OpenShift AI components are enabled.
+# Set managementState to Managed (install/maintain) or Removed (skip/uninstall).
+#
+# Prerequisites:
+#   - cert-manager operator must be installed for kserve
+#   - JobSet operator must be installed for trainer
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+  labels:
+    app: openshift-ai
+    tutorial-level: "1"
+    tutorial-module: "M1"
+spec:
+  components:
+    # --- Core components (recommended for most deployments) ---
+
+    # OpenShift AI web dashboard
+    dashboard:
+      managementState: Managed
+
+    # Jupyter and VS Code workbenches (Kubeflow Notebook Controller)
+    workbenches:
+      managementState: Managed
+
+    # Model serving with KServe, vLLM, and llm-d scheduler
+    # Requires: cert-manager operator
+    kserve:
+      managementState: Managed
+
+    # Model Registry for versioned model artifact management
+    modelregistry:
+      managementState: Managed
+
+    # MLflow experiment tracking and model lifecycle
+    mlflowoperator:
+      managementState: Managed
+
+    # Evaluation, safety, and guardrails (TrustyAI, LMEval, Guardrails Orchestrator)
+    trustyai:
+      managementState: Managed
+
+    # Data Science Pipelines (Kubeflow Pipelines + Argo Workflows)
+    aipipelines:
+      managementState: Managed
+
+    # Distributed compute with KubeRay
+    ray:
+      managementState: Managed
+
+    # Feature store (Feast)
+    feastoperator:
+      managementState: Managed
+
+    # Training Hub for fine-tuning jobs
+    # Requires: JobSet operator
+    trainer:
+      managementState: Managed
+
+    # --- Optional components (disabled by default) ---
+
+    # Kubeflow Training Operator (legacy, replaced by trainer)
+    trainingoperator:
+      managementState: Removed
+
+    # GPU and resource job scheduling
+    # Enable if you have GPU nodes and need queue-based scheduling
+    kueue:
+      managementState: Removed
+
+    # Apache Spark for large-scale data processing
+    sparkoperator:
+      managementState: Removed
+
+    # OGX / Llama Stack for agent orchestration
+    # Enable if you plan to use AutoRAG or agent workflows
+    llamastackoperator:
+      managementState: Removed

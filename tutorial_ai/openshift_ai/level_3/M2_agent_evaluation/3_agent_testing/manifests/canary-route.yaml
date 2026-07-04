@@ -1,0 +1,86 @@
+# OpenShift Route with traffic splitting for A/B testing agent versions.
+#
+# This Route sends 90 % of traffic to the primary agent service (agent-v1)
+# and 10 % to the canary (agent-v2).  Adjust the weights to shift
+# traffic as confidence in the new version grows.
+#
+# The Route terminates TLS at the edge, so clients connect over HTTPS
+# while backend pods receive plain HTTP on port 8080.
+#
+# Usage:
+#   oc apply -f manifests/canary-route.yaml -n my-ai-project
+#
+# To shift traffic gradually:
+#   oc set route-backends agent-canary agent-v1=80 agent-v2=20 -n my-ai-project
+
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: agent-canary
+  labels:
+    app: agent-canary
+    tutorial-level: "3"
+    tutorial-module: "M2"
+  annotations:
+    # Record the purpose of this Route for operators reviewing the cluster
+    haproxy.router.openshift.io/balance: roundrobin
+spec:
+  # Primary backend -- receives the majority of traffic
+  to:
+    kind: Service
+    name: agent-v1
+    weight: 90
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  # Canary backend -- receives a small fraction of traffic
+  alternateBackends:
+    - kind: Service
+      name: agent-v2
+      weight: 10
+
+---
+# Service for the primary agent version (v1).
+# Points at pods with labels app=agent, version=v1.
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-v1
+  labels:
+    app: agent
+    version: v1
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  selector:
+    app: agent
+    version: v1
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+
+---
+# Service for the canary agent version (v2).
+# Points at pods with labels app=agent, version=v2.
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-v2
+  labels:
+    app: agent
+    version: v2
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  selector:
+    app: agent
+    version: v2
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

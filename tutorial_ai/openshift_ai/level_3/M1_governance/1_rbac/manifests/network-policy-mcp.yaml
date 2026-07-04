@@ -1,0 +1,59 @@
+# Network Policy: MCP Server Ingress
+#
+# Controls which pods can reach MCP (Model Context Protocol) server pods.
+# MCP servers provide tool access to AI agents -- database queries,
+# API calls, file operations, and other capabilities. Without network
+# restrictions, any pod in the cluster could invoke MCP tools, which
+# is a significant security risk.
+#
+# This policy restricts MCP server access to pods labeled app=ai-agent.
+# Only agent pods that are explicitly labeled can reach the MCP server.
+# All other ingress is denied by the default-deny policy.
+#
+# In a production setup, you would combine this with:
+#   - Authorino auth on the MCP server endpoint (L3-M1.2)
+#   - MCP Gateway access control lists (from L2-M2)
+#   - Service mesh mTLS for encrypted agent-to-MCP communication
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mcp-server-ingress
+  labels:
+    app: ai-network-policy
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  # Target: MCP server pods only.
+  # MCP servers deployed in L2-M2 use the label app=mcp-server.
+  podSelector:
+    matchLabels:
+      app: mcp-server
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow ingress only from agent pods.
+    # The podSelector restricts access to pods with the label
+    # app=ai-agent. The namespaceSelector allows agent pods from
+    # any namespace that has been labeled for model serving access.
+    #
+    # This two-level selector means:
+    #   - The pod must have label app=ai-agent AND
+    #   - The pod's namespace must have label access-model-serving=true
+    #
+    # Both conditions must be true (they are ANDed within the same
+    # from entry). If they were in separate from entries, they would
+    # be ORed.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              access-model-serving: "true"
+          podSelector:
+            matchLabels:
+              app: ai-agent
+      ports:
+        # MCP servers typically listen on port 8080 for HTTP
+        # or 443 for HTTPS. Adjust this port to match your
+        # MCP server configuration from L2-M2.
+        - protocol: TCP
+          port: 8080

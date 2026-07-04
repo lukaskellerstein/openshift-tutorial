@@ -1,0 +1,322 @@
+# Monitoring and Alerting for the AI Platform Capstone
+#
+# This file defines the observability stack for the AI platform:
+#   1. ServiceMonitor -- tells Prometheus to scrape vLLM metrics
+#   2. PrometheusRule -- alerting rules for SLO violations
+#   3. GrafanaDashboard ConfigMap -- pre-built dashboard for AI metrics
+#
+# Cross-references:
+#   - vLLM metrics:           L1-M5.3
+#   - Production dashboards:  L2-M5.5
+#   - MLflow tracing:         L2-M5.1
+#   - Agent tracing:          L2-M5.2
+#
+# Apply after model serving is running (ArgoCD sync wave 3).
+
+---
+# ServiceMonitor: scrape vLLM /metrics endpoint
+#
+# The vLLM server exposes Prometheus metrics at /metrics on the
+# serving port.  This ServiceMonitor tells the user-workload
+# Prometheus instance to scrape those metrics.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-metrics
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: monitoring
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  selector:
+    matchLabels:
+      # Match the Service created by KServe for the InferenceService
+      serving.kserve.io/inferenceservice: gemma-4-e4b
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      # vLLM metrics can be verbose -- set a scrape timeout
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - ai-platform-prod
+
+---
+# PrometheusRule: alerting rules for AI platform SLOs
+#
+# These rules define alerts for common production issues:
+#   - High inference latency (SLO violation)
+#   - High error rate
+#   - Low GPU utilization (wasted resources)
+#   - High GPU memory pressure (risk of OOM)
+#   - KV cache saturation (need to scale or tune)
+#   - Agent response failures
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ai-platform-alerts
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: monitoring
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  groups:
+    - name: ai-platform-inference
+      rules:
+        # Alert: Inference latency P99 exceeds 5 seconds
+        - alert: InferenceLatencyHigh
+          expr: |
+            histogram_quantile(0.99,
+              rate(vllm:request_duration_seconds_bucket{namespace="ai-platform-prod"}[5m])
+            ) > 5.0
+          for: 5m
+          labels:
+            severity: warning
+            team: ai-platform
+          annotations:
+            summary: "Inference P99 latency exceeds 5s"
+            description: >
+              The 99th percentile inference latency for {{ $labels.model_name }}
+              has been above 5 seconds for 5 minutes.
+              Current value: {{ $value | humanizeDuration }}.
+              Action: Check GPU utilization, tune vLLM parameters (L3-M5.3),
+              or scale up replicas.
+
+        # Alert: Inference error rate exceeds 1%
+        - alert: InferenceErrorRateHigh
+          expr: |
+            rate(vllm:request_failure_total{namespace="ai-platform-prod"}[5m])
+            / rate(vllm:request_success_total{namespace="ai-platform-prod"}[5m])
+            > 0.01
+          for: 5m
+          labels:
+            severity: critical
+            team: ai-platform
+          annotations:
+            summary: "Inference error rate exceeds 1%"
+            description: >
+              The error rate for {{ $labels.model_name }} has exceeded 1%
+              for 5 minutes.
+              Action: Check pod logs for OOM errors, model loading failures,
+              or invalid requests.
+
+        # Alert: KV cache near saturation
+        - alert: KVCacheSaturationHigh
+          expr: |
+            vllm:gpu_cache_usage_perc{namespace="ai-platform-prod"} > 0.95
+          for: 10m
+          labels:
+            severity: warning
+            team: ai-platform
+          annotations:
+            summary: "vLLM KV cache utilization above 95%"
+            description: >
+              KV cache is nearly full for {{ $labels.model_name }}.
+              New requests may be queued or rejected.
+              Action: Reduce --max-model-len, increase --gpu-memory-utilization,
+              or add replicas.
+
+    - name: ai-platform-gpu
+      rules:
+        # Alert: GPU utilization consistently low (wasted resources)
+        - alert: GPUUtilizationLow
+          expr: |
+            avg_over_time(DCGM_FI_DEV_GPU_UTIL{exported_namespace="ai-platform-prod"}[1h]) < 20
+          for: 2h
+          labels:
+            severity: info
+            team: ai-platform
+          annotations:
+            summary: "GPU utilization below 20% for 2 hours"
+            description: >
+              GPU {{ $labels.gpu }} on node {{ $labels.instance }} has been
+              below 20% utilization for 2 hours.
+              Action: Consider right-sizing (smaller GPU or MIG partitioning).
+
+        # Alert: GPU memory pressure (risk of OOM)
+        - alert: GPUMemoryPressure
+          expr: |
+            DCGM_FI_DEV_FB_USED{exported_namespace="ai-platform-prod"}
+            / DCGM_FI_DEV_FB_TOTAL{exported_namespace="ai-platform-prod"}
+            > 0.95
+          for: 5m
+          labels:
+            severity: warning
+            team: ai-platform
+          annotations:
+            summary: "GPU memory utilization above 95%"
+            description: >
+              GPU {{ $labels.gpu }} memory is nearly exhausted.
+              Action: Reduce --max-model-len, enable quantization,
+              or use --enforce-eager to free CUDA graph memory.
+
+    - name: ai-platform-agent
+      rules:
+        # Alert: Agent error rate exceeds 5%
+        - alert: AgentErrorRateHigh
+          expr: |
+            rate(http_server_requests_seconds_count{namespace="ai-platform-prod",status=~"5.."}[5m])
+            / rate(http_server_requests_seconds_count{namespace="ai-platform-prod"}[5m])
+            > 0.05
+          for: 5m
+          labels:
+            severity: critical
+            team: ai-platform
+          annotations:
+            summary: "Agent error rate exceeds 5%"
+            description: >
+              The AI agent is returning 5xx errors at a rate above 5%.
+              Action: Check agent logs, MCP server health, and model
+              endpoint availability.
+
+---
+# GrafanaDashboard: pre-built dashboard for AI platform metrics
+#
+# This ConfigMap contains a Grafana dashboard JSON model that displays:
+#   - Inference throughput and latency
+#   - GPU utilization and memory
+#   - KV cache usage
+#   - Agent request metrics
+#   - Error rates
+#
+# The OpenShift console-plugin for Grafana picks up dashboards from
+# ConfigMaps with the grafana_dashboard label.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-platform-dashboard
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: monitoring
+    tutorial-level: "3"
+    tutorial-module: "M5"
+    grafana_dashboard: "1"
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  ai-platform-overview.json: |
+    {
+      "annotations": { "list": [] },
+      "title": "AI Platform Overview",
+      "uid": "ai-platform-overview",
+      "version": 1,
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "title": "Inference Throughput (req/sec)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [{
+            "expr": "rate(vllm:request_success_total{namespace=\"ai-platform-prod\"}[5m])",
+            "legendFormat": "{{ model_name }}"
+          }]
+        },
+        {
+          "title": "Inference Latency P99 (seconds)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [{
+            "expr": "histogram_quantile(0.99, rate(vllm:request_duration_seconds_bucket{namespace=\"ai-platform-prod\"}[5m]))",
+            "legendFormat": "P99"
+          }]
+        },
+        {
+          "title": "GPU Utilization (%)",
+          "type": "gauge",
+          "gridPos": { "x": 0, "y": 8, "w": 6, "h": 6 },
+          "targets": [{
+            "expr": "DCGM_FI_DEV_GPU_UTIL{exported_namespace=\"ai-platform-prod\"}"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "min": 0, "max": 100,
+              "thresholds": {
+                "steps": [
+                  { "value": 0, "color": "red" },
+                  { "value": 30, "color": "yellow" },
+                  { "value": 60, "color": "green" },
+                  { "value": 90, "color": "yellow" }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "title": "GPU Memory Utilization (%)",
+          "type": "gauge",
+          "gridPos": { "x": 6, "y": 8, "w": 6, "h": 6 },
+          "targets": [{
+            "expr": "DCGM_FI_DEV_FB_USED{exported_namespace=\"ai-platform-prod\"} / DCGM_FI_DEV_FB_TOTAL{exported_namespace=\"ai-platform-prod\"} * 100"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "min": 0, "max": 100,
+              "thresholds": {
+                "steps": [
+                  { "value": 0, "color": "green" },
+                  { "value": 80, "color": "yellow" },
+                  { "value": 95, "color": "red" }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "title": "KV Cache Usage (%)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 8, "w": 12, "h": 6 },
+          "targets": [{
+            "expr": "vllm:gpu_cache_usage_perc{namespace=\"ai-platform-prod\"}",
+            "legendFormat": "{{ model_name }}"
+          }]
+        },
+        {
+          "title": "Agent Request Rate",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 14, "w": 12, "h": 6 },
+          "targets": [{
+            "expr": "rate(http_server_requests_seconds_count{namespace=\"ai-platform-prod\",app=\"langgraph-agent\"}[5m])",
+            "legendFormat": "{{ status }}"
+          }]
+        },
+        {
+          "title": "Error Rate (%)",
+          "type": "stat",
+          "gridPos": { "x": 12, "y": 14, "w": 6, "h": 6 },
+          "targets": [{
+            "expr": "rate(vllm:request_failure_total{namespace=\"ai-platform-prod\"}[5m]) / rate(vllm:request_success_total{namespace=\"ai-platform-prod\"}[5m]) * 100"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "steps": [
+                  { "value": 0, "color": "green" },
+                  { "value": 1, "color": "yellow" },
+                  { "value": 5, "color": "red" }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "title": "Active Requests",
+          "type": "stat",
+          "gridPos": { "x": 18, "y": 14, "w": 6, "h": 6 },
+          "targets": [{
+            "expr": "vllm:num_requests_running{namespace=\"ai-platform-prod\"}"
+          }]
+        }
+      ]
+    }

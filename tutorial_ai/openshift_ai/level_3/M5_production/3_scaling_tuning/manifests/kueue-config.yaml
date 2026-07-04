@@ -1,0 +1,217 @@
+# Kueue configuration for a multi-tenant AI GPU cluster.
+#
+# This file configures:
+#   1. WorkloadPriorityClasses -- define the AI workload priority hierarchy
+#   2. ResourceFlavors -- describe different GPU types
+#   3. ClusterQueue -- GPU quota with preemption and borrowing policies
+#   4. LocalQueues -- per-namespace queues for teams
+#
+# Cross-references:
+#   - Kueue fundamentals:  L2-M6.2
+#   - Priority hierarchy:  L3-M5.3, Section 5
+#   - Fair sharing:        Kueue documentation
+#
+# Prerequisites:
+#   - Kueue operator installed (L2-M6.2)
+#   - cluster-admin access
+#
+# Usage:
+#   oc apply -f manifests/kueue-config.yaml
+
+---
+# Priority Classes
+#
+# Higher values = higher priority.  Higher-priority workloads can
+# preempt lower-priority ones when GPU resources are constrained.
+
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: WorkloadPriorityClass
+metadata:
+  name: training-critical
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+value: 1000
+description: >
+  Scheduled production training runs with SLA deadlines.
+  Cannot be preempted.  Use sparingly -- only for training jobs
+  that must complete by a specific time.
+
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: WorkloadPriorityClass
+metadata:
+  name: inference-production
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+value: 800
+description: >
+  Production inference endpoints serving customer traffic.
+  Cannot be preempted by batch or dev workloads.
+
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: WorkloadPriorityClass
+metadata:
+  name: batch-standard
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+value: 400
+description: >
+  Batch inference, embedding generation, evaluation jobs, and
+  scheduled pipelines.  Can be preempted by training-critical
+  and inference-production workloads.
+
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: WorkloadPriorityClass
+metadata:
+  name: dev-experiments
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+value: 100
+description: >
+  Interactive experiments, notebook GPU access, and prototyping.
+  Can be preempted by any higher-priority workload.  Ideal for
+  borrowing idle GPU capacity from other queues.
+
+---
+# Resource Flavors
+#
+# ResourceFlavors describe different types of hardware available in
+# the cluster.  The ClusterQueue references these to define quotas
+# per hardware type.
+
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: gpu-full
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  nodeLabels:
+    nvidia.com/gpu.present: "true"
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: gpu-mig-3g-20gb
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  nodeLabels:
+    nvidia.com/mig.config.state: "success"
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+---
+# ClusterQueue
+#
+# Defines the GPU quota, preemption policies, and borrowing rules
+# for the AI platform.  All LocalQueues in the "ai-platform" cohort
+# share this pool.
+
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: ai-gpu-cluster-queue
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  # Cohort groups ClusterQueues for borrowing/lending.
+  # All queues in the same cohort can share idle resources.
+  cohort: ai-platform
+
+  # Preemption policy: higher-priority workloads can preempt
+  # lower-priority ones within this ClusterQueue.
+  preemption:
+    withinClusterQueue: LowerPriority
+    reclaimWithinCohort: LowerPriority
+    borrowWithinCohort:
+      # Borrowed resources can be reclaimed by preempting workloads
+      # below this priority threshold.  This prevents a batch job
+      # borrowing GPUs from preempting a production inference endpoint.
+      policy: LowerPriority
+      maxPriorityThreshold: 400  # Only preempt batch-standard and below
+
+  # Quota for GPU resources.
+  # Adjust nominalQuota to match your cluster's GPU capacity.
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpu"]
+      flavors:
+        - name: gpu-full
+          resources:
+            - name: "cpu"
+              nominalQuota: 64
+              borrowingLimit: 32
+              lendingLimit: 16
+            - name: "memory"
+              nominalQuota: 256Gi
+              borrowingLimit: 128Gi
+              lendingLimit: 64Gi
+            - name: "nvidia.com/gpu"
+              nominalQuota: 4
+              borrowingLimit: 2
+              lendingLimit: 1
+
+---
+# Local Queues
+#
+# Each team gets a LocalQueue that points to the shared ClusterQueue.
+# Users submit workloads to their team's LocalQueue.
+
+# Namespace for the training team
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: training-team
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: training-queue
+  namespace: training-team
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  clusterQueue: ai-gpu-cluster-queue
+
+---
+# Namespace for the inference team
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-team
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: inference-queue
+  namespace: inference-team
+  labels:
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  clusterQueue: ai-gpu-cluster-queue

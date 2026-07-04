@@ -1,0 +1,107 @@
+# MySQL database backend for the Model Registry
+# This provides persistent metadata storage for the registry.
+# In production, use a managed database service (RDS, Azure Database, etc.)
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-registry-db
+  labels:
+    app: model-registry-db
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-registry-db
+  labels:
+    app: model-registry-db
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: model-registry-db
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: model-registry-db
+    spec:
+      containers:
+        - name: mysql
+          image: registry.redhat.io/rhel9/mysql-80:latest
+          ports:
+            - containerPort: 3306
+              protocol: TCP
+          env:
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: model-registry-db
+                  key: database-user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: model-registry-db
+                  key: database-password
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: model-registry-db
+                  key: database-name
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql/data
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - MYSQL_PWD="$MYSQL_PASSWORD" mysqladmin -u $MYSQL_USER ping
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - MYSQL_PWD="$MYSQL_PASSWORD" mysqladmin -u $MYSQL_USER ping
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: mysql-data
+          persistentVolumeClaim:
+            claimName: model-registry-db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-registry-db
+  labels:
+    app: model-registry-db
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  ports:
+    - port: 3306
+      targetPort: 3306
+      protocol: TCP
+  selector:
+    app: model-registry-db

@@ -1,0 +1,278 @@
+# Optimized InferenceService variants for Gemma 4 E4B.
+#
+# This file contains three InferenceService configurations optimized
+# for different goals.  Each variant uses the same model but with
+# different vLLM tuning parameters.
+#
+# To use a specific variant, extract it or apply the file and modify
+# the name to match your deployment.
+#
+# Cross-references:
+#   - vLLM parameters:   L3-M5.3, Section 4
+#   - Quantization:      L3-M3.2
+#   - Autoscaling:       L1-M2.4
+#   - GuideLLM benchmarking: L1-M5.2
+#
+# Usage:
+#   oc apply -f manifests/optimized-inferenceservice.yaml -n gemma-model
+
+---
+# Variant 1: Latency-Optimized
+#
+# Best for interactive chat applications where time-to-first-token
+# (TTFT) and per-request latency matter most.
+#
+# Key settings:
+#   --max-num-seqs=16        Low concurrency to minimize queueing
+#   --enable-chunked-prefill Interleave prefill with decode for better TTFT
+#   --gpu-memory-utilization=0.85  Leave headroom to avoid GC pressure
+#   --swap-space=0           No swapping -- all KV cache in GPU memory
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: gemma-4-e4b
+  labels:
+    app: gemma-serving
+    optimization-profile: latency
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    openshift.io/display-name: "Gemma 4 E4B (Latency-Optimized)"
+    serving.kserve.io/deploymentMode: RawDeployment
+    security.opendatahub.io/enable-auth: "false"
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 4
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: gemma-4-e4b-latency
+      resources:
+        requests:
+          cpu: "4"
+          memory: "16Gi"
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "8"
+          memory: "32Gi"
+          nvidia.com/gpu: "1"
+    tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+---
+# ServingRuntime for latency-optimized variant
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: gemma-4-e4b-latency
+  labels:
+    app: gemma-serving
+    optimization-profile: latency
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    opendatahub.io/apiProtocol: REST
+spec:
+  containers:
+    - name: kserve-container
+      image: docker.io/vllm/vllm-openai:gemma4
+      command:
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+      args:
+        - --port=8080
+        - --model=google/gemma-4-E4B-it
+        - --served-model-name={{.Name}}
+        - --dtype=half
+        # --- Latency-optimized parameters ---
+        - --max-model-len=8192           # Full context length
+        - --max-num-seqs=16              # Low concurrency = less queueing per request
+        - --gpu-memory-utilization=0.85  # Headroom to avoid GC-induced stalls
+        - --enable-chunked-prefill       # Interleave prefill with decode for lower TTFT
+        - --swap-space=0                 # No CPU swap -- all KV cache stays on GPU
+        - --enforce-eager                # Disable CUDA graphs if memory-constrained
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+  multiModel: false
+  supportedModelFormats:
+    - autoSelect: true
+      name: vLLM
+
+---
+# Variant 2: Throughput-Optimized
+#
+# Best for batch processing, high-QPS APIs, and workloads where
+# aggregate throughput (tokens/sec) matters more than individual
+# request latency.
+#
+# Key settings:
+#   --max-num-seqs=256       High concurrency for maximum batching
+#   --gpu-memory-utilization=0.95  Maximize KV cache for more concurrent sequences
+#   --swap-space=8           CPU swap as overflow for KV cache under load
+#   --disable-log-requests   Reduce CPU overhead from per-request logging
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: gemma-4-e4b
+  labels:
+    app: gemma-serving
+    optimization-profile: throughput
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    openshift.io/display-name: "Gemma 4 E4B (Throughput-Optimized)"
+    serving.kserve.io/deploymentMode: RawDeployment
+    security.opendatahub.io/enable-auth: "false"
+spec:
+  predictor:
+    minReplicas: 2
+    maxReplicas: 8
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: gemma-4-e4b-throughput
+      resources:
+        requests:
+          cpu: "8"
+          memory: "32Gi"
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "16"
+          memory: "64Gi"
+          nvidia.com/gpu: "1"
+    tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+---
+# ServingRuntime for throughput-optimized variant
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: gemma-4-e4b-throughput
+  labels:
+    app: gemma-serving
+    optimization-profile: throughput
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    opendatahub.io/apiProtocol: REST
+spec:
+  containers:
+    - name: kserve-container
+      image: docker.io/vllm/vllm-openai:gemma4
+      command:
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+      args:
+        - --port=8080
+        - --model=google/gemma-4-E4B-it
+        - --served-model-name={{.Name}}
+        - --dtype=half
+        # --- Throughput-optimized parameters ---
+        - --max-model-len=8192           # Full context length
+        - --max-num-seqs=256             # High concurrency for maximum batching
+        - --gpu-memory-utilization=0.95  # Max KV cache space
+        - --swap-space=8                 # CPU swap overflow for burst traffic
+        - --disable-log-requests         # Reduce per-request CPU overhead
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+  multiModel: false
+  supportedModelFormats:
+    - autoSelect: true
+      name: vLLM
+
+---
+# Variant 3: Memory-Optimized
+#
+# Best for fitting large models on smaller GPUs, or running multiple
+# models per GPU.  Trades some quality and throughput for lower memory
+# consumption.
+#
+# Key settings:
+#   --max-model-len=4096     Reduced context = smaller KV cache
+#   --gpu-memory-utilization=0.80  Conservative to avoid OOM
+#   --enforce-eager          Skip CUDA graphs to save 1-2GB
+#   --quantization=fp8       4x memory reduction vs FP16 (requires FP8 model)
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: gemma-4-e4b
+  labels:
+    app: gemma-serving
+    optimization-profile: memory
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    openshift.io/display-name: "Gemma 4 E4B (Memory-Optimized)"
+    serving.kserve.io/deploymentMode: RawDeployment
+    security.opendatahub.io/enable-auth: "false"
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 2
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: gemma-4-e4b-memory
+      resources:
+        requests:
+          cpu: "2"
+          memory: "8Gi"
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "4"
+          memory: "16Gi"
+          nvidia.com/gpu: "1"
+    tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+---
+# ServingRuntime for memory-optimized variant
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: gemma-4-e4b-memory
+  labels:
+    app: gemma-serving
+    optimization-profile: memory
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    opendatahub.io/apiProtocol: REST
+spec:
+  containers:
+    - name: kserve-container
+      image: docker.io/vllm/vllm-openai:gemma4
+      command:
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+      args:
+        - --port=8080
+        - --model=google/gemma-4-E4B-it
+        - --served-model-name={{.Name}}
+        - --dtype=half
+        # --- Memory-optimized parameters ---
+        - --max-model-len=4096           # Reduced context saves KV cache memory
+        - --max-num-seqs=32              # Moderate concurrency
+        - --gpu-memory-utilization=0.80  # Conservative to prevent OOM
+        - --enforce-eager                # Skip CUDA graphs, save 1-2GB VRAM
+        - --swap-space=4                 # CPU swap for KV cache overflow
+        # Note: For FP8 quantization, use a quantized model checkpoint
+        # and add: --quantization=fp8
+        # See L3-M3.2 for quantization details
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+  multiModel: false
+  supportedModelFormats:
+    - autoSelect: true
+      name: vLLM

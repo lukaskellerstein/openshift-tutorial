@@ -1,0 +1,108 @@
+# Guardrails Orchestrator Configuration
+#
+# This ConfigMap defines the detector pipeline for the Guardrails Orchestrator.
+# Each detector inspects request text (input, output, or both) and returns a
+# score between 0.0 and 1.0.  When the score exceeds the configured threshold,
+# the detector triggers and the configured action is applied.
+#
+# Detector pipeline order:
+#   1. input_length_validator  -- reject excessively long prompts (fast, no model)
+#   2. pii_detector            -- detect PII patterns via regex (fast, no model)
+#   3. hap_detector            -- classify hate/abuse/profanity (uses classifier model)
+#
+# Actions:
+#   block  -- reject the request/response entirely
+#   redact -- replace matched content with placeholder text (PII only)
+#   warn   -- allow the request but log a warning (for monitoring/tuning)
+#
+# Usage:
+#   oc apply -f manifests/guardrails-config.yaml -n gemma-model
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: guardrails-config
+  namespace: gemma-model
+  labels:
+    app: guardrails-orchestrator
+    opendatahub.io/component: guardrails
+    tutorial-level: "3"
+    tutorial-module: "M1"
+  annotations:
+    description: "Detector pipeline configuration for the Guardrails Orchestrator"
+data:
+  # ---------------------------------------------------------------------------
+  # The orchestrator reads this key as its detector pipeline configuration.
+  # The format is a JSON document describing each detector, its parameters,
+  # which phases it runs in (input, output, or both), and what action to take
+  # when the detector triggers.
+  # ---------------------------------------------------------------------------
+  config.json: |
+    {
+      "detectors": [
+        {
+          "name": "input_length_validator",
+          "type": "input_length",
+          "description": "Rejects prompts exceeding a maximum character count. Prevents resource exhaustion attacks that use extremely long prompts to overwhelm the model or hide injected instructions deep in the text.",
+          "enabled": true,
+          "phases": ["input"],
+          "parameters": {
+            "max_length": 10000
+          },
+          "action": "block"
+        },
+        {
+          "name": "pii_detector",
+          "type": "regex",
+          "description": "Detects personally identifiable information (PII) using regular expression patterns. Matches Social Security Numbers, email addresses, and phone numbers. On input, blocks the request to prevent PII from reaching the model. On output, redacts any PII the model may have generated.",
+          "enabled": true,
+          "phases": ["input", "output"],
+          "parameters": {
+            "patterns": [
+              {
+                "name": "SSN",
+                "description": "US Social Security Number in XXX-XX-XXXX format",
+                "regex": "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+                "replacement": "[SSN REDACTED]"
+              },
+              {
+                "name": "EMAIL",
+                "description": "Email address (standard format)",
+                "regex": "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b",
+                "replacement": "[EMAIL REDACTED]"
+              },
+              {
+                "name": "PHONE_US",
+                "description": "US phone number in common formats (xxx-xxx-xxxx, (xxx) xxx-xxxx, xxx.xxx.xxxx)",
+                "regex": "\\b(?:\\(\\d{3}\\)[\\s.-]?|\\d{3}[\\s.-])\\d{3}[\\s.-]\\d{4}\\b",
+                "replacement": "[PHONE REDACTED]"
+              }
+            ],
+            "threshold": 0.5
+          },
+          "actions": {
+            "input": "block",
+            "output": "redact"
+          }
+        },
+        {
+          "name": "hap_detector",
+          "type": "hap",
+          "description": "Detects hate, abuse, and profanity using a TrustyAI built-in text classification model. The classifier runs on CPU and does not require a GPU. It scores content on a 0.0-1.0 scale where higher values indicate a greater likelihood of harmful content.",
+          "enabled": true,
+          "phases": ["input", "output"],
+          "parameters": {
+            "threshold": 0.70,
+            "model": "builtin:hap-classifier"
+          },
+          "action": "block"
+        }
+      ],
+
+      "orchestrator": {
+        "request_timeout_seconds": 30,
+        "detector_timeout_seconds": 5,
+        "log_level": "info",
+        "metrics_enabled": true
+      }
+    }

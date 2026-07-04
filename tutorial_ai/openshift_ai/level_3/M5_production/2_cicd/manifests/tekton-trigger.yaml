@@ -1,0 +1,279 @@
+# Tekton Triggers for the AI CI/CD Pipeline.
+#
+# This file defines the resources needed to automatically trigger the
+# ai-cicd-pipeline when a Git push event is received from a GitHub
+# webhook.
+#
+# Resources defined:
+#   1. ServiceAccount + RBAC -- permissions for the trigger to create
+#      PipelineRuns
+#   2. TriggerBinding -- extracts fields from the GitHub push payload
+#   3. TriggerTemplate -- creates a PipelineRun from the extracted data
+#   4. EventListener -- receives the webhook and invokes the trigger
+#   5. Route -- exposes the EventListener externally for GitHub
+#
+# Usage:
+#   oc apply -f manifests/tekton-trigger.yaml -n ai-cicd
+#
+# After applying, configure the Route URL as a webhook in your GitHub
+# repository settings (Settings > Webhooks > Add webhook).
+#   Payload URL: https://<route-host>
+#   Content type: application/json
+#   Events: Just the push event
+
+---
+# ServiceAccount for the EventListener.  The trigger creates
+# PipelineRuns on behalf of this account.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline-trigger-sa
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+
+---
+# Role granting permissions to create PipelineRuns, get Pipelines,
+# and manage EventListeners.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pipeline-trigger-role
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+rules:
+  # Create and monitor PipelineRuns
+  - apiGroups:
+      - tekton.dev
+    resources:
+      - pipelineruns
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+  # Read Pipeline definitions
+  - apiGroups:
+      - tekton.dev
+    resources:
+      - pipelines
+    verbs:
+      - get
+      - list
+  # EventListener needs to manage its own resources
+  - apiGroups:
+      - triggers.tekton.dev
+    resources:
+      - eventlisteners
+      - triggerbindings
+      - triggertemplates
+    verbs:
+      - get
+      - list
+  # Create PVCs for workspace VolumeClaimTemplates
+  - apiGroups:
+      - ""
+    resources:
+      - persistentvolumeclaims
+    verbs:
+      - create
+      - get
+      - list
+      - delete
+  # Read secrets for Git credentials
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+
+---
+# Bind the role to the trigger ServiceAccount.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipeline-trigger-binding
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+subjects:
+  - kind: ServiceAccount
+    name: pipeline-trigger-sa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pipeline-trigger-role
+
+---
+# TriggerBinding: extract relevant fields from the GitHub push
+# webhook payload.
+#
+# GitHub push payload reference:
+#   https://docs.github.com/en/webhooks/webhook-events-and-payloads#push
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: github-push-binding
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  params:
+    # Full clone URL of the repository
+    - name: git-url
+      value: $(body.repository.clone_url)
+    # The commit SHA that was pushed
+    - name: git-revision
+      value: $(body.after)
+    # Short ref (branch name) extracted from refs/heads/<branch>
+    - name: git-branch
+      value: $(body.ref)
+    # Who pushed the commit
+    - name: git-pusher
+      value: $(body.pusher.name)
+    # Repository full name (org/repo)
+    - name: git-repo-name
+      value: $(body.repository.full_name)
+
+---
+# TriggerTemplate: create a PipelineRun using the values extracted
+# by the TriggerBinding.
+#
+# The template creates a PipelineRun that references the
+# ai-cicd-pipeline Pipeline and passes the Git URL and revision
+# as parameters.  Other parameters use defaults from the Pipeline
+# definition.
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: ai-cicd-trigger-template
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  params:
+    - name: git-url
+      description: Git repository clone URL
+    - name: git-revision
+      description: Git commit SHA
+    - name: git-branch
+      description: Git branch reference
+    - name: git-pusher
+      description: Name of the person who pushed
+    - name: git-repo-name
+      description: Repository full name (org/repo)
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: ai-cicd-run-
+        labels:
+          app: ai-cicd
+          tutorial-level: "3"
+          tutorial-module: "M5"
+          tekton.dev/pipeline: ai-cicd-pipeline
+          triggers.tekton.dev/trigger: github-push
+        annotations:
+          # Record trigger metadata for debugging and audit
+          triggers.tekton.dev/git-url: $(tt.params.git-url)
+          triggers.tekton.dev/git-revision: $(tt.params.git-revision)
+          triggers.tekton.dev/git-branch: $(tt.params.git-branch)
+          triggers.tekton.dev/git-pusher: $(tt.params.git-pusher)
+      spec:
+        pipelineRef:
+          name: ai-cicd-pipeline
+        params:
+          - name: git-url
+            value: $(tt.params.git-url)
+          - name: git-revision
+            value: $(tt.params.git-revision)
+          # image-name uses the commit SHA as the tag for immutable
+          # image references
+          - name: image-name
+            value: "image-registry.openshift-image-registry.svc:5000/ai-cicd/model-server:$(tt.params.git-revision)"
+          # model-name and other params use Pipeline defaults
+        workspaces:
+          - name: shared-workspace
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 1Gi
+          - name: git-credentials
+            secret:
+              secretName: git-credentials
+
+---
+# EventListener: receives GitHub webhook requests and dispatches
+# them to the trigger.
+#
+# The interceptor validates that the request is a push event.
+# In production, you should also configure a webhook secret and add
+# a GitHub interceptor with secret validation:
+#   interceptors:
+#     - ref:
+#         name: "github"
+#       params:
+#         - name: "secretRef"
+#           value:
+#             secretName: github-webhook-secret
+#             secretKey: secret
+#         - name: "eventTypes"
+#           value: ["push"]
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: ai-cicd-listener
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  serviceAccountName: pipeline-trigger-sa
+  triggers:
+    - name: github-push-trigger
+      interceptors:
+        - ref:
+            name: "github"
+            kind: ClusterInterceptor
+          params:
+            - name: "eventTypes"
+              value:
+                - "push"
+      bindings:
+        - ref: github-push-binding
+      template:
+        ref: ai-cicd-trigger-template
+
+---
+# Route: expose the EventListener so GitHub can reach it.
+#
+# The EventListener creates a Service named el-<listener-name>.
+# This Route provides an external HTTPS endpoint for that Service.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ai-cicd-webhook
+  labels:
+    app: ai-cicd
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  to:
+    kind: Service
+    name: el-ai-cicd-listener
+    weight: 100
+  port:
+    targetPort: http-listener
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

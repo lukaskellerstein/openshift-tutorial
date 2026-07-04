@@ -1,0 +1,62 @@
+# ClusterQueue defines the cluster-scoped resource pool with GPU quotas,
+# borrowing/lending limits, and preemption policies.
+#
+# This queue belongs to the "gpu-sharing" cohort. All ClusterQueues in the
+# same cohort can borrow and lend idle resources among themselves.
+#
+# Resources created:
+#   - ClusterQueue: gpu-cluster-queue
+
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: gpu-cluster-queue
+  labels:
+    tutorial-level: "2"
+    tutorial-module: "M6"
+spec:
+  # Cohort groups ClusterQueues that can borrow/lend resources.
+  # All ClusterQueues in the same cohort share a resource pool.
+  cohort: gpu-sharing
+
+  # NamespaceSelector controls which namespaces can use this queue.
+  # Empty selector means all namespaces with a matching LocalQueue can submit.
+  namespaceSelector: {}
+
+  # queueingStrategy determines the order workloads are admitted.
+  # BestEffortFIFO admits workloads in FIFO order but allows
+  # later workloads to be admitted if earlier ones cannot fit.
+  queueingStrategy: BestEffortFIFO
+
+  # resourceGroups define quotas per ResourceFlavor.
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpu"]
+      flavors:
+        - name: gpu-nvidia
+          resources:
+            - name: "cpu"
+              nominalQuota: 16        # 16 CPU cores total
+              borrowingLimit: 8       # Can borrow up to 8 more from cohort
+              lendingLimit: 8         # Will lend up to 8 idle cores
+            - name: "memory"
+              nominalQuota: 64Gi      # 64 GiB total
+              borrowingLimit: 32Gi
+              lendingLimit: 32Gi
+            - name: "nvidia.com/gpu"
+              nominalQuota: 4         # 4 GPUs total
+              borrowingLimit: 2       # Can borrow up to 2 GPUs from cohort
+              lendingLimit: 2         # Will lend up to 2 idle GPUs
+        - name: cpu-only
+          resources:
+            - name: "cpu"
+              nominalQuota: 32
+            - name: "memory"
+              nominalQuota: 128Gi
+
+  # preemption controls how high-priority workloads can evict lower-priority ones.
+  preemption:
+    withinClusterQueue: LowerPriority        # Can preempt lower-priority jobs in this queue
+    reclaimWithinCohort: LowerPriority       # Can reclaim lent resources if borrower has lower priority
+    borrowWithinCohort:
+      policy: LowerPriority                  # Can borrow by preempting lower-priority jobs in cohort
+      maxPriorityThreshold: 100              # Only preempt workloads at or below priority 100

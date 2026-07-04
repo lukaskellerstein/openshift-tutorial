@@ -1,0 +1,19 @@
+# LocalQueue for the dev team namespace.
+# Users in the dev-team namespace submit workloads to this queue
+# by adding the label: kueue.x-k8s.io/queue-name: dev-queue
+#
+# Resources created:
+#   - LocalQueue: dev-queue (in namespace dev-team)
+
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: dev-queue
+  namespace: dev-team
+  labels:
+    tutorial-level: "2"
+    tutorial-module: "M6"
+spec:
+  # clusterQueue links this LocalQueue to the cluster-scoped quota pool.
+  # All workloads submitted to dev-queue consume quota from gpu-cluster-queue.
+  clusterQueue: gpu-cluster-queue

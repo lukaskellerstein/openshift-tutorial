@@ -1,0 +1,98 @@
+# Kubernetes Job for running Synthetic Data Generation (SDG) at scale.
+#
+# This Job runs the generate_sdg.py script outside of a workbench,
+# which is useful for:
+#   - Large taxonomies that take hours to process
+#   - Scheduled re-generation (e.g., nightly with updated taxonomy)
+#   - CI/CD pipelines where a workbench is not available
+#
+# The Job connects to a teacher model served via vLLM on the cluster
+# and writes the generated JSONL to the lab-tuning-storage PVC.
+#
+# Prerequisites:
+#   - lab-tuning-storage PVC created (see lab-tuning-pvc.yaml)
+#   - Teacher model deployed and accessible (e.g., via InferenceService)
+#   - taxonomy.yaml present on the PVC at /data/taxonomy.yaml
+#
+# Usage:
+#   # Copy taxonomy to the PVC first (e.g., from workbench or local machine)
+#   oc cp taxonomy.yaml <workbench-pod>:/opt/app-root/src/lab-tuning/taxonomy.yaml
+#
+#   # Then run the SDG job
+#   oc apply -f manifests/sdg-job.yaml -n <your-project>
+#
+#   # Monitor progress
+#   oc logs -f job/sdg-generator -n <your-project>
+#
+# Expected output:
+#   Processing 2 knowledge entries...
+#     [acme_corp_products] seed 1/5: generated 5 examples
+#     ...
+#   SDG complete:
+#     Total examples: 55
+#     Knowledge examples: 25
+#     Skill examples: 30
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sdg-generator
+  labels:
+    app: lab-tuning
+    component: sdg
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 86400  # Auto-cleanup after 24 hours
+  template:
+    metadata:
+      labels:
+        app: lab-tuning
+        component: sdg
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: sdg
+          image: python:3.11
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Installing dependencies..."
+              pip install -q pyyaml openai
+
+              echo "Running SDG..."
+              python /data/scripts/generate_sdg.py \
+                --taxonomy /data/taxonomy.yaml \
+                --output /data/sdg_output.jsonl \
+                --num-examples ${NUM_EXAMPLES_PER_SEED} \
+                --temperature ${SDG_TEMPERATURE}
+
+              echo "SDG Job complete."
+              echo "Output: /data/sdg_output.jsonl"
+              wc -l /data/sdg_output.jsonl
+          env:
+            - name: TEACHER_ENDPOINT
+              value: "https://gemma-4-e4b-your-project.apps.cluster.example.com/v1"
+            - name: TEACHER_MODEL
+              value: "gemma-4-e4b"
+            - name: NUM_EXAMPLES_PER_SEED
+              value: "5"
+            - name: SDG_TEMPERATURE
+              value: "0.8"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: lab-tuning-data
+              mountPath: /data
+      volumes:
+        - name: lab-tuning-data
+          persistentVolumeClaim:
+            claimName: lab-tuning-storage

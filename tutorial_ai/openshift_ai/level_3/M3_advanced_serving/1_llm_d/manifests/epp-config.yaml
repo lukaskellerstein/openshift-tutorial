@@ -1,0 +1,54 @@
+# Endpoint Picker (EPP) Configuration for llm-d
+#
+# This ConfigMap configures the EPP sidecar's routing pipeline.
+# The EPP runs as an Envoy ext-proc sidecar alongside each vLLM pod
+# and determines which pod should handle each incoming inference request.
+#
+# Pipeline stages:
+#   1. Filters -- remove unsuitable pods (overloaded, draining, wrong role)
+#   2. Scorers -- assign weighted scores to remaining pods
+#   3. Picker  -- select the pod with the highest composite score
+#
+# Scoring weights:
+#   - prefix-cache (60%): Favors pods that already have the request's prefix
+#     cached in GPU memory, avoiding expensive recomputation
+#   - load (30%): Favors pods with lower queue depth and fewer active requests
+#   - session-affinity (10%): Favors pods that previously served the same
+#     session/user, maintaining conversational locality
+#
+# Adjust weights based on your workload:
+#   - Chatbot/RAG (shared system prompts): increase prefix-cache weight
+#   - Diverse prompts (no prefix sharing): increase load weight
+#   - Multi-turn conversations: increase session-affinity weight
+#
+# Usage:
+#   oc apply -f epp-config.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llmd-epp-config
+  namespace: llmd-serving
+  labels:
+    app: llm-d-epp
+    tutorial-level: "3"
+    tutorial-module: "M3"
+data:
+  epp-config.yaml: |
+    # Endpoint Picker (EPP) Configuration
+    # Controls how llm-d routes inference requests across vLLM pods
+    pipeline:
+      filters:
+        - name: decode-filter
+        - name: low-queue-filter
+          parameters:
+            queueThreshold: 100
+      scorers:
+        - name: prefix-cache-scorer
+          weight: 60
+        - name: load-scorer
+          weight: 30
+        - name: session-affinity-scorer
+          weight: 10
+      picker:
+        name: max-score-picker

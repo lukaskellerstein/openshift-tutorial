@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langgraph-agent-mcp
+  labels:
+    app: langgraph-agent-mcp
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: langgraph-agent-mcp
+  template:
+    metadata:
+      labels:
+        app: langgraph-agent-mcp
+        tutorial-level: "2"
+        tutorial-module: "M3"
+    spec:
+      # No special ServiceAccount needed -- the agent delegates all cluster
+      # access to the MCP server, which has its own ServiceAccount and RBAC.
+      containers:
+        - name: langgraph-agent-mcp
+          # Replace PROJECT with your OpenShift project name
+          image: image-registry.openshift-image-registry.svc:5000/PROJECT/langgraph-agent-mcp:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: langgraph-agent-mcp-config
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

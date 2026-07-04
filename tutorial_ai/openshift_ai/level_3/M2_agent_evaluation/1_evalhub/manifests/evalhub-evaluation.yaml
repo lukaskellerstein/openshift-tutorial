@@ -1,0 +1,194 @@
+# LMEvalJob manifests for EvalHub evaluation runs
+# These CRs are the programmatic equivalent of launching evaluations
+# from the EvalHub dashboard. Use them for automation and CI/CD integration.
+#
+# Before applying, update the base_url in each job to match your
+# InferenceService endpoint:
+#   oc get inferenceservice <name> -o jsonpath='{.status.url}'
+---
+# MMLU Evaluation -- Language Understanding Benchmark
+# Tests general knowledge across 57 academic subjects.
+# Standard configuration: 5-shot, accuracy metric.
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: LMEvalJob
+metadata:
+  name: mmlu-evaluation
+  labels:
+    app: evalhub-eval
+    eval-category: language-understanding
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  # "local-completions" tells lm-evaluation-harness to call an OpenAI-compatible
+  # completions endpoint rather than loading the model locally.
+  # This avoids GPU requirements in the eval pod -- the model is already served.
+  model: local-completions
+  modelArgs:
+    - name: model
+      value: granite-3b-code                       # Model identifier at the endpoint
+    - name: base_url
+      value: "http://granite-3b-code-predictor.your-project.svc.cluster.local:8080/v1"
+    - name: tokenizer_backend
+      value: huggingface                            # Use HuggingFace tokenizer for token counting
+    - name: tokenized_requests
+      value: "false"                                # Send raw text, let the server tokenize
+  taskList:
+    taskNames:
+      - mmlu                                        # All 57 MMLU subjects
+  numFewShot: 5                                     # Standard 5-shot for MMLU
+  batchSize: "4"                                    # Parallel requests to the model
+  limit: "100"                                      # Evaluate 100 samples per subject (remove for full run)
+  logSamples: true                                  # Store individual predictions for debugging
+  pod:
+    container:
+      resources:
+        requests:
+          cpu: "2"
+          memory: 4Gi
+        limits:
+          cpu: "4"
+          memory: 8Gi
+---
+# Safety Evaluation -- ToxiGen + BBQ Benchmarks
+# Tests the model for toxic content generation and bias in question answering.
+# Critical for governance: a model that fails safety benchmarks should not be deployed.
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: LMEvalJob
+metadata:
+  name: safety-evaluation
+  labels:
+    app: evalhub-eval
+    eval-category: safety
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  model: local-completions
+  modelArgs:
+    - name: model
+      value: granite-3b-code
+    - name: base_url
+      value: "http://granite-3b-code-predictor.your-project.svc.cluster.local:8080/v1"
+    - name: tokenizer_backend
+      value: huggingface
+    - name: tokenized_requests
+      value: "false"
+  taskList:
+    taskNames:
+      - toxigen                                     # Toxic content generation detection
+      - bbq                                         # Bias Benchmark for QA
+  numFewShot: 0                                     # Zero-shot for safety (tests default behavior)
+  batchSize: "4"
+  limit: "50"                                       # Smaller subset for safety eval
+  logSamples: true                                  # Essential: review individual failures
+  pod:
+    container:
+      resources:
+        requests:
+          cpu: "2"
+          memory: 4Gi
+        limits:
+          cpu: "4"
+          memory: 8Gi
+---
+# Reasoning Evaluation -- GSM8K Benchmark
+# Tests arithmetic and multi-step mathematical reasoning.
+# Uses chain-of-thought prompting with 8-shot examples.
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: LMEvalJob
+metadata:
+  name: reasoning-evaluation
+  labels:
+    app: evalhub-eval
+    eval-category: reasoning
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  model: local-completions
+  modelArgs:
+    - name: model
+      value: granite-3b-code
+    - name: base_url
+      value: "http://granite-3b-code-predictor.your-project.svc.cluster.local:8080/v1"
+    - name: tokenizer_backend
+      value: huggingface
+    - name: tokenized_requests
+      value: "false"
+  taskList:
+    taskNames:
+      - gsm8k                                      # Grade School Math 8K
+  numFewShot: 8                                     # 8-shot is standard for GSM8K (chain-of-thought)
+  batchSize: "2"                                    # Lower batch size for longer CoT responses
+  limit: "100"
+  logSamples: true
+  pod:
+    container:
+      resources:
+        requests:
+          cpu: "2"
+          memory: 4Gi
+        limits:
+          cpu: "4"
+          memory: 8Gi
+---
+# Garak Adversarial Scan -- Kubernetes Job
+# Runs Garak adversarial probes against the served model.
+# This is an alternative to running the Python script directly --
+# it executes as a Kubernetes Job, making it suitable for CI/CD pipelines
+# and scheduled governance checks.
+#
+# Note: This uses a standard Kubernetes Job (not an LMEvalJob CR) because
+# Garak is a separate tool from lm-evaluation-harness. EvalHub dispatches
+# Garak scans as Jobs when triggered through its API.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: garak-scan-gemma4
+  labels:
+    app: garak-scan
+    eval-category: adversarial
+    tutorial-level: "3"
+    tutorial-module: "M2"
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400                    # Clean up after 24 hours
+  template:
+    metadata:
+      labels:
+        app: garak-scan
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: garak
+          image: registry.redhat.io/rhoai/odh-trustyai-garak-rhel9:latest
+          command:
+            - python3
+            - -m
+            - garak
+          args:
+            - "--model_type"
+            - "openai"
+            - "--model_name"
+            - "granite-3b-code"
+            - "--probes"
+            - "promptinject,dan,encoding,donotanswer,knownbadsignatures"
+            - "--report_prefix"
+            - "/results/garak-scan"
+          env:
+            # Point Garak at the served model's OpenAI-compatible endpoint
+            - name: OPENAI_API_BASE
+              value: "http://granite-3b-code-predictor.your-project.svc.cluster.local:8080/v1"
+            - name: OPENAI_API_KEY
+              value: "not-needed"                   # vLLM on OpenShift AI typically does not require a key
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          volumeMounts:
+            - name: results
+              mountPath: /results
+      volumes:
+        - name: results
+          emptyDir: {}

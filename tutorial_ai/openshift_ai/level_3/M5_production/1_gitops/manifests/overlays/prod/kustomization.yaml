@@ -1,0 +1,99 @@
+# Production overlay for AI workloads
+#
+# Patches the base manifests for a production environment:
+# - HA replicas (minReplicas=2, maxReplicas=4) for high availability
+# - Full GPU allocation with strict resource limits
+# - Full context length (--max-model-len=8192)
+# - Maximum GPU memory utilization (0.95)
+# - Request logging disabled (--disable-log-requests) for performance
+# - A100 GPU node selector with production tolerations
+# - Anti-affinity implied by multiple replicas across nodes
+#
+# Usage:
+#   oc kustomize overlays/prod/ | oc apply -f -
+#   OR: reference this path in an ArgoCD Application (recommended)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ai-workloads-prod
+
+resources:
+  - ../../base
+
+patches:
+  # Prod InferenceService: HA replicas, full GPU allocation, strict limits
+  - target:
+      kind: InferenceService
+      name: gemma-4-e4b
+    patch: |-
+      - op: replace
+        path: /spec/predictor/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/predictor/maxReplicas
+        value: 4
+      - op: replace
+        path: /spec/predictor/model/resources/limits/cpu
+        value: "8"
+      - op: replace
+        path: /spec/predictor/model/resources/limits/memory
+        value: "48Gi"
+      - op: replace
+        path: /spec/predictor/model/resources/limits/nvidia.com~1gpu
+        value: "1"
+      - op: replace
+        path: /spec/predictor/model/resources/requests/cpu
+        value: "4"
+      - op: replace
+        path: /spec/predictor/model/resources/requests/memory
+        value: "24Gi"
+      - op: replace
+        path: /spec/predictor/model/resources/requests/nvidia.com~1gpu
+        value: "1"
+
+  # Prod ServingRuntime: full context, optimized, logging disabled
+  - target:
+      kind: ServingRuntime
+      name: gemma-4-e4b
+    patch: |-
+      - op: replace
+        path: /spec/containers/0/args
+        value:
+          - --port=8080
+          - --model=google/gemma-4-E4B-it
+          - --served-model-name={{.Name}}
+          - --dtype=half
+          - --max-model-len=8192
+          - --gpu-memory-utilization=0.95
+          - --enforce-eager
+          - --disable-log-requests
+
+  # Prod HardwareProfile: A100 GPU with production tolerations
+  - target:
+      kind: HardwareProfile
+      name: gpu-inference
+    patch: |-
+      - op: replace
+        path: /spec/displayName
+        value: "GPU Inference Profile (Production)"
+      - op: replace
+        path: /spec/description
+        value: "Production GPU profile -- A100 with HA configuration"
+      - op: replace
+        path: /spec/identifiers/0/displayName
+        value: "NVIDIA A100"
+      - op: replace
+        path: /spec/nodeSelectors
+        value:
+          - key: "nvidia.com/gpu.product"
+            value: "NVIDIA-A100-SXM4-40GB"
+      - op: replace
+        path: /spec/tolerations
+        value:
+          - key: "nvidia.com/gpu"
+            operator: "Exists"
+            effect: "NoSchedule"
+          - key: "ai-workload"
+            operator: "Equal"
+            value: "production"
+            effect: "NoSchedule"

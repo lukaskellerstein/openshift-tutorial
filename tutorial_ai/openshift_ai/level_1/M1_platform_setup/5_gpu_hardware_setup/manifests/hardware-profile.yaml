@@ -1,0 +1,58 @@
+# HardwareProfile for NVIDIA T4 GPU
+#
+# Hardware Profiles are an OpenShift AI concept that bundle resource requests,
+# node selectors, and tolerations into a reusable preset. Users select a
+# Hardware Profile from a dropdown in the dashboard when creating workbenches
+# or deploying models, instead of manually specifying resources in pod specs.
+#
+# This profile configures a single NVIDIA T4 GPU (16 GB VRAM), suitable for
+# inference workloads and light fine-tuning.
+#
+# Hardware Profiles replaced Accelerator Profiles starting in OpenShift AI 3.0.
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: gpu-t4
+  namespace: redhat-ods-applications
+  labels:
+    app: gpu-t4
+    tutorial-level: "1"
+    tutorial-module: "M1"
+spec:
+  # Display name shown in the dashboard dropdown
+  displayName: "NVIDIA T4 GPU"
+
+  # Description shown when users hover or expand the profile details
+  description: "Single NVIDIA T4 GPU with 16GB VRAM for inference and light fine-tuning"
+
+  # Whether this profile is selectable in the dashboard
+  enabled: true
+
+  # Resource identifiers -- what schedulable resources this profile requests.
+  # Each identifier maps to a Kubernetes extended resource registered by the
+  # NVIDIA device plugin (e.g., nvidia.com/gpu).
+  identifiers:
+    - displayName: "NVIDIA T4"
+      # The Kubernetes extended resource name registered by the device plugin
+      identifier: "nvidia.com/gpu"
+      # Default number of GPUs requested when this profile is selected
+      defaultCount: 1
+      # Minimum GPUs a user can request with this profile
+      minCount: 1
+      # Maximum GPUs a user can request with this profile
+      maxCount: 1
+
+  # Node selectors -- constrain workloads to nodes with T4 GPUs.
+  # The nvidia.com/gpu.product label is set by GPU Feature Discovery (GFD),
+  # which is deployed by the GPU Operator.
+  nodeSelectors:
+    - key: "nvidia.com/gpu.product"
+      value: "Tesla-T4"
+
+  # Tolerations -- allow pods to schedule on GPU nodes that have been tainted.
+  # GPU nodes are commonly tainted with nvidia.com/gpu to prevent non-GPU
+  # workloads from landing on expensive GPU hardware.
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"

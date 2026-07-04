@@ -1,0 +1,212 @@
+# Guardrails Orchestrator Deployment
+#
+# Deploys the Guardrails Orchestrator as a proxy between clients and the
+# Gemma4-e4b InferenceService.  The Orchestrator intercepts every inference
+# request and runs it through a pipeline of safety detectors (defined in the
+# guardrails-config ConfigMap) before forwarding it to the model.
+#
+# Architecture:
+#
+#   Client --> Route (TLS) --> Service --> Orchestrator Pod --> Gemma4-e4b InferenceService
+#                                              |
+#                                              +--> Input detectors  (HAP, PII, length)
+#                                              +--> Output detectors (HAP, PII)
+#
+# The Orchestrator exposes an OpenAI-compatible API (POST /v1/chat/completions)
+# so clients do not need any code changes -- they simply point at the guarded
+# endpoint instead of the direct model endpoint.
+#
+# Usage:
+#   oc apply -f manifests/guardrails-orchestrator.yaml -n gemma-model
+
+# ============================================================================
+# Deployment -- Guardrails Orchestrator container
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guardrails-orchestrator
+  namespace: gemma-model
+  labels:
+    app: guardrails-orchestrator
+    opendatahub.io/component: guardrails
+    tutorial-level: "3"
+    tutorial-module: "M1"
+  annotations:
+    description: >
+      Guardrails Orchestrator proxy for the Gemma4-e4b model endpoint.
+      Runs safety detectors on every request before and after inference.
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guardrails-orchestrator
+  template:
+    metadata:
+      labels:
+        app: guardrails-orchestrator
+        opendatahub.io/component: guardrails
+        tutorial-level: "3"
+        tutorial-module: "M1"
+      annotations:
+        # Prometheus scrape annotations -- the Orchestrator exposes metrics
+        # at /metrics in Prometheus text format.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: guardrails-orchestrator
+          # Red Hat-published Guardrails Orchestrator image.
+          # This is the image distributed as part of the OpenShift AI
+          # trustyai component (v0.9.4 in RHOAI 3.4).
+          image: quay.io/modh/guardrails-orchestrator:stable
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            # ---------------------------------------------------------------
+            # TARGET_ENDPOINT: The upstream model endpoint that the
+            # Orchestrator proxies to.  This must be the internal cluster
+            # Service URL of the Gemma4-e4b InferenceService.
+            #
+            # For KServe InferenceServices, the internal URL follows the
+            # pattern: http://<isvc-name>-predictor.<namespace>.svc.cluster.local
+            # ---------------------------------------------------------------
+            - name: TARGET_ENDPOINT
+              value: "http://gemma-4-e4b-predictor.gemma-model.svc.cluster.local"
+
+            # ---------------------------------------------------------------
+            # CONFIG_PATH: Path to the detector pipeline configuration file
+            # inside the container.  Mounted from the guardrails-config
+            # ConfigMap.
+            # ---------------------------------------------------------------
+            - name: CONFIG_PATH
+              value: "/config/config.json"
+
+            # ---------------------------------------------------------------
+            # LOG_LEVEL: Logging verbosity.  Use "info" for production or
+            # "debug" during initial setup and troubleshooting.
+            # ---------------------------------------------------------------
+            - name: LOG_LEVEL
+              value: "info"
+
+            # ---------------------------------------------------------------
+            # METRICS_ENABLED: Expose Prometheus metrics at /metrics.
+            # Required for the monitoring and alerting configured in
+            # Step 11 of the lesson.
+            # ---------------------------------------------------------------
+            - name: METRICS_ENABLED
+              value: "true"
+
+          volumeMounts:
+            # Mount the guardrails configuration ConfigMap
+            - name: guardrails-config
+              mountPath: /config
+              readOnly: true
+
+          # -----------------------------------------------------------------
+          # Health checks
+          # -----------------------------------------------------------------
+          # The liveness probe restarts the container if it becomes
+          # unresponsive.  The readiness probe removes it from the Service
+          # endpoints until it is ready to accept traffic.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # -----------------------------------------------------------------
+          # Resource limits (Expert level -- always specify)
+          # -----------------------------------------------------------------
+          # The Orchestrator runs detector inference (HAP classifier) on
+          # CPU.  It does not require a GPU.  These limits are appropriate
+          # for a single-replica deployment handling moderate traffic.
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+
+      volumes:
+        - name: guardrails-config
+          configMap:
+            name: guardrails-config
+
+---
+# ============================================================================
+# Service -- internal ClusterIP endpoint for the Orchestrator
+# ============================================================================
+# This Service is the internal address that the Route forwards traffic to.
+# Other pods in the cluster can also call the Orchestrator directly using
+# this Service: http://guardrails-orchestrator.gemma-model.svc.cluster.local:8080
+apiVersion: v1
+kind: Service
+metadata:
+  name: guardrails-orchestrator
+  namespace: gemma-model
+  labels:
+    app: guardrails-orchestrator
+    opendatahub.io/component: guardrails
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  selector:
+    app: guardrails-orchestrator
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+---
+# ============================================================================
+# Route -- external HTTPS endpoint for the guarded model API
+# ============================================================================
+# Clients connect to this Route instead of the direct model Route.  The
+# Route terminates TLS at the edge, so the Orchestrator receives plain
+# HTTP on port 8080.
+#
+# Example usage:
+#   GUARDED_URL=$(oc get route guardrails-orchestrator -n gemma-model \
+#     -o jsonpath='{.spec.host}')
+#   curl -s "https://${GUARDED_URL}/v1/chat/completions" \
+#     -H "Content-Type: application/json" \
+#     -d '{"model":"gemma-4-e4b","messages":[{"role":"user","content":"Hello"}]}'
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: guardrails-orchestrator
+  namespace: gemma-model
+  labels:
+    app: guardrails-orchestrator
+    opendatahub.io/component: guardrails
+    tutorial-level: "3"
+    tutorial-module: "M1"
+  annotations:
+    # Document the purpose of this Route for cluster operators
+    description: "Guarded model endpoint -- all requests pass through safety detectors"
+spec:
+  to:
+    kind: Service
+    name: guardrails-orchestrator
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

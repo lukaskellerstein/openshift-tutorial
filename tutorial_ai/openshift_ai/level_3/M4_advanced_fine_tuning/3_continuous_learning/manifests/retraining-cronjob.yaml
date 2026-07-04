@@ -1,0 +1,159 @@
+# L3-M4.3 -- Continuous Learning Patterns
+# Scheduled retraining: ServiceAccount + RBAC + CronJob
+# Triggers the continuous learning pipeline on a weekly schedule (Sunday 2:00 AM).
+# The CronJob uses a lightweight Python container with the kfp SDK to submit
+# a pipeline run to the Data Science Pipelines server.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: retraining-sa
+  labels:
+    app: scheduled-retraining
+    tutorial-level: "3"
+    tutorial-module: "M4"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: retraining-pipeline-role
+  labels:
+    app: scheduled-retraining
+    tutorial-level: "3"
+    tutorial-module: "M4"
+rules:
+  # Access to pipeline server routes
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes"]
+    verbs: ["get", "list"]
+  # Access to read pipeline-related resources
+  - apiGroups: ["datasciencepipelinesapplications.opendatahub.io"]
+    resources: ["datasciencepipelinesapplications"]
+    verbs: ["get", "list"]
+  # Access to read pods and logs for monitoring
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  # Access to read secrets for pipeline credentials
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: retraining-pipeline-binding
+  labels:
+    app: scheduled-retraining
+    tutorial-level: "3"
+    tutorial-module: "M4"
+subjects:
+  - kind: ServiceAccount
+    name: retraining-sa
+roleRef:
+  kind: Role
+  name: retraining-pipeline-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scheduled-retraining
+  labels:
+    app: scheduled-retraining
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  # Run every Sunday at 2:00 AM UTC
+  # Adjust the schedule based on your feedback volume and retraining needs:
+  #   "0 2 * * 0"    -- weekly (Sunday 2 AM)
+  #   "0 2 * * 1,4"  -- twice weekly (Monday and Thursday 2 AM)
+  #   "0 2 * * *"    -- daily (2 AM)
+  schedule: "0 2 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: scheduled-retraining
+            tutorial-level: "3"
+            tutorial-module: "M4"
+        spec:
+          serviceAccountName: retraining-sa
+          restartPolicy: OnFailure
+          containers:
+            - name: pipeline-trigger
+              image: python:3.11-slim
+              command:
+                - python
+                - -c
+                - |
+                  import subprocess
+                  import sys
+                  from datetime import datetime, timezone
+
+                  # Install kfp SDK
+                  subprocess.check_call(
+                      [sys.executable, "-m", "pip", "install", "--quiet", "kfp>=2.0"],
+                      stdout=subprocess.DEVNULL,
+                  )
+
+                  from kfp.client import Client
+
+                  # Get pipeline server URL and auth token
+                  route = subprocess.check_output(
+                      [
+                          "oc", "get", "route", "ds-pipeline-dspa",
+                          "-o", "jsonpath={.spec.host}",
+                      ],
+                  ).decode().strip()
+
+                  token = subprocess.check_output(
+                      ["oc", "whoami", "-t"],
+                  ).decode().strip()
+
+                  print(f"Connecting to pipeline server at https://{route}...")
+
+                  client = Client(
+                      host=f"https://{route}",
+                      existing_token=token,
+                  )
+
+                  now = datetime.now(timezone.utc).strftime("%Y%m%d")
+                  run_name = f"continuous-learning-scheduled-{now}"
+
+                  run = client.create_run_from_pipeline_package(
+                      pipeline_file="/pipeline/continuous_learning_pipeline.yaml",
+                      arguments={
+                          "feedback_service_url": (
+                              "http://feedback-service."
+                              "continuous-learning-tutorial.svc.cluster.local:8080"
+                          ),
+                          "model_name": "granite-3b-product-classifier",
+                          "replay_ratio": 0.7,
+                          "min_feedback_count": 10,
+                          "improvement_threshold": 0.01,
+                      },
+                      run_name=run_name,
+                      experiment_name="continuous-learning",
+                  )
+
+                  print(f"Pipeline run submitted: {run_name}")
+                  print(f"Run ID: {run.run_id}")
+              env:
+                - name: PIPELINE_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi

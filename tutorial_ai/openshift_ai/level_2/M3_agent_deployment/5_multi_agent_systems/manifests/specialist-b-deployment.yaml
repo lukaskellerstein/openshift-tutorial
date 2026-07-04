@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: specialist-code
+  labels:
+    app: specialist-code
+    role: specialist
+    tutorial-level: "2"
+    tutorial-module: "M3"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: specialist-code
+  template:
+    metadata:
+      labels:
+        app: specialist-code
+        role: specialist
+        tutorial-level: "2"
+        tutorial-module: "M3"
+    spec:
+      containers:
+        - name: specialist-code
+          # Replace PROJECT with your OpenShift project name
+          image: image-registry.openshift-image-registry.svc:5000/PROJECT/specialist-code:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: VLLM_ENDPOINT
+              value: "http://vllm-server:8000/v1"
+            - name: VLLM_MODEL_NAME
+              value: "granite-3.3-8b-instruct"
+            - name: LOG_LEVEL
+              value: "INFO"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

@@ -1,0 +1,133 @@
+# =============================================================================
+# RateLimitPolicy — Per-Tier Rate Limits for MaaS
+# =============================================================================
+#
+# This Kuadrant RateLimitPolicy defines the rate limits enforced by Limitador
+# for each MaaS tier. Limitador reads the "x-maas-tier" header (injected by
+# Authorino after API key validation) and applies the matching rate limit.
+#
+# The policy targets the HTTPRoute "gemma-model-route" — all requests passing
+# through that route are subject to these limits.
+#
+# How it works:
+#   1. A request arrives at the Kuadrant gateway.
+#   2. Authorino validates the API key and injects "x-maas-tier: <tier>".
+#   3. Limitador receives the request with the tier header.
+#   4. Limitador checks the counter for this specific API key within the
+#      matching tier bucket.
+#   5. If the counter is below the limit, the request proceeds and the counter
+#      increments. Standard rate-limit headers are added to the response.
+#   6. If the counter is at the limit, Limitador returns 429 Too Many Requests
+#      with a Retry-After header.
+#
+# Counters are per-key (not per-tier globally). Two free-tier users each get
+# their own 10-request-per-minute window.
+#
+# Apply with:
+#   oc apply -f rate-limit-policy.yaml -n maas-config
+# =============================================================================
+
+apiVersion: kuadrant.io/v1
+kind: RateLimitPolicy
+metadata:
+  name: maas-tier-limits
+  namespace: maas-config
+  labels:
+    app: maas-rate-limits
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  # ---------------------------------------------------------------------------
+  # Target Reference — which Gateway API resource this policy applies to
+  # ---------------------------------------------------------------------------
+  # The targetRef points to the HTTPRoute that fronts the model endpoint.
+  # All requests matching this HTTPRoute are subject to the rate limits below.
+  # ---------------------------------------------------------------------------
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: gemma-model-route
+
+  # ---------------------------------------------------------------------------
+  # Limits — rate limit definitions per tier
+  # ---------------------------------------------------------------------------
+  # Each entry in the "limits" map defines a named rate limit bucket with:
+  #   - rates: the allowed request count within a time window
+  #   - counters: what to count by (per-key, per-IP, etc.)
+  #   - when: conditions that must be true for this limit to apply
+  #
+  # The "when" conditions match on the "x-maas-tier" header that Authorino
+  # injects after authenticating the API key. This is how the same policy
+  # applies different limits to different tiers.
+  # ---------------------------------------------------------------------------
+  limits:
+
+    # -------------------------------------------------------------------------
+    # Free Tier — 10 requests per 60 seconds
+    # -------------------------------------------------------------------------
+    # Designed for prototyping and development. The low limit prevents a single
+    # developer from consuming excessive GPU resources during experimentation.
+    #
+    # counters: rate-limits are tracked per individual API key, not globally
+    # for all free-tier users. Each free-tier key gets its own 10 req/min
+    # window.
+    # -------------------------------------------------------------------------
+    free-tier:
+      rates:
+        - limit: 10
+          window: 60s
+      counters:
+        # Count requests per unique API key. The expression below resolves to
+        # the API key value from the authenticated identity, ensuring that each
+        # key has its own independent counter.
+        - expression: auth.identity.metadata.annotations.api-key-id
+      when:
+        # This limit only applies when the x-maas-tier header equals "free".
+        # Authorino sets this header based on the "maas-tier" label on the
+        # API key Secret.
+        - predicate: request.headers.x-maas-tier == "free"
+
+    # -------------------------------------------------------------------------
+    # Premium Tier — 100 requests per 60 seconds
+    # -------------------------------------------------------------------------
+    # For production workloads and customer-facing applications. The higher
+    # limit supports sustained inference traffic from application backends.
+    #
+    # The 10x multiplier over free-tier reflects the typical production-to-dev
+    # traffic ratio.
+    # -------------------------------------------------------------------------
+    premium-tier:
+      rates:
+        - limit: 100
+          window: 60s
+      counters:
+        # Same per-key counter as free tier — each premium key gets its own
+        # 100 req/min window.
+        - expression: auth.identity.metadata.annotations.api-key-id
+      when:
+        # This limit only applies when the x-maas-tier header equals "premium".
+        - predicate: request.headers.x-maas-tier == "premium"
+
+    # -------------------------------------------------------------------------
+    # Default / Fallback — catch-all for unknown tiers
+    # -------------------------------------------------------------------------
+    # If a request somehow passes Authorino with an unrecognized tier value
+    # (e.g., a misconfigured Secret label), this catch-all applies a very
+    # restrictive limit. This is a defense-in-depth measure.
+    #
+    # In practice, Authorino will reject requests with invalid keys before
+    # they reach Limitador. This catch-all handles edge cases like a race
+    # condition between Secret creation and Authorino cache refresh.
+    # -------------------------------------------------------------------------
+    default-fallback:
+      rates:
+        - limit: 5
+          window: 60s
+      counters:
+        - expression: auth.identity.metadata.annotations.api-key-id
+      when:
+        # Match requests where the tier is neither "free" nor "premium".
+        # This uses negation: the limit applies when the tier is NOT one of
+        # the known values.
+        - predicate: request.headers.x-maas-tier != "free"
+        - predicate: request.headers.x-maas-tier != "premium"

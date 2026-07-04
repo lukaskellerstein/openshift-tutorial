@@ -1,0 +1,76 @@
+# InferenceService for Gemma4-e4b with Authorino authentication enabled
+#
+# This is the same InferenceService from L1-M2.2 (Deploying Gemma), but
+# with the critical annotation:
+#   security.opendatahub.io/enable-auth: "true"
+#
+# When enable-auth is "true", the KServe controller:
+#   1. Injects an Envoy sidecar into the model pod
+#   2. Configures the sidecar to intercept all incoming HTTP requests
+#   3. Routes authentication/authorization decisions to Authorino
+#      (running in redhat-ods-applications namespace)
+#
+# The Envoy sidecar adds a second container to the pod, so you will
+# see 2/2 READY instead of 1/1 when the pod is running.
+#
+# An AuthConfig CRD (see authconfig.yaml) must be created separately
+# to define the actual authentication methods and authorization rules.
+# Without an AuthConfig, all requests are denied by default.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: gemma-4-e4b
+  namespace: gemma-model
+  labels:
+    app: gemma-4-e4b
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+    tutorial-level: "3"
+    tutorial-module: "M1"
+  annotations:
+    # Display name shown in the OpenShift AI dashboard
+    openshift.io/display-name: gemma-4-e4b
+
+    # RawDeployment mode uses a standard Kubernetes Deployment instead of
+    # a Knative Service. Simpler, does not require Knative Serving.
+    # Trade-off: no scale-to-zero capability.
+    serving.kserve.io/deploymentMode: RawDeployment
+
+    # ENABLE AUTHORINO AUTHENTICATION
+    # This is the key annotation that triggers Envoy sidecar injection.
+    # Set to "true" to require authentication on every inference request.
+    # Set to "false" (or omit) for unauthenticated access.
+    security.opendatahub.io/enable-auth: "true"
+
+    # Model type classification for the OpenShift AI dashboard.
+    # "generative" appears in the GenAI section of the UI.
+    opendatahub.io/model-type: generative
+spec:
+  predictor:
+    # Fixed replica count -- no autoscaling for this lesson.
+    # In production, configure maxReplicas > 1 for horizontal scaling.
+    minReplicas: 1
+    maxReplicas: 1
+    model:
+      # modelFormat links this InferenceService to a ServingRuntime
+      # that declares support for the "vLLM" format.
+      modelFormat:
+        name: vLLM
+
+      # runtime references the ServingRuntime by name.
+      # KServe uses the runtime's container spec to build the model pod.
+      runtime: gemma-4-e4b
+
+      # storageUri tells KServe where to find the model weights.
+      # The hf:// prefix triggers download from Hugging Face Hub at startup.
+      storageUri: hf://google/gemma-4-E4B-it
+
+      resources:
+        requests:
+          cpu: "1"
+          memory: 8Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "4"
+          memory: 24Gi
+          nvidia.com/gpu: "1"

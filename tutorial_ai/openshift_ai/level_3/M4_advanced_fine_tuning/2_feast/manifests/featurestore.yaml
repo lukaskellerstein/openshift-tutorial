@@ -1,0 +1,110 @@
+# FeatureStore CR -- deploys the full Feast stack on OpenShift AI
+# Components: registry, offline store, online store, feature server, web UI
+# Requires: Feast component enabled in DataScienceCluster (managementState: Managed)
+apiVersion: feast.dev/v1alpha1
+kind: FeatureStore
+metadata:
+  name: shopinsights-features
+  labels:
+    app: shopinsights-feast
+    tutorial-level: "3"
+    tutorial-module: "M4"
+spec:
+  # ------------------------------------------------------------
+  # Feature Registry -- stores metadata about entities, feature
+  # views, data sources, and feature services. All Feast clients
+  # read from here to discover available features.
+  # ------------------------------------------------------------
+  feastProject: shopinsights
+  services:
+    registry:
+      local:
+        # File-based registry for the tutorial. In production, use a
+        # SQL-backed registry (PostgreSQL) for concurrent multi-writer
+        # support and durability.
+        persistence:
+          file:
+            path: /data/registry.db
+            s3AdditionalKwargs: {}
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+    # ------------------------------------------------------------
+    # Offline Store -- serves batch feature queries for training.
+    # Supports point-in-time joins: given entity keys + timestamps,
+    # returns the feature values valid at those exact times.
+    # ------------------------------------------------------------
+    offlineStore:
+      file:
+        # File-based offline store reads directly from Parquet files.
+        # In production, use a database backend (PostgreSQL, BigQuery,
+        # Snowflake) for scalability and query pushdown.
+        type: file
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+
+    # ------------------------------------------------------------
+    # Online Store -- serves low-latency feature lookups for
+    # inference. Stores only the latest value per entity key.
+    # Target latency: <10ms per lookup.
+    # ------------------------------------------------------------
+    onlineStore:
+      # SQLite for the tutorial. In production, use Redis for
+      # sub-millisecond latency and horizontal scalability:
+      #
+      #   redis:
+      #     type: redis
+      #     connectionString: "redis://redis-master.feast-tutorial.svc:6379"
+      #
+      persistence:
+        file:
+          path: /data/online_store.db
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+
+    # ------------------------------------------------------------
+    # Feature Server -- REST API fronting the online store.
+    # Inference services call this to enrich requests with
+    # precomputed features before passing them to the model.
+    # ------------------------------------------------------------
+    onlineFeatureServer:
+      enabled: true
+      # Number of worker processes. Scale based on inference QPS.
+      replicas: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+
+    # ------------------------------------------------------------
+    # Web UI -- browser interface for feature discovery.
+    # Data scientists use this to find and understand available
+    # features before building new models.
+    # ------------------------------------------------------------
+    ui:
+      enabled: true
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi

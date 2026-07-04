@@ -1,0 +1,162 @@
+# PrometheusRule for unified AI platform alerts
+# Covers inference SLOs, GPU resources, agent health, and fairness metrics.
+# Organized into four groups corresponding to the dashboard rows.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ai-platform-alerts
+  labels:
+    app: ai-platform-alerts
+    tutorial-level: "2"
+    tutorial-module: "M5"
+spec:
+  groups:
+    - name: ai-platform.inference
+      rules:
+        # Alert: P99 time-to-first-token exceeds 5 seconds for 5 minutes
+        # This is the primary latency SLO for LLM serving. TTFT controls
+        # the perceived responsiveness -- users see nothing until the first
+        # token arrives. A 5-second P99 means 1% of users wait 5+ seconds
+        # before any output appears.
+        - alert: InferenceLatencyHigh
+          expr: |
+            histogram_quantile(0.99,
+              rate(vllm:time_to_first_token_seconds_bucket[5m])
+            ) > 5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "P99 time-to-first-token exceeds 5 seconds"
+            description: >-
+              The 99th-percentile time-to-first-token has been above 5 seconds
+              for the last 5 minutes. Users are experiencing significant delays
+              before any response appears. Check KV cache utilization and GPU
+              memory pressure. Current value: {{ $value | humanizeDuration }}.
+            runbook_url: "https://docs.example.com/runbooks/inference-latency"
+
+        # Alert: more than 50 requests waiting in the vLLM queue for 5 minutes
+        # A sustained queue backlog means the serving instance cannot keep up
+        # with demand. This is a leading indicator -- TTFT will spike shortly.
+        - alert: InferenceQueueBacklog
+          expr: sum(vllm:num_requests_waiting) > 50
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Inference request queue exceeds 50 pending requests"
+            description: >-
+              More than 50 requests have been waiting in the vLLM inference
+              queue for the last 5 minutes. The serving instance is
+              under-provisioned for current demand. Consider scaling replicas
+              or reducing concurrent request limits. Current queue depth:
+              {{ $value }}.
+            runbook_url: "https://docs.example.com/runbooks/inference-queue"
+
+        # Alert: model error rate exceeds 5% for 5 minutes
+        # A sustained error rate above 5% means users are getting failures.
+        # This is critical because it directly impacts user experience.
+        - alert: ModelErrorRateHigh
+          expr: |
+            sum(rate(vllm:request_failure_total[5m]))
+            / (sum(rate(vllm:request_success_total[5m])) + sum(rate(vllm:request_failure_total[5m])))
+            > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Model inference error rate exceeds 5%"
+            description: >-
+              More than 5% of inference requests have been failing for the
+              last 5 minutes. Investigate vLLM pod logs, GPU health, and
+              model loading status. Current error rate:
+              {{ $value | humanizePercentage }}.
+            runbook_url: "https://docs.example.com/runbooks/model-errors"
+
+    - name: ai-platform.gpu
+      rules:
+        # Alert: GPU memory usage exceeds 90% for 10 minutes
+        # GPU memory pressure is a leading indicator of OOM kills and
+        # inference failures. The 10-minute window avoids alerting on
+        # transient spikes during model loading.
+        - alert: GPUMemoryPressure
+          expr: |
+            DCGM_FI_DEV_FB_USED
+            / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE)
+            > 0.9
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "GPU memory usage exceeds 90%"
+            description: >-
+              GPU framebuffer memory utilization has exceeded 90% for
+              10 minutes. The serving instance is at risk of out-of-memory
+              failures. Consider reducing max_model_len, batch size, or
+              scaling to additional GPUs. Current usage:
+              {{ $value | humanizePercentage }}.
+            runbook_url: "https://docs.example.com/runbooks/gpu-memory"
+
+        # Alert: GPU temperature exceeds 80C for 10 minutes
+        # Sustained high temperatures cause thermal throttling, which
+        # degrades inference performance. GPUs typically throttle at 83-85C
+        # and shut down at 90-95C depending on the model.
+        - alert: GPUTemperatureWarning
+          expr: DCGM_FI_DEV_GPU_TEMP > 80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "GPU temperature exceeds 80C"
+            description: >-
+              GPU temperature has been above 80 degrees Celsius for
+              10 minutes. Thermal throttling may begin at 83-85C, degrading
+              inference performance. Check data center cooling and GPU fan
+              status. Current temperature: {{ $value }}C.
+            runbook_url: "https://docs.example.com/runbooks/gpu-temperature"
+
+    - name: ai-platform.agents
+      rules:
+        # Alert: agent trace error rate exceeds 10% for 5 minutes
+        # Agent traces that end in error status indicate tool call failures,
+        # LLM refusals, or timeout issues. A 10% threshold is used because
+        # agents have more failure modes than simple inference (tool calls,
+        # multi-step reasoning, external API dependencies).
+        - alert: AgentTraceErrorRate
+          expr: |
+            sum(rate(mlflow_trace_error_total[5m]))
+            / (sum(rate(mlflow_trace_success_total[5m])) + sum(rate(mlflow_trace_error_total[5m])))
+            > 0.1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Agent trace error rate exceeds 10%"
+            description: >-
+              More than 10% of agent traces have been ending in error status
+              for the last 5 minutes. Investigate MLflow trace logs for
+              tool call failures, LLM refusals, or timeout issues. Current
+              error rate: {{ $value | humanizePercentage }}.
+            runbook_url: "https://docs.example.com/runbooks/agent-errors"
+
+    - name: ai-platform.fairness
+      rules:
+        # Alert: statistical parity difference (SPD) exceeds bounds for 30 min
+        # SPD measures the difference in positive outcome rates between
+        # privileged and unprivileged groups. A value outside [-0.1, 0.1]
+        # indicates potential bias. The 30-minute window avoids alerting
+        # on small-sample fluctuations.
+        - alert: BiasMetricViolation
+          expr: abs(trustyai_spd) > 0.1
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Bias metric (SPD) exceeds acceptable bounds"
+            description: >-
+              The statistical parity difference (SPD) has been outside the
+              acceptable range of [-0.1, 0.1] for 30 minutes. This indicates
+              potential discriminatory behavior in model predictions.
+              Investigate the affected model and protected attribute.
+              Current SPD value: {{ $value }}.
+            runbook_url: "https://docs.example.com/runbooks/bias-violation"

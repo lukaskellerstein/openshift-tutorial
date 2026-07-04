@@ -1,0 +1,130 @@
+# AuthConfig for Gemma4-e4b InferenceService
+#
+# This AuthConfig defines authentication and authorization policies
+# enforced by Authorino on every request to the model endpoint.
+# Authorino acts as an Envoy ext-authz filter -- it intercepts requests
+# before they reach the vLLM container and validates credentials.
+#
+# Two authentication methods are configured:
+#   1. Kubernetes ServiceAccount tokens (for internal agents/services)
+#   2. JWT/OIDC tokens (for external clients via an identity provider)
+#
+# Authorization requires that ServiceAccount-authenticated callers
+# belong to the gemma-model namespace.
+#
+# Replace "gemma-4-e4b-gemma-model.apps.example.com" with your actual
+# Route hostname. Find it with:
+#   oc get route -n gemma-model \
+#     -l serving.kserve.io/inferenceservice=gemma-4-e4b \
+#     -o jsonpath='{.items[0].spec.host}'
+apiVersion: authorino.kuadrant.io/v1beta3
+kind: AuthConfig
+metadata:
+  name: gemma-4-e4b-auth
+  namespace: gemma-model
+  labels:
+    app: gemma-4-e4b-auth
+    opendatahub.io/component: model-auth
+    tutorial-level: "3"
+    tutorial-module: "M1"
+  annotations:
+    description: "Authentication and authorization policy for the Gemma4-e4b model endpoint"
+spec:
+  # ---------------------------------------------------------------------------
+  # HOSTS
+  # ---------------------------------------------------------------------------
+  # List of hostnames this policy applies to. Must match the Route hostname
+  # created by the InferenceService. Authorino uses this to link incoming
+  # requests to the correct AuthConfig.
+  hosts:
+    - gemma-4-e4b-gemma-model.apps.example.com
+
+  # ---------------------------------------------------------------------------
+  # AUTHENTICATION
+  # ---------------------------------------------------------------------------
+  # Defines how callers prove their identity. Multiple methods can be
+  # configured; Authorino tries each in order and succeeds on the first
+  # valid credential. If no method succeeds, the request is rejected
+  # with HTTP 401 Unauthorized.
+  authentication:
+
+    # -------------------------------------------------------------------------
+    # Method 1: Kubernetes ServiceAccount Token (internal services/agents)
+    # -------------------------------------------------------------------------
+    # Validates tokens by calling the Kubernetes TokenReview API.
+    # The client sends its ServiceAccount token as:
+    #   Authorization: Bearer <sa-token>
+    #
+    # Use this for:
+    #   - AI agents running inside the cluster
+    #   - Pipeline steps (Tekton tasks, Argo workflows)
+    #   - RAG orchestrators calling the model
+    #   - Any pod with a ServiceAccount that needs inference access
+    k8s-sa-auth:
+      kubernetesTokenReview:
+        # audiences restricts which token audiences are accepted.
+        # The default Kubernetes API server audience ensures only tokens
+        # intended for this cluster are valid. If you use projected
+        # volumes with custom audiences, add those here.
+        audiences:
+          - "https://kubernetes.default.svc"
+
+    # -------------------------------------------------------------------------
+    # Method 2: JWT / OIDC (external clients)
+    # -------------------------------------------------------------------------
+    # Validates JWTs issued by an external OIDC-compliant identity provider.
+    # Authorino fetches the provider's JWKS (public keys) from:
+    #   <issuerUrl>/.well-known/openid-configuration
+    # and verifies token signature, expiry, and audience locally.
+    #
+    # Replace the issuerUrl with your actual OIDC provider:
+    #   - Keycloak:  https://keycloak.example.com/realms/my-realm
+    #   - Azure AD:  https://login.microsoftonline.com/<tenant-id>/v2.0
+    #   - Okta:      https://dev-xxxxx.okta.com/oauth2/default
+    #
+    # Use this for:
+    #   - External applications calling the model API
+    #   - User-facing frontends with OIDC login
+    #   - Third-party integrations
+    oidc-jwt-auth:
+      jwt:
+        issuerUrl: https://sso.example.com/realms/ai-platform
+        # audiences ensures the JWT was issued specifically for this
+        # inference service. Prevents token reuse: a token issued for
+        # a different service (different audience) will be rejected
+        # even if the signature is valid.
+        audiences:
+          - gemma-inference
+
+  # ---------------------------------------------------------------------------
+  # AUTHORIZATION
+  # ---------------------------------------------------------------------------
+  # After authentication succeeds, authorization rules determine whether
+  # the authenticated identity is allowed to proceed. If any rule fails,
+  # the request is rejected with HTTP 403 Forbidden.
+  authorization:
+
+    # -------------------------------------------------------------------------
+    # Rule: Restrict SA tokens to the gemma-model namespace
+    # -------------------------------------------------------------------------
+    # This pattern-matching rule ensures that ServiceAccount tokens come
+    # from the gemma-model namespace. Without this, ANY ServiceAccount in
+    # the cluster could authenticate to the endpoint.
+    #
+    # The "when" condition limits this rule to requests that authenticated
+    # via the k8s-sa-auth method. JWT-authenticated requests skip this
+    # rule entirely (they are authorized by virtue of having a valid token
+    # with the correct audience).
+    check-namespace:
+      when:
+        # Only apply this rule to ServiceAccount-authenticated requests.
+        # The auth.identity.iss field is set to "kubernetes/serviceaccount"
+        # for TokenReview-authenticated identities.
+        - patternRef: k8s-sa-auth
+      patternMatching:
+        patterns:
+          # auth.identity.namespace is populated by TokenReview with the
+          # namespace of the ServiceAccount that owns the token.
+          - selector: auth.identity.namespace
+            operator: eq
+            value: gemma-model

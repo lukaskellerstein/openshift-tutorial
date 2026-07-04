@@ -1,0 +1,124 @@
+# RayCluster custom resource for deploying a Ray cluster on OpenShift AI
+#
+# This creates a 3-node cluster: 1 head node + 2 CPU worker nodes.
+# The head node runs the Global Control Store (GCS), Ray dashboard, and driver.
+# Worker nodes execute distributed tasks and actors.
+#
+# To add GPU workers, uncomment the gpu-workers group at the bottom.
+#
+# KubeRay operator version: 1.4.2
+# API: ray.io/v1
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: ray-demo-cluster
+  labels:
+    app: ray-demo-cluster
+    tutorial-level: "2"
+    tutorial-module: "M6"
+spec:
+  # Ray version must match the container image tag
+  rayVersion: "2.44.0"
+
+  # --- Head Node ---
+  # Runs GCS (cluster metadata), the dashboard (port 8265), and the driver
+  headGroupSpec:
+    rayStartParams:
+      # Bind dashboard to all interfaces so the Route can reach it
+      dashboard-host: "0.0.0.0"
+    template:
+      metadata:
+        labels:
+          app: ray-demo-cluster
+          ray.io/node-type: head
+      spec:
+        containers:
+          - name: ray-head
+            image: quay.io/modh/ray:2.44.0-py311-cu124
+            ports:
+              - containerPort: 6379    # GCS server port
+                name: gcs-server
+              - containerPort: 8265    # Ray dashboard
+                name: dashboard
+              - containerPort: 10001   # Ray client server
+                name: client
+            resources:
+              requests:
+                cpu: "1"
+                memory: "2Gi"
+              limits:
+                cpu: "2"
+                memory: "4Gi"
+            volumeMounts:
+              - name: ray-logs
+                mountPath: /tmp/ray
+        volumes:
+          - name: ray-logs
+            emptyDir: {}
+
+  # --- Worker Nodes ---
+  workerGroupSpecs:
+    # CPU worker group -- runs distributed tasks
+    - groupName: default-worker
+      # Number of worker pods to create initially
+      replicas: 2
+      # Auto-scaling bounds (Ray autoscaler adjusts within these limits)
+      minReplicas: 1
+      maxReplicas: 4
+      rayStartParams: {}
+      template:
+        metadata:
+          labels:
+            app: ray-demo-cluster
+            ray.io/node-type: worker
+        spec:
+          containers:
+            - name: ray-worker
+              image: quay.io/modh/ray:2.44.0-py311-cu124
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: "2Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"
+              volumeMounts:
+                - name: ray-logs
+                  mountPath: /tmp/ray
+          volumes:
+            - name: ray-logs
+              emptyDir: {}
+
+    # --- GPU Worker Group (optional) ---
+    # Uncomment this section if your cluster has GPU nodes.
+    # Each worker requests one NVIDIA GPU.
+    #
+    # - groupName: gpu-workers
+    #   replicas: 1
+    #   minReplicas: 0
+    #   maxReplicas: 4
+    #   rayStartParams: {}
+    #   template:
+    #     metadata:
+    #       labels:
+    #         app: ray-demo-cluster
+    #         ray.io/node-type: worker
+    #     spec:
+    #       containers:
+    #         - name: ray-worker
+    #           image: quay.io/modh/ray:2.44.0-py311-cu124
+    #           resources:
+    #             requests:
+    #               cpu: "2"
+    #               memory: "8Gi"
+    #               nvidia.com/gpu: "1"
+    #             limits:
+    #               cpu: "4"
+    #               memory: "16Gi"
+    #               nvidia.com/gpu: "1"
+    #           volumeMounts:
+    #             - name: ray-logs
+    #               mountPath: /tmp/ray
+    #       volumes:
+    #         - name: ray-logs
+    #           emptyDir: {}

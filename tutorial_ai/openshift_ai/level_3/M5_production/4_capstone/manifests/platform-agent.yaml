@@ -1,0 +1,226 @@
+# Platform Agent Deployment
+#
+# This file deploys the LangGraph agent that ties the entire AI platform
+# together. The agent is the user-facing API -- it receives natural language
+# requests, orchestrates tool calls via MCP, retrieves context via RAG,
+# generates responses via the Gemma model, and applies guardrails before
+# returning results.
+#
+# Components:
+#   1. ConfigMap  -- environment variables for all downstream service endpoints
+#   2. Deployment -- the agent pods with health checks and projected tokens
+#   3. Service    -- ClusterIP for internal routing
+#   4. Route      -- external HTTPS endpoint with edge TLS termination
+#
+# The agent authenticates to the InferenceService using a projected
+# ServiceAccount token with audience=https://kubernetes.default.svc.
+# Authorino validates this token before allowing inference requests.
+#
+# Apply after model serving is ready (ArgoCD sync wave 4).
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-agent-config
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: agent
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+data:
+  # ---- Model Serving ----
+  # Internal URL for the vLLM InferenceService.
+  # KServe creates a Service named after the InferenceService with a
+  # -predictor suffix. The agent calls the OpenAI-compatible /v1/chat/completions
+  # endpoint on this URL.
+  VLLM_ENDPOINT: "http://gemma-4-e4b-predictor.ai-platform-prod.svc.cluster.local:8080/v1"
+  VLLM_MODEL_NAME: "gemma-4-e4b"
+
+  # ---- MCP Gateway ----
+  # The MCP (Model Context Protocol) gateway aggregates tool servers
+  # (database, search, API integrations) behind a single endpoint.
+  # The agent discovers available tools at startup via MCP's tool listing.
+  MCP_GATEWAY_URL: "http://mcp-gateway.ai-platform-prod.svc.cluster.local:8080"
+
+  # ---- RAG Service ----
+  # Retrieval-Augmented Generation service backed by pgvector.
+  # The agent calls this to retrieve relevant context before generating responses.
+  RAG_ENDPOINT: "http://rag-service.ai-platform-prod.svc.cluster.local:8080"
+
+  # ---- MLflow ----
+  # MLflow tracking server for logging agent runs, latency metrics,
+  # and evaluation scores. Enables experiment comparison across agent versions.
+  MLFLOW_TRACKING_URI: "http://mlflow.ai-platform-prod.svc.cluster.local:5000"
+
+  # ---- Observability ----
+  # OpenTelemetry collector endpoint for distributed tracing.
+  # Traces capture the full agent execution path: user request -> tool calls ->
+  # inference -> guardrails -> response.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.ai-platform-prod.svc.cluster.local:4317"
+
+  # ---- Guardrails ----
+  # NeMo Guardrails service for content filtering and safety checks.
+  # The agent sends both user input and model output through guardrails
+  # before returning responses.
+  GUARDRAILS_ENDPOINT: "http://guardrails.ai-platform-prod.svc.cluster.local:8080"
+
+  # ---- Logging ----
+  LOG_LEVEL: "INFO"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-agent
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: agent
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai-platform
+      component: agent
+  template:
+    metadata:
+      labels:
+        app: ai-platform
+        component: agent
+        tutorial-level: "3"
+        tutorial-module: "M5"
+      annotations:
+        # Force a rolling restart when the ConfigMap changes.
+        # Without this, pods keep running with stale environment variables
+        # until they are manually restarted.
+        checksum/config: "PLACEHOLDER-replace-with-configmap-hash-in-kustomize"
+    spec:
+      serviceAccountName: agent-runner-sa
+      containers:
+        - name: agent
+          # IMPORTANT: Replace with your actual agent image.
+          # Build this image from your agent source code and push it to the
+          # OpenShift internal registry or an external registry.
+          image: image-registry.openshift-image-registry.svc:5000/ai-platform-prod/platform-agent:latest
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          # Load all environment variables from the ConfigMap.
+          # This keeps the Deployment spec clean and makes configuration
+          # changes a ConfigMap update rather than a Deployment edit.
+          envFrom:
+            - configMapRef:
+                name: platform-agent-config
+          # Liveness probe: restart the pod if the agent process is hung.
+          # /healthz returns 200 as long as the event loop is responsive.
+          # A 10-second timeout accommodates brief GC pauses.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          # Readiness probe: remove the pod from the Service if it cannot
+          # serve requests (e.g., still loading tools from MCP gateway).
+          # /readyz returns 200 only after the agent has connected to all
+          # required downstream services.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          # Mount the projected ServiceAccount token for authenticating
+          # to the InferenceService via Authorino.
+          volumeMounts:
+            - name: inference-token
+              mountPath: /var/run/secrets/inference
+              readOnly: true
+      volumes:
+        # Projected ServiceAccount token with a specific audience claim.
+        # Authorino validates that the token's audience matches the
+        # expected value (https://kubernetes.default.svc) before allowing
+        # inference requests. This prevents tokens issued for other
+        # purposes from being reused for model access.
+        #
+        # The token is automatically rotated by the kubelet before expiry.
+        # The agent reads it from the mounted file on each request.
+        - name: inference-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: https://kubernetes.default.svc
+                  expirationSeconds: 3600
+                  path: token
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-agent
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: agent
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  selector:
+    app: ai-platform
+    component: agent
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: platform-agent
+  namespace: ai-platform-prod
+  labels:
+    app: ai-platform
+    component: agent
+    tutorial-level: "3"
+    tutorial-module: "M5"
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  # The host is auto-generated by the OpenShift router if omitted.
+  # Uncomment and set a custom hostname if using a custom domain:
+  # host: platform-agent.apps.example.com
+  to:
+    kind: Service
+    name: platform-agent
+    weight: 100
+  port:
+    targetPort: 8080
+  tls:
+    # Edge termination: TLS is terminated at the router.
+    # Traffic between the router and the pod is unencrypted (within
+    # the cluster network). For end-to-end encryption, use passthrough
+    # or re-encrypt termination.
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

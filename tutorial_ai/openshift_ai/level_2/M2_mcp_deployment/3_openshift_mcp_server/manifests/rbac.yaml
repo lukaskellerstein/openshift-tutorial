@@ -1,0 +1,34 @@
+# RBAC configuration for the OpenShift MCP Server
+# Creates a ServiceAccount with read-only cluster access
+#
+# The OpenShift MCP Server operates with the permissions of this ServiceAccount.
+# Using the built-in 'view' ClusterRole provides read-only access to most resources.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openshift-mcp-viewer
+  labels:
+    app: openshift-mcp-server
+    tutorial-level: "2"
+    tutorial-module: "M2"
+---
+# Cluster-wide read-only access
+# The 'view' ClusterRole grants read access to most resources in all namespaces.
+# For tighter security, use a RoleBinding instead to restrict to specific namespaces.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openshift-mcp-viewer-crb
+  labels:
+    app: openshift-mcp-server
+    tutorial-level: "2"
+    tutorial-module: "M2"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: openshift-mcp-viewer
+    namespace: mcp-servers  # Update if deploying to a different namespace

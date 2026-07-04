@@ -1,0 +1,214 @@
+# =============================================================================
+# MaaS Configuration — Tier Definitions, API Key Secrets, and AuthConfig
+# =============================================================================
+#
+# This multi-document manifest configures the Models-as-a-Service layer for
+# a shared Gemma4-e4b model endpoint. It contains:
+#
+#   1. ConfigMap: tier definitions (documentation and reference for operators)
+#   2. Secret (free): an API key assigned to the "free" tier
+#   3. Secret (premium): an API key assigned to the "premium" tier
+#   4. AuthConfig: Authorino configuration that validates keys and extracts tiers
+#
+# Apply with:
+#   oc apply -f maas-config.yaml -n maas-config
+#
+# All resources use the label "app: maas-api-key" (Secrets) or "app: maas-auth"
+# (AuthConfig) so Authorino can discover them and the cleanup script can delete
+# them in one command.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. Tier Configuration — ConfigMap
+# -----------------------------------------------------------------------------
+# This ConfigMap is a human-readable reference for the tier definitions.
+# Authorino does not read this directly — the actual enforcement comes from the
+# RateLimitPolicy CRD (see rate-limit-policy.yaml). This ConfigMap serves as
+# documentation and can be consumed by custom controllers or dashboards.
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maas-tier-config
+  namespace: maas-config
+  labels:
+    app: maas-config
+    tutorial-level: "3"
+    tutorial-module: "M1"
+data:
+  # Each tier is defined as a JSON object for easy parsing by tooling.
+  # Fields:
+  #   requests_per_minute — maximum requests allowed per 60-second window
+  #   max_tokens          — maximum tokens per individual request
+  #   description         — human-readable tier description
+  tiers.json: |
+    {
+      "free": {
+        "requests_per_minute": 10,
+        "max_tokens": 1000,
+        "description": "For prototyping and development. Low rate limits, suitable for internal experimentation."
+      },
+      "premium": {
+        "requests_per_minute": 100,
+        "max_tokens": 4096,
+        "description": "For production workloads. Higher rate limits for customer-facing applications."
+      },
+      "enterprise": {
+        "requests_per_minute": 10000,
+        "max_tokens": 8192,
+        "description": "For mission-critical workloads. Very high limits with SLA guarantees. Contact the platform team to provision."
+      }
+    }
+
+---
+# -----------------------------------------------------------------------------
+# 2. API Key Secret — Free Tier (user1)
+# -----------------------------------------------------------------------------
+# This Secret stores an API key for a free-tier user. Authorino discovers it by:
+#   - Watching Secrets in the maas-config namespace
+#   - Filtering by the label selector: app=maas-api-key
+#   - Reading the "api_key" data field to match against the Authorization header
+#   - Reading the "maas-tier" label to determine which rate limit tier applies
+#
+# Labels:
+#   app: maas-api-key   — required for Authorino to discover this Secret
+#   maas-tier: free     — the tier assignment; Authorino passes this downstream
+#   team: frontend      — identifies the owning team (for showback dashboards)
+#
+# Annotations:
+#   maas.openshift.ai/created-by  — who created this key (audit trail)
+#   maas.openshift.ai/created-at  — when the key was created
+#   maas.openshift.ai/expires-at  — when the key expires (enforced by policy)
+#
+# The api_key value below is a pre-generated hex string for tutorial purposes.
+# In production, generate keys with: openssl rand -hex 32
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Secret
+metadata:
+  name: maas-key-free-user1
+  namespace: maas-config
+  labels:
+    app: maas-api-key
+    maas-tier: free
+    team: frontend
+    tutorial-level: "3"
+    tutorial-module: "M1"
+  annotations:
+    maas.openshift.ai/created-by: "admin@example.com"
+    maas.openshift.ai/created-at: "2026-01-15T10:00:00Z"
+    maas.openshift.ai/expires-at: "2026-12-31T23:59:59Z"
+type: Opaque
+stringData:
+  # The API key value. Clients pass this in the Authorization header:
+  #   Authorization: Bearer maas-free-a1b2c3d4e5f6...
+  api_key: "maas-free-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8"
+
+---
+# -----------------------------------------------------------------------------
+# 3. API Key Secret — Premium Tier (user1)
+# -----------------------------------------------------------------------------
+# Same structure as the free-tier key, but with maas-tier: premium.
+# The premium tier gets 100 requests/minute instead of 10.
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Secret
+metadata:
+  name: maas-key-premium-user1
+  namespace: maas-config
+  labels:
+    app: maas-api-key
+    maas-tier: premium
+    team: ml-platform
+    tutorial-level: "3"
+    tutorial-module: "M1"
+  annotations:
+    maas.openshift.ai/created-by: "admin@example.com"
+    maas.openshift.ai/created-at: "2026-01-15T10:00:00Z"
+    maas.openshift.ai/expires-at: "2026-12-31T23:59:59Z"
+type: Opaque
+stringData:
+  # Premium-tier API key — higher rate limits for production workloads
+  api_key: "maas-prem-f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9"
+
+---
+# -----------------------------------------------------------------------------
+# 4. AuthConfig — Authorino Configuration for MaaS
+# -----------------------------------------------------------------------------
+# The AuthConfig CRD tells Authorino how to authenticate and authorize requests
+# to the MaaS endpoint. This configuration:
+#
+#   a) Watches for API key Secrets with label "app: maas-api-key" in the
+#      maas-config namespace.
+#   b) Validates the Authorization header against the "api_key" field in
+#      matching Secrets.
+#   c) On successful authentication, extracts the "maas-tier" label from the
+#      matched Secret and injects it as the "x-maas-tier" response header.
+#   d) Limitador (downstream) reads the "x-maas-tier" header to apply the
+#      correct rate limit.
+#
+# The AuthConfig applies to requests matching the hosts listed in spec.hosts.
+# Update the hostname to match your cluster's domain.
+# -----------------------------------------------------------------------------
+apiVersion: authorino.kuadrant.io/v1beta3
+kind: AuthConfig
+metadata:
+  name: maas-auth
+  namespace: maas-config
+  labels:
+    app: maas-auth
+    tutorial-level: "3"
+    tutorial-module: "M1"
+spec:
+  # The hostnames this AuthConfig applies to. Must match the HTTPRoute hostname
+  # that fronts the model endpoint through the Kuadrant gateway.
+  hosts:
+    - "gemma-maas.apps.sandbox.example.com"
+
+  # ---------------------------------------------------------------------------
+  # Authentication — API Key validation
+  # ---------------------------------------------------------------------------
+  # Authorino supports multiple identity sources (API key, OIDC, mTLS, etc.).
+  # Here we use the "apiKey" type, which tells Authorino to look for Kubernetes
+  # Secrets matching the label selector and compare the request's Authorization
+  # header value against the Secret's "api_key" data field.
+  #
+  # When a match is found, the Secret's metadata (labels, annotations) becomes
+  # available in the authorization pipeline as auth.identity.metadata.
+  # ---------------------------------------------------------------------------
+  authentication:
+    maas-api-keys:
+      apiKey:
+        selector:
+          # Only consider Secrets with this label in the maas-config namespace.
+          # Adding a new Secret with this label immediately makes the key valid —
+          # Authorino watches for changes in real time.
+          matchLabels:
+            app: maas-api-key
+      credentials:
+        # Expect the API key in the Authorization header with the "Bearer" scheme:
+        #   Authorization: Bearer <api-key-value>
+        authorizationHeader:
+          prefix: "Bearer"
+
+  # ---------------------------------------------------------------------------
+  # Response — Inject tier information as a header
+  # ---------------------------------------------------------------------------
+  # After successful authentication, we extract the "maas-tier" label from the
+  # matched Secret and inject it as the "x-maas-tier" header on the upstream
+  # request. Limitador uses this header to decide which rate limit bucket to
+  # check.
+  #
+  # This decouples authentication (is the key valid?) from authorization
+  # (what tier is this key?). The same AuthConfig works for all tiers — the
+  # tier is a property of the key, not of the auth rule.
+  # ---------------------------------------------------------------------------
+  response:
+    success:
+      headers:
+        x-maas-tier:
+          plain:
+            # auth.identity.metadata.labels is a map of the matched Secret's
+            # labels. We extract the "maas-tier" label value (e.g., "free" or
+            # "premium") and set it as the header value.
+            value: auth.identity.metadata.labels.maas-tier

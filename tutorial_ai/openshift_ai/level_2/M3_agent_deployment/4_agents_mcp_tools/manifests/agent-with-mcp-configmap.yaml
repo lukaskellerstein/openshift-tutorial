@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: langgraph-agent-mcp-config
+  labels:
+    app: langgraph-agent-mcp
+    tutorial-level: "2"
+    tutorial-module: "M3"
+data:
+  # vLLM inference endpoint (OpenAI-compatible API)
+  VLLM_ENDPOINT: "http://vllm-server:8000/v1"
+  # Model name served by vLLM
+  VLLM_MODEL_NAME: "granite-3.3-8b-instruct"
+  # MCP server connections -- JSON array of {url, transport} objects
+  # Direct connection to MCP Server for OpenShift:
+  MCP_SERVERS: |
+    [
+      {
+        "url": "http://mcp-server-openshift:8080/mcp",
+        "transport": "streamable_http"
+      }
+    ]
+  # To connect via MCP Gateway instead, replace MCP_SERVERS with:
+  #   [{"url": "http://mcp-gateway:8080/sse", "transport": "sse"}]
+  # System prompt for the OpenShift management agent
+  AGENT_SYSTEM_PROMPT: |
+    You are an OpenShift cluster management assistant. You have access to tools
+    that let you inspect and manage Kubernetes and OpenShift resources.
+
+    When a user asks about cluster resources, use the available tools to get
+    real-time information. Always report what you find accurately.
+
+    If a tool call fails, explain the error to the user and suggest what
+    permissions might be needed.
+
+    Always be concise and format your responses clearly.
+  # Application log level
+  LOG_LEVEL: "INFO"

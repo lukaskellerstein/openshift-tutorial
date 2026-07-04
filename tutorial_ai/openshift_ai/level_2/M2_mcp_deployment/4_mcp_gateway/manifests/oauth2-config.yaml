@@ -1,0 +1,66 @@
+# OAuth2 authentication for the MCP Gateway
+# Uses Kuadrant's AuthPolicy CRD to attach JWT validation to the Gateway
+#
+# The MCP Gateway integrates with any OIDC provider (Keycloak, OpenShift OAuth, etc.)
+# This example uses OpenShift's built-in OAuth server.
+#
+# Prerequisites:
+# 1. Connectivity Link / Kuadrant installed with Authorino
+# 2. OAuth client registered (see README Step 4)
+---
+# AuthPolicy: Attach JWT authentication to the Gateway's MCP listener
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: mcp-gateway-auth
+  namespace: mcp-servers
+  labels:
+    app: mcp-gateway
+    tutorial-level: "2"
+    tutorial-module: "M2"
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: mcp-gateway
+    sectionName: mcp  # Must match the Gateway listener name
+
+  defaults:
+    rules:
+      authentication:
+        "openshift-oauth":
+          jwt:
+            # OpenShift OAuth issuer URL
+            # Replace with your cluster's OAuth URL
+            issuerUrl: https://oauth-openshift.apps.cluster.example.com
+      authorization:
+        "allow-authenticated":
+          opa:
+            rego: |
+              allow {
+                input.auth.identity.sub != ""
+              }
+---
+# OAuth protected resource metadata (optional)
+# Allows MCP clients to discover auth requirements automatically
+# This is configured in the MCPGatewayExtension (see mcp-gateway.yaml)
+# Uncomment and apply the updated MCPGatewayExtension below to enable:
+#
+# apiVersion: mcp.kuadrant.io/v1alpha1
+# kind: MCPGatewayExtension
+# metadata:
+#   name: mcp-extension
+#   namespace: mcp-servers
+# spec:
+#   targetRef:
+#     group: gateway.networking.k8s.io
+#     kind: Gateway
+#     name: mcp-gateway
+#     namespace: mcp-servers
+#     sectionName: mcp
+#   backendPingIntervalSeconds: 60
+#   oauthProtectedResource:
+#     authorizationServers:
+#       - "https://oauth-openshift.apps.cluster.example.com"
+#     scopesSupported:
+#       - "mcp:tools"

@@ -1,0 +1,25 @@
+# ModelRegistry custom resource
+# Creates a registry instance connected to the MySQL database backend.
+# The operator deploys the registry server, service, route, and RBAC.
+apiVersion: modelregistry.opendatahub.io/v1beta1
+kind: ModelRegistry
+metadata:
+  name: tutorial-registry
+  labels:
+    app: tutorial-registry
+    tutorial-level: "1"
+    tutorial-module: "M4"
+spec:
+  rest:
+    port: 8080
+    serviceRoute: enabled
+  grpc:
+    port: 9090
+  mysql:
+    host: model-registry-db
+    port: 3306
+    database: model_registry
+    username: registryuser
+    passwordSecret:
+      name: model-registry-db
+      key: database-password

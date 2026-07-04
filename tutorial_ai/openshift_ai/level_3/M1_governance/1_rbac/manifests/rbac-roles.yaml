@@ -1,0 +1,291 @@
+# RBAC Roles for OpenShift AI Workloads
+#
+# Three roles representing the typical personas on an AI platform:
+#   1. ai-platform-admin   -- ClusterRole: full access to all OpenShift AI resources
+#   2. ai-data-scientist   -- Role: create and manage AI resources within a namespace
+#   3. ai-agent-consumer   -- Role: read-only access to discover and call model endpoints
+#
+# These roles cover custom CRDs introduced by OpenShift AI that the built-in
+# admin/edit/view roles do not include.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ai-platform-admin
+  labels:
+    app: ai-rbac
+    tutorial-level: "3"
+    tutorial-module: "M1"
+rules:
+  # KServe model serving -- full control over model deployments and runtimes
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices
+      - servingruntimes
+      - clusterservingruntimes
+      - inferencegraphs
+      - trainedmodels
+    verbs:
+      - "*"
+  # KServe status subresource -- needed to read deployment status
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices/status
+      - servingruntimes/status
+    verbs:
+      - get
+      - list
+      - watch
+  # Kubeflow Notebooks (workbenches) -- manage Jupyter and VS Code instances
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - notebooks
+    verbs:
+      - "*"
+  # Tekton Pipelines -- manage pipeline runs and task runs
+  - apiGroups:
+      - tekton.dev
+    resources:
+      - pipelineruns
+      - taskruns
+      - pipelines
+      - tasks
+    verbs:
+      - "*"
+  # Model Registry -- manage model registrations and versions
+  - apiGroups:
+      - modelregistry.opendatahub.io
+    resources:
+      - modelregistries
+    verbs:
+      - "*"
+  # Data Science Pipelines Application (DSPA) -- manage pipeline infrastructure
+  - apiGroups:
+      - datasciencepipelinesapplications.opendatahub.io
+    resources:
+      - datasciencepipelinesapplications
+    verbs:
+      - "*"
+  # OpenShift AI dashboard integration -- manage accelerator profiles and configs
+  - apiGroups:
+      - dashboard.opendatahub.io
+    resources:
+      - acceleratorprofiles
+      - odhapplications
+    verbs:
+      - "*"
+  # TrustyAI -- manage evaluation jobs and bias monitoring
+  - apiGroups:
+      - trustyai.opendatahub.io
+    resources:
+      - lmevaljobs
+      - trustyaiservices
+    verbs:
+      - "*"
+  # Standard K8s resources -- needed for managing pods, services, and configs
+  # that underpin AI workloads
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - pods/log
+      - services
+      - configmaps
+      - secrets
+      - persistentvolumeclaims
+      - serviceaccounts
+      - events
+    verbs:
+      - "*"
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - replicasets
+      - statefulsets
+    verbs:
+      - "*"
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+    verbs:
+      - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-data-scientist
+  namespace: gemma-model
+  labels:
+    app: ai-rbac
+    tutorial-level: "3"
+    tutorial-module: "M1"
+rules:
+  # KServe model serving -- create and manage model deployments within this namespace
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices
+      - servingruntimes
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+  # KServe status -- read deployment status
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices/status
+      - servingruntimes/status
+    verbs:
+      - get
+      - list
+      - watch
+  # Kubeflow Notebooks -- create and manage workbenches
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - notebooks
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+  # Tekton Pipelines -- create and run pipelines
+  - apiGroups:
+      - tekton.dev
+    resources:
+      - pipelineruns
+      - taskruns
+      - pipelines
+      - tasks
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+  # Model Registry -- register and promote models
+  - apiGroups:
+      - modelregistry.opendatahub.io
+    resources:
+      - modelregistries
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  # TrustyAI -- run evaluation jobs
+  - apiGroups:
+      - trustyai.opendatahub.io
+    resources:
+      - lmevaljobs
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - delete
+  # Standard K8s resources -- manage pods, services, and storage
+  # within the namespace
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - pods/log
+      - services
+      - configmaps
+      - secrets
+      - persistentvolumeclaims
+      - events
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - replicasets
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-agent-consumer
+  namespace: gemma-model
+  labels:
+    app: ai-rbac
+    tutorial-level: "3"
+    tutorial-module: "M1"
+rules:
+  # KServe InferenceServices -- read-only access to discover model endpoints
+  # The agent needs to find the endpoint URL but cannot modify the deployment
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices
+    verbs:
+      - get
+      - list
+      - watch
+  # InferenceService status -- read deployment readiness
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices/status
+    verbs:
+      - get
+      - list
+      - watch
+  # Routes -- read-only to discover external endpoint URLs
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+    verbs:
+      - get
+      - list
+      - watch
+  # Services -- read-only to discover internal cluster endpoints
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - watch

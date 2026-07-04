@@ -1,0 +1,319 @@
+# InstructLab Taxonomy Example
+#
+# L3-M4.1 -- InstructLab on OpenShift AI
+#
+# This file defines a taxonomy for the LAB-tuning workflow. It contains two
+# types of entries:
+#
+#   - knowledge: Facts and information the model should learn. Each entry
+#     includes a context passage and seed question-answer pairs. The teacher
+#     model uses these to generate diverse synthetic training examples.
+#
+#   - skills: Reasoning patterns or output formats the model should learn.
+#     Each entry includes seed input-output pairs that demonstrate the desired
+#     behavior. No context block -- skills are about patterns, not facts.
+#
+# Taxonomy format follows the InstructLab taxonomy spec (version 3).
+#
+# Usage:
+#   This file is consumed by the SDG (Synthetic Data Generation) pipeline.
+#   The teacher model reads each entry, then generates NUM_EXAMPLES_PER_SEED
+#   new training examples following the same pattern.
+#
+# Guidelines:
+#   - 3-5 seed examples per entry (fewer gives too little signal; more is
+#     diminishing returns)
+#   - Context length: 200-1000 words per knowledge entry
+#   - Each seed example should demonstrate a different variation
+#   - One entry per narrow topic (keep topics focused)
+
+version: 3
+created_by: tutorial-user
+domain: e-commerce
+document_outline: >
+  Product catalog, company policies, and analytics knowledge for Acme Corp's
+  ShopInsights platform. Covers flagship outdoor equipment products, pricing,
+  warranties, loyalty programs, and structured output formatting for product
+  comparisons.
+
+# ---------------------------------------------------------------------------
+# Knowledge Entries
+# ---------------------------------------------------------------------------
+# Knowledge entries teach the model facts. Each entry includes a context
+# passage containing the source material and seed question-answer pairs
+# that show the teacher model what kind of questions to generate.
+
+knowledge:
+  - task_description: >
+      Answer questions about Acme Corp product catalog, pricing, warranties,
+      and company policies. Provide specific details including SKUs, prices,
+      and policy terms.
+    domain: e-commerce
+    topic: acme_corp_products
+    created_by: tutorial-user
+
+    # The context block contains the source material. The teacher model
+    # extracts facts from this passage to generate new question-answer pairs.
+    # Longer, more detailed context produces better synthetic data.
+    context: |
+      Acme Corp is an e-commerce company specializing in outdoor equipment.
+      Founded in 2018, they operate primarily through their online store at
+      acmecorp.com and ship to 48 US states (excluding Alaska and Hawaii for
+      oversized items).
+
+      Their flagship products include:
+
+      1. TrailBlazer 3000 hiking boot (SKU: TB-3000, price: $189.99). Features
+         an IPX7 waterproof rating, Vibram outsole, Gore-Tex lining, and is
+         available in US sizes 6-14 in three colors: Granite, Forest, and
+         Midnight. Weight: 680g per boot.
+
+      2. SummitPack 45L backpack (SKU: SP-45L, price: $249.99). Made from
+         210D ripstop nylon with a PU coating. Weight: 1.2kg. Capacity: 45
+         liters with expandable collar adding 5 liters. Features include a
+         hydration sleeve, rain cover, and adjustable torso length (15-21
+         inches).
+
+      3. AlpineShield rain jacket (SKU: AS-RJ, price: $159.99). Waterproof
+         rating: 20,000mm. Breathability: 15,000g/m2/24h. 2.5-layer
+         construction, fully taped seams, adjustable hood. Available in
+         sizes XS-XXL.
+
+      Shipping and Returns:
+      - Free standard shipping on orders over $100 (3-7 business days)
+      - Express shipping: $14.99 (1-2 business days)
+      - 30-day return policy with free return labels for US customers
+      - Items must be in original condition with tags attached
+      - Hiking boots have a lifetime warranty covering manufacturing defects
+      - All other products have a 2-year warranty
+
+      Loyalty Program -- Peak Rewards:
+      - Earn 1 point per dollar spent
+      - 500 points = $25 discount on future orders
+      - Gold tier (1000+ points/year): free express shipping
+      - Platinum tier (2500+ points/year): early access to new products + 10%
+        permanent discount
+      - Points expire after 18 months of account inactivity
+
+    seed_examples:
+      - question: "What is the price of the TrailBlazer 3000?"
+        answer: >
+          The TrailBlazer 3000 hiking boot (SKU: TB-3000) is priced at $189.99.
+          It features an IPX7 waterproof rating, Vibram outsole, and Gore-Tex
+          lining. It is available in US sizes 6-14 and comes in three colors:
+          Granite, Forest, and Midnight. Acme Corp offers a lifetime warranty on
+          all hiking boots.
+
+      - question: "What is Acme Corp's return policy?"
+        answer: >
+          Acme Corp offers a 30-day return policy with free return shipping
+          labels for US customers. Products must be in their original condition
+          with tags attached. Hiking boots also carry a lifetime warranty
+          covering manufacturing defects, while all other products have a
+          2-year warranty.
+
+      - question: "How does the Peak Rewards loyalty program work?"
+        answer: >
+          Peak Rewards is Acme Corp's loyalty program. Members earn 1 point per
+          dollar spent. Points are redeemable at 500 points for a $25 discount.
+          There are two premium tiers: Gold (1000+ points/year) gives free
+          express shipping, and Platinum (2500+ points/year) gives early access
+          to new products plus a permanent 10% discount. Points expire after 18
+          months of account inactivity.
+
+      - question: "What are the specifications of the SummitPack 45L?"
+        answer: >
+          The SummitPack 45L (SKU: SP-45L, $249.99) is made from 210D ripstop
+          nylon with a PU coating. It weighs 1.2kg and has a 45-liter capacity,
+          expandable to 50 liters via the collar. Features include a hydration
+          sleeve, integrated rain cover, and adjustable torso length from 15 to
+          21 inches.
+
+      - question: "What shipping options does Acme Corp offer?"
+        answer: >
+          Acme Corp offers two shipping options: free standard shipping (3-7
+          business days) on orders over $100, and express shipping for $14.99
+          (1-2 business days). Peak Rewards Gold tier members receive free
+          express shipping on all orders. Note that oversized items cannot be
+          shipped to Alaska or Hawaii.
+
+  - task_description: >
+      Answer questions about Acme Corp's e-commerce analytics metrics and
+      performance benchmarks. Provide specific metric values and thresholds.
+    domain: e-commerce
+    topic: acme_corp_analytics
+    created_by: tutorial-user
+
+    context: |
+      Acme Corp E-Commerce Analytics Report (Q4 2025):
+
+      Traffic and Conversion:
+      - Monthly unique visitors: 285,000 (up 12% YoY)
+      - Overall conversion rate: 3.2% (industry average: 2.5%)
+      - Mobile conversion rate: 2.1% (64% of traffic, 42% of revenue)
+      - Desktop conversion rate: 4.8% (36% of traffic, 58% of revenue)
+      - Average session duration: 4 minutes 32 seconds
+      - Bounce rate: 38% (target: below 40%)
+
+      Revenue Metrics:
+      - Average Order Value (AOV): $127.50 (up from $118 in Q3)
+      - Monthly recurring revenue from subscriptions: $42,000
+      - Customer Lifetime Value (CLV): $385
+      - Customer Acquisition Cost (CAC): $34 (CLV:CAC ratio = 11.3:1)
+      - Gross margin: 62%
+
+      Product Performance:
+      - TrailBlazer 3000: sell-through rate 58%, return rate 4%
+      - SummitPack 45L: sell-through rate 42%, return rate 7%
+      - AlpineShield RJ: sell-through rate 51%, return rate 3%
+
+      Customer Retention:
+      - 30-day repeat purchase rate: 28%
+      - 90-day repeat purchase rate: 41%
+      - Monthly churn rate (subscriptions): 6.2%
+      - Net Promoter Score (NPS): 72
+
+    seed_examples:
+      - question: "What is Acme Corp's current conversion rate?"
+        answer: >
+          Acme Corp's overall conversion rate is 3.2%, which is above the
+          industry average of 2.5%. The rate differs significantly by device:
+          desktop converts at 4.8% while mobile converts at 2.1%. Despite
+          mobile accounting for 64% of traffic, it generates only 42% of
+          revenue, indicating a mobile experience gap that could be optimized.
+
+      - question: "What is the CLV to CAC ratio?"
+        answer: >
+          Acme Corp's CLV:CAC ratio is 11.3:1 (CLV of $385 divided by CAC of
+          $34). This is well above the commonly cited 3:1 threshold for healthy
+          unit economics. The strong ratio suggests efficient customer
+          acquisition and good lifetime retention, likely supported by the Peak
+          Rewards loyalty program.
+
+      - question: "Which product has the highest return rate?"
+        answer: >
+          The SummitPack 45L backpack has the highest return rate at 7%, compared
+          to 4% for the TrailBlazer 3000 and 3% for the AlpineShield rain
+          jacket. The SummitPack also has the lowest sell-through rate at 42%.
+          The combination of high return rate and low sell-through suggests a
+          potential fit or expectation issue that warrants investigation.
+
+# ---------------------------------------------------------------------------
+# Skill Entries
+# ---------------------------------------------------------------------------
+# Skill entries teach the model reasoning patterns and output formats.
+# Unlike knowledge entries, skills do not have a context block -- they
+# focus on the pattern of transformation from input to output.
+
+skills:
+  - task_description: >
+      Generate structured product comparison tables in markdown format for
+      e-commerce items. Tables should include relevant attributes like price,
+      key specifications, and a brief value assessment.
+    domain: e-commerce
+    topic: product_comparison
+    created_by: tutorial-user
+
+    seed_examples:
+      - question: "Compare the TrailBlazer 3000 and SummitPack 45L."
+        answer: |
+          | Feature | TrailBlazer 3000 | SummitPack 45L |
+          |---------|------------------|----------------|
+          | Category | Hiking Boot | Backpack |
+          | SKU | TB-3000 | SP-45L |
+          | Price | $189.99 | $249.99 |
+          | Weight | 680g (per boot) | 1.2kg |
+          | Key Spec | IPX7 waterproof | 45L capacity |
+          | Material | Gore-Tex + Vibram | 210D ripstop nylon |
+          | Warranty | Lifetime | 2-year |
+          | Sell-Through | 58% | 42% |
+
+      - question: "Create a comparison between the AlpineShield rain jacket and a competitor's jacket priced at $199.99 with a 15,000mm waterproof rating."
+        answer: |
+          | Feature | AlpineShield RJ | Competitor |
+          |---------|-----------------|------------|
+          | Price | $159.99 | $199.99 |
+          | Waterproof Rating | 20,000mm | 15,000mm |
+          | Breathability | 15,000g/m2/24h | Not specified |
+          | Construction | 2.5-layer, taped seams | Not specified |
+          | Return Policy | 30-day free returns | Varies |
+          | Warranty | 2-year | Varies |
+          | Value Assessment | Better specs at lower price | Premium positioning |
+
+      - question: "Summarize the full outdoor equipment product line in a table."
+        answer: |
+          | Product | SKU | Price | Category | Key Feature | Sell-Through | Return Rate |
+          |---------|-----|-------|----------|-------------|-------------|-------------|
+          | TrailBlazer 3000 | TB-3000 | $189.99 | Footwear | IPX7 waterproof | 58% | 4% |
+          | SummitPack 45L | SP-45L | $249.99 | Bags | 45L, 1.2kg | 42% | 7% |
+          | AlpineShield RJ | AS-RJ | $159.99 | Jackets | 20,000mm waterproof | 51% | 3% |
+
+  - task_description: >
+      Generate executive summary reports from e-commerce analytics data.
+      Summaries should highlight key metrics, identify trends, and include
+      actionable recommendations in a structured format.
+    domain: e-commerce
+    topic: analytics_summary
+    created_by: tutorial-user
+
+    seed_examples:
+      - question: "Write an executive summary of Acme Corp's Q4 2025 performance."
+        answer: |
+          ## Q4 2025 Executive Summary -- Acme Corp
+
+          **Revenue Highlights:**
+          - AOV increased 8.1% quarter-over-quarter ($118 to $127.50)
+          - Gross margin stable at 62%
+          - Subscription revenue: $42,000/month
+
+          **Traffic & Conversion:**
+          - 285,000 monthly unique visitors (+12% YoY)
+          - Overall conversion rate 3.2% (above 2.5% industry average)
+          - Mobile-desktop gap remains: 2.1% vs 4.8% conversion
+
+          **Key Concern:**
+          Mobile accounts for 64% of traffic but only 42% of revenue. Closing
+          this gap represents the largest single revenue opportunity.
+
+          **Recommendation:**
+          Prioritize mobile checkout optimization. A 0.5% improvement in mobile
+          conversion would add approximately $18,000/month in revenue.
+
+      - question: "Analyze the product portfolio performance and flag any issues."
+        answer: |
+          ## Product Portfolio Analysis
+
+          | Product | Health | Signal |
+          |---------|--------|--------|
+          | TrailBlazer 3000 | Strong | 58% sell-through, 4% return rate |
+          | AlpineShield RJ | Strong | 51% sell-through, 3% return rate |
+          | SummitPack 45L | At Risk | 42% sell-through, 7% return rate |
+
+          **Flagged Issue: SummitPack 45L**
+          The SummitPack has the lowest sell-through (42%) and highest return
+          rate (7%) in the portfolio. This combination suggests either a
+          product-market fit problem or misleading product descriptions.
+
+          **Recommended Actions:**
+          1. Audit SummitPack return reasons (sizing? quality? expectations?)
+          2. Review product page copy and images for accuracy
+          3. Consider a promotional bundle with the TrailBlazer 3000 to
+             improve sell-through before Q1
+
+      - question: "Summarize the customer retention metrics."
+        answer: |
+          ## Customer Retention Overview
+
+          | Metric | Value | Benchmark | Status |
+          |--------|-------|-----------|--------|
+          | 30-day repeat purchase | 28% | 20-25% | Above target |
+          | 90-day repeat purchase | 41% | 30-35% | Above target |
+          | Subscription churn | 6.2%/mo | 8-12% | Healthy |
+          | NPS | 72 | 50+ (good) | Strong |
+          | CLV:CAC | 11.3:1 | 3:1+ | Excellent |
+
+          **Analysis:** Retention metrics are uniformly strong. The 28%
+          30-day repeat rate suggests the Peak Rewards loyalty program is
+          driving re-engagement effectively. Monthly subscription churn at
+          6.2% is well below the 8-12% e-commerce average, indicating high
+          product satisfaction among subscribers.

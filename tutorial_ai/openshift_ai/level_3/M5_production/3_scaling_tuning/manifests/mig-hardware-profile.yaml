@@ -1,0 +1,54 @@
+# Hardware Profile for MIG (Multi-Instance GPU) partitioning.
+#
+# This profile configures OpenShift AI to schedule workloads on MIG
+# instances (3g.20gb slices on an A100 GPU) instead of full GPUs.
+#
+# Prerequisites:
+#   - A100, A30, H100, or H200 GPU with MIG mode enabled
+#   - NVIDIA GPU Operator configured with MIG strategy
+#   - GPU Feature Discovery (GFD) labeling MIG instances
+#
+# The MIG resource name (nvidia.com/mig-3g.20gb) corresponds to the
+# MIG profile configured on the GPU node.  The GPU Operator's device
+# plugin registers these as schedulable resources.
+#
+# Cross-references:
+#   - MIG concepts:     L3-M5.3, Section 2
+#   - Hardware Profiles: L1-M1.5
+#   - GPU Operator:     NVIDIA GPU Operator documentation
+#
+# Usage:
+#   oc apply -f manifests/mig-hardware-profile.yaml -n redhat-ods-applications
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: gpu-mig-3g-20gb
+  namespace: redhat-ods-applications
+  labels:
+    app.kubernetes.io/part-of: ai-platform
+    tutorial-level: "3"
+    tutorial-module: "M5"
+spec:
+  displayName: "MIG 3g.20gb (A100 Partition)"
+  description: >
+    Multi-Instance GPU profile for A100.  Each 3g.20gb instance provides
+    3/7 of the GPU compute cores and 20GB of isolated memory.  Suitable
+    for serving quantized 7B models or running multiple small models on
+    a single physical GPU.
+  enabled: true
+  identifiers:
+    - displayName: "NVIDIA MIG 3g.20gb"
+      identifier: "nvidia.com/mig-3g.20gb"
+      defaultCount: 1
+      minCount: 1
+      maxCount: 1
+  nodeSelectors:
+    # Select nodes that have MIG-capable GPUs with 3g.20gb instances available.
+    # The GPU Feature Discovery (GFD) component adds these labels automatically
+    # when MIG mode is enabled and instances are created.
+    - key: "nvidia.com/mig.config.state"
+      value: "success"
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"

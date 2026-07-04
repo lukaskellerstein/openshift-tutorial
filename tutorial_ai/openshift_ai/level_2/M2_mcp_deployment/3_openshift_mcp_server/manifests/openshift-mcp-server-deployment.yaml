@@ -1,0 +1,38 @@
+# Deploy the OpenShift MCP Server using the MCP Lifecycle Operator
+#
+# This deploys the Kubernetes/OpenShift MCP Server which gives AI agents
+# the ability to interact with cluster resources via MCP tools.
+#
+# Prerequisites:
+# 1. MCP Lifecycle Operator installed
+# 2. RBAC resources applied (rbac.yaml)
+# 3. ConfigMap applied (openshift-mcp-server-config.yaml)
+apiVersion: mcp.x-k8s.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: openshift-mcp-server
+  labels:
+    app: openshift-mcp-server
+    tutorial-level: "2"
+    tutorial-module: "M2"
+spec:
+  source:
+    type: ContainerImage
+    containerImage:
+      # The OpenShift MCP Server image
+      # Check for the latest tag at: github.com/openshift/openshift-mcp-server
+      ref: quay.io/redhat-user-workloads/ocp-mcp-server-tenant/openshift-mcp-server-release-03:latest
+  config:
+    port: 8080
+    arguments:
+      - --config
+      - /etc/mcp-config/config.toml
+    storage:
+      - path: /etc/mcp-config
+        source:
+          type: ConfigMap
+          configMap:
+            name: openshift-mcp-server-config
+  runtime:
+    security:
+      serviceAccountName: openshift-mcp-viewer
