@@ -48,6 +48,12 @@ SEED_DATA = [
 ]
 
 
+def seed(conn):
+    for row in SEED_DATA:
+        conn.execute("INSERT INTO orders VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", list(row))
+    save(conn)
+
+
 def get_connection():
     conn = duckdb.connect()
     if os.path.exists(DB_PATH):
@@ -55,6 +61,8 @@ def get_connection():
             "CREATE TABLE IF NOT EXISTS orders AS SELECT * FROM read_parquet(?)",
             [DB_PATH],
         )
+        if conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0] == 0:
+            seed(conn)
     else:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS orders (
@@ -69,9 +77,7 @@ def get_connection():
                 created_at VARCHAR
             )
         """)
-        for row in SEED_DATA:
-            conn.execute("INSERT INTO orders VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", list(row))
-        save(conn)
+        seed(conn)
     return conn
 
 

@@ -251,7 +251,14 @@ echo "Namespace labels:"
 oc get namespace shopinsights --show-labels | grep dataplane
 
 echo ""
-echo "Pods (should still be 1/1 — no sidecars):"
+echo "Restarting application pods so istio-cni can configure ztunnel traffic interception..."
+oc rollout restart deployment/dashboard-ui deployment/analytics-service \
+  deployment/products-service deployment/orders-service -n shopinsights
+oc rollout status deployment/dashboard-ui deployment/analytics-service \
+  deployment/products-service deployment/orders-service -n shopinsights --timeout=120s
+
+echo ""
+echo "Pods (should be 1/1 — no sidecars):"
 oc get pods -n shopinsights
 
 # --- Step 8: Verify mTLS ---

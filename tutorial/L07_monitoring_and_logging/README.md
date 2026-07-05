@@ -1,33 +1,37 @@
-# LP-L07 — Monitoring & Logging: Custom Metrics from Python
+# LP-L07 — Monitoring & Logging: Prometheus + Loki + Grafana
 
 **Level:** Personalized
-**Duration:** 1 hr
+**Duration:** 1.5–2 hrs
 
 ## Overview
 
-OpenShift ships with a complete monitoring stack -- Prometheus, Alertmanager, and Grafana -- pre-installed and pre-configured for cluster infrastructure. In this lesson you enable **user workload monitoring** so that same stack also scrapes *your* applications, then instrument the Products Service with custom Prometheus metrics using the `prometheus_client` Python library.
+OpenShift ships with a complete monitoring stack — Prometheus, Alertmanager, and Grafana — pre-installed and pre-configured for cluster infrastructure. In this lesson you build a full observability stack for your applications:
 
-By the end you will have request-rate counters, latency histograms, and DuckDB query timers flowing into the built-in Prometheus, visible in the Web Console, and backed by an alerting rule that fires when latency spikes.
+1. **Prometheus** — custom metrics from the Products Service (counters, histograms, gauges)
+2. **Loki** — centralized log aggregation for all pods across all namespaces
+3. **Grafana** — unified dashboards combining metrics and logs in one UI
+
+By the end you will have request-rate counters, latency histograms, and DuckDB query timers flowing into Prometheus, application logs streamed into Loki, and a Grafana dashboard visualizing both — all accessible from the OpenShift Web Console and a dedicated Grafana instance.
+
+> **Automation:** This lesson includes `scripts/setup.sh` to install everything automatically. You can run it end-to-end or follow the manual steps below to understand each component.
 
 ## Prerequisites
 
 - Completed: L01 through L06
-- OpenShift cluster running (CRC or Developer Sandbox)
+- OpenShift cluster running on **AWS** (CRC or Developer Sandbox for Prometheus-only; AWS cluster with admin for the full stack)
 - ShopInsights stack deployed in the `shopinsights` project
-- `kubeadmin` access (needed once to enable user workload monitoring)
+- Cluster-admin access (needed for operators, user workload monitoring, and logging)
 - `oc` CLI installed and on PATH
 
 ## K8s Context
 
-In vanilla Kubernetes, monitoring is entirely DIY. You install the Prometheus Operator (or kube-prometheus-stack Helm chart), configure scrape targets, set up Alertmanager, deploy Grafana, and maintain all of it yourself. Every upgrade, every configuration change, every new scrape target is your responsibility.
+In vanilla Kubernetes, monitoring and logging are entirely DIY:
 
-On OpenShift, the monitoring stack is **pre-installed and managed by the Cluster Monitoring Operator**. You never touch Prometheus configuration files. Instead you:
+- **Metrics:** Install the Prometheus Operator (or kube-prometheus-stack Helm chart), configure scrape targets, set up Alertmanager, deploy Grafana, and maintain all of it yourself.
+- **Logging:** Install a logging stack (EFK, Loki+Promtail, etc.), configure log collection agents, manage storage backends, and handle retention policies.
+- **Dashboards:** Deploy Grafana, create datasources, and build dashboards manually.
 
-1. Flip a single flag to enable user workload monitoring
-2. Create a `ServiceMonitor` custom resource (the same CR the Prometheus Operator uses) to tell Prometheus how to scrape your service
-3. Create a `PrometheusRule` to define alerts
-
-The APIs are identical -- if you have used the Prometheus Operator on Kubernetes, the CRDs are the same. The difference is that OpenShift manages the Prometheus lifecycle for you.
+On OpenShift, the monitoring stack is **pre-installed and managed by the Cluster Monitoring Operator**. Logging and Grafana are installed via operators with CRD-based configuration — no Helm charts or manual YAML wrangling.
 
 ## Concepts
 
@@ -35,31 +39,24 @@ The APIs are identical -- if you have used the Prometheus Operator on Kubernetes
 
 OpenShift deploys these components in the `openshift-monitoring` namespace:
 
-- **Prometheus** -- scrapes cluster components (API server, etcd, kubelet, node-exporter)
-- **Alertmanager** -- routes alerts from Prometheus rules to notification channels
-- **Grafana** -- pre-built dashboards for cluster health (read-only, managed by the operator)
-- **Thanos Querier** -- provides a unified query endpoint across multiple Prometheus instances
+- **Prometheus** — scrapes cluster components (API server, etcd, kubelet, node-exporter)
+- **Alertmanager** — routes alerts from Prometheus rules to notification channels
+- **Grafana** — pre-built dashboards for cluster health (read-only, managed by the operator)
+- **Thanos Querier** — provides a unified query endpoint across multiple Prometheus instances
 
 You do not install, upgrade, or configure any of these. They are managed by the **Cluster Monitoring Operator**.
+
+> **Where are the native UIs?** In vanilla Kubernetes, Prometheus has a web UI at `:9090/graph`, Alertmanager at `:9093`, and you'd deploy Grafana separately. On OpenShift, these native UIs are **not exposed** — the routes only serve `/api` endpoints. The **OpenShift Console** (Observe > Metrics, Observe > Logs, Observe > Alerts) is the unified frontend that wraps all of them. Loki has **no UI at all** — it's a pure API backend queried by the Console and Grafana. To access the native Prometheus or Alertmanager UIs for debugging, use `oc port-forward` (see TEST.md for commands).
 
 ### User Workload Monitoring
 
 By default, the built-in Prometheus only scrapes OpenShift infrastructure. To monitor your own applications you must enable **user workload monitoring** by setting `enableUserWorkload: true` in the `cluster-monitoring-config` ConfigMap.
 
-Once enabled, OpenShift deploys a **second Prometheus instance** in the `openshift-user-workload-monitoring` namespace. This instance is dedicated to scraping user applications -- it reads ServiceMonitor and PodMonitor CRs from your project namespaces.
+Once enabled, OpenShift deploys a **second Prometheus instance** in the `openshift-user-workload-monitoring` namespace. This instance is dedicated to scraping user applications — it reads ServiceMonitor and PodMonitor CRs from your project namespaces.
 
-### ServiceMonitor
+### ServiceMonitor & PrometheusRule
 
-A `ServiceMonitor` tells Prometheus:
-- **Which Service to scrape** (via label selectors)
-- **Which port and path** to hit (e.g., port 8080, path `/metrics`)
-- **How often** to scrape (interval)
-
-It is a CRD from the Prometheus Operator -- the same one used on vanilla Kubernetes if you install the operator yourself.
-
-### PrometheusRule
-
-A `PrometheusRule` defines alerting and recording rules. You write PromQL expressions and thresholds, and the built-in Alertmanager evaluates them. On vanilla Kubernetes you would edit `prometheus.rules` files directly; on OpenShift you create a CR in your namespace and it is automatically loaded.
+A `ServiceMonitor` tells Prometheus which Service to scrape (via label selectors), which port and path to hit, and how often. A `PrometheusRule` defines alerting and recording rules using PromQL expressions. Both are CRDs from the Prometheus Operator — identical to vanilla Kubernetes if you install the operator yourself.
 
 ### Prometheus Metric Types (Python)
 
@@ -74,41 +71,90 @@ The `prometheus_client` Python library provides four metric types:
 
 In this lesson we use Counter, Histogram, and Gauge.
 
-### OpenShift Logging (Overview)
+### OpenShift Logging Stack (Loki + Vector)
 
-OpenShift also provides a managed logging stack (Loki or Elasticsearch + Fluentd/Vector). While we focus on metrics in the hands-on steps, the logging stack works similarly:
-- Install the OpenShift Logging operator from OperatorHub
-- Create a `ClusterLogForwarder` CR to configure log collection and forwarding
-- Structured JSON logs from your application are automatically parsed and indexed
-- View logs in the Web Console under **Observe > Logs**
+OpenShift provides a managed logging stack through two operators:
 
-For this lesson, we use `oc logs` for container logs and focus on Prometheus metrics for observability.
+- **Loki Operator** — deploys and manages LokiStack, a horizontally-scalable log storage backend that indexes logs using labels (namespace, pod, container) rather than full-text indexing. Loki stores log data in S3-compatible object storage.
+- **Cluster Logging Operator** — deploys Vector-based collector pods (DaemonSet) that read container logs from every node and forward them to LokiStack.
+
+Together they provide centralized log aggregation visible in the OpenShift Console under **Observe > Logs**.
+
+### LokiStack
+
+A `LokiStack` CR defines the Loki deployment:
+
+- **Size:** `1x.extra-small` (demo/dev) through `1x.medium` (production). Each size determines the number of replicas and resource requests.
+- **Object Storage:** Loki requires S3-compatible storage for log chunks and index. On AWS clusters, the Cloud Credential Operator (CCO) can auto-provision IAM credentials for an S3 bucket.
+- **Tenancy:** `openshift-logging` mode separates logs into `application`, `infrastructure`, and `audit` tenants with RBAC-based access.
+
+### ClusterLogForwarder
+
+A `ClusterLogForwarder` CR configures log collection pipelines:
+
+- **Inputs:** `application` (user workload logs), `infrastructure` (OpenShift system logs), `audit` (API server audit logs). Custom inputs can filter by namespace and container name.
+- **Outputs:** Where to send logs — LokiStack, CloudWatch, Elasticsearch, Kafka, etc.
+- **Pipelines:** Connect inputs to outputs with optional filters
+
+OpenShift Logging 6.x uses the `observability.openshift.io/v1` API version and Vector as the default collector.
+
+### Grafana Operator (Community)
+
+The built-in Grafana in OpenShift is **read-only** — it only shows pre-built cluster dashboards and cannot be customized. To create custom dashboards, you install the **community Grafana Operator** and deploy your own Grafana instance:
+
+- **Grafana CR** — deploys a Grafana pod with a Route
+- **GrafanaDatasource CR** — connects Grafana to Prometheus (Thanos Querier) and Loki
+- **GrafanaDashboard CR** — provisions dashboards from JSON definitions
+
+This is the same pattern used in vanilla Kubernetes, but with CRD-based provisioning instead of manual UI configuration.
 
 ## Architecture
 
 ```mermaid
 graph TD
-    WC["OpenShift Web Console<br/>Observe > Metrics / Alerts"]
-    WC -->|PromQL queries| TQ["Thanos Querier<br/>(unified query endpoint)"]
+    Browser[Browser] --> DashUI[Dashboard UI]
+    DashUI --> PS[Products Service :8080]
 
-    TQ --> PI["Prometheus<br/>(cluster infra)<br/>openshift-monitoring"]
-    TQ --> PU["Prometheus<br/>(user workloads)<br/>openshift-user-workload-<br/>monitoring"]
+    PS --> MW[Middleware<br/>counters + histograms]
+    PS --> STDOUT[stdout<br/>access logs]
+    PS --> DDB[DuckDB<br/>query timers]
 
-    PU -->|"scrapes /metrics"| PS["Products Service :8080/metrics<br/>───────────────────────<br/>http_requests_total<br/>http_request_duration<br/>duckdb_query_duration<br/>active_connections"]
+    MW --> ME[/metrics endpoint/]
+    STDOUT --> CL[Container logs]
+    DDB --> DQD[duckdb_query_duration]
+
+    ME --> Prom[Prometheus<br/>user-workload]
+    CL --> Vec[Vector Collector<br/>DaemonSet]
+
+    Prom --> Thanos[Thanos Querier<br/>unified PromQL]
+    Vec --> Loki[LokiStack<br/>openshift-logging]
+
+    Thanos --> Console1[OpenShift Console<br/>Observe > Metrics]
+    Loki --> Console2[OpenShift Console<br/>Observe > Logs]
+
+    Thanos --> Grafana[Grafana Dashboard]
+    Loki --> Grafana
+
+    Grafana --> MP[Metrics Panels]
+    Grafana --> LP[Latency Panels]
+    Grafana --> LogP[Logs Panel]
+
+    Prom --> AM[Alertmanager<br/>PrometheusRule → alerts]
+
+    style Prom fill:#e8f5e9,stroke:#388e3c
+    style Loki fill:#e3f2fd,stroke:#1565c0
+    style Grafana fill:#fff3e0,stroke:#ef6c00
+    style Console1 fill:#e8f5e9,stroke:#388e3c
+    style Console2 fill:#e3f2fd,stroke:#1565c0
 ```
 
 ## Step-by-Step
 
+> **Quick start:** Run `scripts/setup.sh` to install all components automatically. The steps below explain what the script does.
+
 ### Step 1: Enable User Workload Monitoring
 
-This step requires `kubeadmin` (cluster-admin) privileges. You only need to do this once per cluster.
-
-```bash
-# Login as kubeadmin
-oc login -u kubeadmin -p <password> https://api.crc.testing:6443
-```
-
-Apply the ConfigMap that enables user workload monitoring:
+This requires cluster-admin privileges. You only need to do this once per cluster.
 
 ```bash
 oc apply -f manifests/enable-user-workload-monitoring.yaml
@@ -132,22 +178,7 @@ Wait for the user workload monitoring pods to start:
 oc get pods -n openshift-user-workload-monitoring -w
 ```
 
-You should see `prometheus-user-workload-*` and `thanos-ruler-user-workload-*` pods reach `Running` state. This usually takes 1-2 minutes.
-
-```
-NAME                                   READY   STATUS    RESTARTS   AGE
-prometheus-user-workload-0             6/6     Running   0          90s
-prometheus-user-workload-1             6/6     Running   0          90s
-thanos-ruler-user-workload-0           4/4     Running   0          85s
-thanos-ruler-user-workload-1           4/4     Running   0          85s
-```
-
-Switch back to the developer user for the rest of the lesson:
-
-```bash
-oc login -u developer -p developer https://api.crc.testing:6443
-oc project shopinsights
-```
+You should see `prometheus-user-workload-*` and `thanos-ruler-user-workload-*` pods reach `Running` state (1-2 minutes).
 
 ### Step 2: Examine the Instrumented Products Service
 
@@ -219,421 +250,215 @@ metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 ```
 
-The `make_asgi_app()` function from `prometheus_client` creates an ASGI application that serves the Prometheus text exposition format at the mounted path.
-
 ### Step 3: Build and Deploy the Instrumented Version
 
-You need to rebuild the Products Service image with the new code and the `prometheus_client` dependency. If you set up a BuildConfig in L04, use it:
+The `setup.sh` script handles this as a binary build. To do it manually:
 
 ```bash
-# Option A: Using an existing BuildConfig (from L04)
-# Copy the instrumented app into the build context
-oc start-build products-service --from-file=app/products_service_with_metrics.py --follow
-```
+oc project shopinsights
 
-```bash
-# Option B: Build locally with Podman and push to the internal registry
-cd app/
+# Start a binary build with the instrumented code
+oc start-build products-service --from-dir=<build-directory> --follow
 
-# Create a Dockerfile for the instrumented version
-cat > Dockerfile.metrics << 'EOF'
-FROM python:3.11-slim
-
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
-WORKDIR /app
-
-# Create a pyproject.toml with the metrics dependency added
-RUN cat > pyproject.toml << 'PYPROJECT'
-[project]
-name = "products-service-metrics"
-version = "1.0.0"
-requires-python = ">=3.11"
-dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn>=0.30.6",
-    "duckdb>=1.1.0",
-    "pydantic>=2.9.0",
-    "pyarrow>=17.0.0",
-    "prometheus_client>=0.21.0",
-]
-PYPROJECT
-
-RUN uv lock && uv sync --frozen --no-dev --no-install-project
-
-COPY products_service_with_metrics.py app.py
-
-EXPOSE 8080
-
-CMD ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
-EOF
-
-# Build and push (adjust registry URL for your environment)
-podman build -f Dockerfile.metrics -t default-route-openshift-image-registry.apps-crc.testing/shopinsights/products-service:metrics .
-
-# Login to the internal registry and push
-oc registry login --skip-check
-podman push default-route-openshift-image-registry.apps-crc.testing/shopinsights/products-service:metrics
-
-cd ..
-```
-
-Update the Products Service Deployment to use the new image tag:
-
-```bash
-oc set image deployment/products-service \
-  products-service=image-registry.openshift-image-registry.svc:5000/shopinsights/products-service:metrics
-```
-
-Wait for the rollout:
-
-```bash
+# Wait for the rollout
 oc rollout status deployment/products-service
+
+# Ensure the Service port has a name for ServiceMonitor matching
+oc patch service products-service --type=json \
+  -p '[{"op":"replace","path":"/spec/ports/0/name","value":"http"}]'
 ```
 
-### Step 4: Verify the /metrics Endpoint
-
-Port-forward to the Products Service and check that metrics are being exposed:
-
-```bash
-oc port-forward svc/products-service 8080:8080 &
-PF_PID=$!
-
-# Hit a few endpoints to generate some metrics
-curl -s http://localhost:8080/products
-curl -s http://localhost:8080/healthz
-curl -s http://localhost:8080/products/1
-
-# Now check the metrics endpoint
-curl -s http://localhost:8080/metrics
-
-kill $PF_PID
-```
-
-You should see Prometheus text format output including your custom metrics:
-
-```
-# HELP http_requests_total Total number of HTTP requests
-# TYPE http_requests_total counter
-http_requests_total{endpoint="/products",method="GET",status="200"} 1.0
-http_requests_total{endpoint="/healthz",method="GET",status="200"} 1.0
-http_requests_total{endpoint="/products/{id}",method="GET",status="200"} 1.0
-
-# HELP http_request_duration_seconds HTTP request duration in seconds
-# TYPE http_request_duration_seconds histogram
-http_request_duration_seconds_bucket{endpoint="/products",method="GET",le="0.005"} 0.0
-http_request_duration_seconds_bucket{endpoint="/products",method="GET",le="0.01"} 1.0
-...
-
-# HELP duckdb_query_duration_seconds DuckDB query duration in seconds
-# TYPE duckdb_query_duration_seconds histogram
-...
-
-# HELP active_connections Number of currently active HTTP connections
-# TYPE active_connections gauge
-active_connections 0.0
-```
-
-### Step 5: Create a ServiceMonitor
-
-The ServiceMonitor tells the user-workload Prometheus instance to scrape the Products Service:
+### Step 4: Create ServiceMonitor and PrometheusRule
 
 ```bash
 oc apply -f manifests/products-servicemonitor.yaml
-```
-
-```yaml
-# manifests/products-servicemonitor.yaml
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: products-service-monitor
-  labels:
-    app: shopinsights
-    component: products-service
-    tutorial: personalized
-    lesson: "07"
-spec:
-  selector:
-    matchLabels:
-      app: shopinsights
-      component: products-service
-  endpoints:
-    - port: "8080"
-      path: /metrics
-      interval: 15s
-      scheme: http
-```
-
-Key fields:
-- **selector.matchLabels**: must match the labels on your Kubernetes Service (from L01)
-- **endpoints[].port**: the port name or number on the Service
-- **endpoints[].path**: where the metrics are exposed
-- **endpoints[].interval**: how often Prometheus scrapes (15s is aggressive but good for demos)
-
-Verify the ServiceMonitor was created:
-
-```bash
-oc get servicemonitor
-```
-
-```
-NAME                       AGE
-products-service-monitor   10s
-```
-
-### Step 6: Verify Prometheus Is Scraping
-
-Wait 30-60 seconds for Prometheus to pick up the new ServiceMonitor, then verify the scrape target is active.
-
-**Option A: Web Console**
-
-1. Open https://console-openshift-console.apps-crc.testing
-2. Switch to the **Administrator** perspective
-3. Navigate to **Observe > Targets**
-4. Look for `products-service-monitor` -- it should show state `UP`
-
-**Option B: PromQL query from the CLI**
-
-```bash
-# Use the Thanos Querier to run a quick test query
-TOKEN=$(oc whoami -t)
-THANOS_URL=$(oc get route thanos-querier -n openshift-monitoring -o jsonpath='{.spec.host}' 2>/dev/null || echo "thanos-querier-openshift-monitoring.apps-crc.testing")
-
-curl -sk -H "Authorization: Bearer $TOKEN" \
-  "https://$THANOS_URL/api/v1/query?query=up{job='products-service'}" | python3 -m json.tool
-```
-
-You should see a result with `"value": [<timestamp>, "1"]` -- meaning the target is UP.
-
-### Step 7: Run PromQL Queries
-
-Now that metrics are flowing, explore them with PromQL. You can run these in the Web Console (**Observe > Metrics**) or via the CLI.
-
-**Request rate per endpoint (last 5 minutes):**
-
-```promql
-sum(rate(http_requests_total[5m])) by (endpoint)
-```
-
-**P95 latency across all endpoints:**
-
-```promql
-histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
-```
-
-**P95 latency broken down by endpoint:**
-
-```promql
-histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint))
-```
-
-**DuckDB query duration by query type (P95):**
-
-```promql
-histogram_quantile(0.95, sum(rate(duckdb_query_duration_seconds_bucket[5m])) by (le, query_type))
-```
-
-**Current active connections:**
-
-```promql
-active_connections
-```
-
-**Error rate (5xx responses as a percentage):**
-
-```promql
-sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100
-```
-
-To run these from the Web Console:
-
-1. Navigate to **Observe > Metrics**
-2. Paste a PromQL query into the query field
-3. Click **Run Queries**
-4. Toggle between **Table** and **Graph** views
-
-### Step 8: Create Alerting Rules
-
-Apply the PrometheusRule that defines alerts for the Products Service:
-
-```bash
 oc apply -f manifests/products-prometheusrule.yaml
 ```
 
-This creates two alerts:
+The ServiceMonitor tells Prometheus to scrape `/metrics` on port `http` every 15 seconds. The PrometheusRule creates two alerts:
 
-1. **ProductsHighLatency** -- fires when average request latency exceeds 500ms for 5 minutes
-2. **ProductsHighErrorRate** -- fires when more than 5% of requests return 5xx errors for 5 minutes
+1. **ProductsHighLatency** — fires when average latency exceeds 500ms for 5 minutes
+2. **ProductsHighErrorRate** — fires when 5xx error rate exceeds 5% for 5 minutes
 
-Verify the rules are loaded:
+Verify in the Web Console: **Observe > Targets** (look for `products-service-monitor` = UP) and **Observe > Alerting** (both alerts should be Inactive).
 
-```bash
-oc get prometheusrule
-```
+> **Note:** Prometheus renames our app's `endpoint` label to `exported_endpoint` because `endpoint` is reserved by ServiceMonitors. Use `exported_endpoint` in all PromQL queries that filter by path.
 
-```
-NAME                      AGE
-products-alerting-rules   10s
-```
+### Step 5: Install the Loki Operator
 
-View the alerts in the Web Console:
-
-1. Navigate to **Observe > Alerting**
-2. You should see `ProductsHighLatency` and `ProductsHighErrorRate` in the list
-3. Both should be in `Inactive` state (no issues yet)
-
-### Step 9: Generate Traffic and Observe Metrics
-
-Generate some load to see metrics in action:
+Create the namespace and install the operator:
 
 ```bash
-# Port-forward to products-service
-oc port-forward svc/products-service 8080:8080 &
-PF_PID=$!
+oc apply -f manifests/ns-openshift-operators-redhat.yaml
+oc apply -f manifests/operator-loki.yaml
+```
 
-# Generate 100 requests
-for i in $(seq 1 100); do
-  curl -s http://localhost:8080/products > /dev/null
-  curl -s http://localhost:8080/products/1 > /dev/null
-  curl -s http://localhost:8080/healthz > /dev/null
+Wait for the operator CSV to reach `Succeeded`:
+
+```bash
+oc get csv -n openshift-operators-redhat -w
+```
+
+### Step 6: Install the Cluster Logging Operator
+
+```bash
+oc apply -f manifests/ns-openshift-logging.yaml
+oc apply -f manifests/operator-cluster-logging.yaml
+```
+
+Wait for the CSV:
+
+```bash
+oc get csv -n openshift-logging -w
+```
+
+### Step 7: Provision S3 Storage and Deploy LokiStack
+
+LokiStack requires S3-compatible object storage. On AWS clusters, the Cloud Credential Operator (CCO) auto-provisions IAM credentials:
+
+```bash
+# Create a CredentialsRequest — CCO provisions an IAM user with S3 permissions
+oc apply -f manifests/loki-s3-credentials-request.yaml
+
+# Wait for the Secret to appear
+oc get secret logging-loki-aws -n openshift-logging -w
+```
+
+The `setup.sh` script then creates an S3 bucket using a one-shot Job with those credentials and adds bucket/region/endpoint fields to the Secret. Finally it deploys the LokiStack:
+
+```bash
+oc apply -f manifests/lokistack.yaml
+```
+
+Wait for LokiStack to become Ready (3-5 minutes):
+
+```bash
+oc get lokistack logging-loki -n openshift-logging -w
+```
+
+### Step 8: Deploy ClusterLogForwarder
+
+The ClusterLogForwarder tells Vector collectors which logs to collect and where to send them. Our CLF uses a custom input that filters to only the ShopInsights application containers (products-service, orders-service, analytics-service, dashboard-ui):
+
+```bash
+# Grant the collector SA log-reading and writing permissions
+oc adm policy add-cluster-role-to-user collect-application-logs \
+  -z cluster-logging-operator -n openshift-logging
+oc adm policy add-cluster-role-to-user logging-collector-logs-writer \
+  -z cluster-logging-operator -n openshift-logging
+
+oc apply -f manifests/clusterlogforwarder.yaml
+```
+
+Verify collector pods are running:
+
+```bash
+oc get pods -n openshift-logging -l app.kubernetes.io/component=collector
+```
+
+Once collectors are running, logs from the ShopInsights services flow into Loki. View them in the Web Console under **Observe > Logs**.
+
+### Step 9: Install the Grafana Operator
+
+```bash
+oc apply -f manifests/operator-grafana.yaml
+```
+
+Wait for the CSV:
+
+```bash
+oc get csv -n openshift-operators | grep grafana
+```
+
+### Step 10: Deploy Grafana Instance
+
+Create a ServiceAccount with permissions to read Prometheus metrics and Loki logs:
+
+```bash
+oc create serviceaccount grafana-sa -n shopinsights
+
+# Prometheus access
+oc adm policy add-cluster-role-to-user cluster-monitoring-view \
+  -z grafana-sa -n shopinsights
+
+# Loki access (application tenant)
+# Apply ClusterRole + ClusterRoleBinding for loki.grafana.com/application logs
+```
+
+Create a long-lived token and deploy Grafana with datasources:
+
+```bash
+GRAFANA_TOKEN=$(oc create token grafana-sa -n shopinsights --duration=8760h)
+
+oc apply -f manifests/grafana-instance.yaml
+```
+
+The `setup.sh` script creates the datasources inline with the token. The datasource manifests in `manifests/` use `${GRAFANA_TOKEN}` as a placeholder — replace it with the actual token or use the setup script.
+
+### Step 11: Deploy the Grafana Dashboard
+
+```bash
+oc apply -f manifests/grafana-dashboard.yaml
+```
+
+The dashboard includes 8 panels:
+
+| Panel | Data Source | What It Shows |
+|-------|-----------|---------------|
+| Request Rate | Prometheus | req/s by endpoint |
+| Error Rate | Prometheus | 5xx error percentage |
+| P50/P95/P99 Latency | Prometheus | Response time distribution |
+| DuckDB Query Duration | Prometheus | Database query timing by type |
+| Active Connections | Prometheus | Current in-flight requests |
+| Total Requests | Prometheus | All-time request count |
+| Requests by Status Code | Prometheus | Pie chart of HTTP status codes |
+| Recent Logs | Loki | Live log stream from Products Service |
+
+### Step 12: Generate Traffic and Explore
+
+Run the demo script to generate traffic and verify all three pillars:
+
+```bash
+./scripts/demo.sh
+```
+
+Or generate traffic manually:
+
+```bash
+# From inside the cluster
+for i in $(seq 1 50); do
+  oc exec deploy/dashboard-ui -- curl -s http://products-service:8080/products > /dev/null
 done
-
-# Create a few products
-for i in $(seq 1 10); do
-  curl -s -X POST http://localhost:8080/products \
-    -H "Content-Type: application/json" \
-    -d "{\"name\": \"Load Test Product $i\", \"category\": \"test\", \"price\": 9.99, \"stock\": 100}" > /dev/null
-done
-
-echo "Traffic generation complete."
-kill $PF_PID
 ```
 
-Now go to the Web Console (**Observe > Metrics**) and run:
+Then explore:
 
-```promql
-sum(rate(http_requests_total[5m])) by (endpoint, method)
-```
+1. **Console > Observe > Metrics** — Run PromQL queries:
+   ```promql
+   sum(rate(http_requests_total{namespace="shopinsights"}[5m])) by (exported_endpoint, method)
+   ```
 
-You should see the request rate spike across your endpoints. Switch to the **Graph** view to see the time series.
+2. **Console > Observe > Logs** — Filter by namespace `shopinsights` to see Products Service access logs
 
-### Step 10: Structured Logging with oc logs
-
-While Prometheus handles metrics, application **logs** are the other half of observability. OpenShift collects container stdout/stderr automatically.
-
-View logs for the Products Service:
-
-```bash
-# Stream live logs
-oc logs -f deploy/products-service
-
-# View last 50 lines
-oc logs deploy/products-service --tail=50
-
-# View logs from all pods of a deployment
-oc logs deploy/products-service --all-containers
-
-# Filter by time (last 5 minutes)
-oc logs deploy/products-service --since=5m
-```
-
-For structured logging best practices, write JSON logs in your Python services:
-
-```python
-import logging
-import json
-
-class JSONFormatter(logging.Formatter):
-    def format(self, record):
-        log_entry = {
-            "timestamp": self.formatTime(record),
-            "level": record.levelname,
-            "message": record.getMessage(),
-            "module": record.module,
-            "function": record.funcName,
-        }
-        return json.dumps(log_entry)
-
-handler = logging.StreamHandler()
-handler.setFormatter(JSONFormatter())
-logger = logging.getLogger("products-service")
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
-```
-
-JSON-structured logs are automatically parsed by the OpenShift Logging stack (if installed), making them searchable by field in Kibana or the Log Console.
-
-### Step 11: Explore the Web Console Monitoring Dashboard
-
-The OpenShift Web Console provides built-in monitoring views that you cannot get from the Kubernetes Dashboard:
-
-1. **Observe > Dashboards** -- pre-built dashboards for cluster and namespace-level metrics
-2. **Observe > Metrics** -- ad-hoc PromQL query interface (you used this in Step 7)
-3. **Observe > Alerting** -- view firing, pending, and silenced alerts
-4. **Observe > Targets** -- see which ServiceMonitors are active and their scrape status
-
-In the **Developer** perspective:
-
-1. Select the `shopinsights` project
-2. Click **Observe** in the left nav
-3. The **Metrics** tab shows CPU, memory, and your custom metrics
-4. The **Events** tab shows Kubernetes events for your project
-
-### Step 12: (Optional) Deploy the Grafana Dashboard
-
-The built-in Grafana in OpenShift is read-only (managed by the operator). To use custom dashboards, you can deploy a community Grafana instance:
-
-```bash
-# Apply the dashboard ConfigMap
-oc apply -f manifests/grafana-dashboard-configmap.yaml
-```
-
-The ConfigMap contains a pre-built dashboard JSON with panels for:
-- Request rate by endpoint
-- Error rate percentage
-- P50/P95/P99 latency
-- DuckDB query duration by type
-- Active connections
-- Total request count
-- Requests by status code
-
-If you install the Grafana Operator from OperatorHub, you can create a `GrafanaDashboard` CR that references this ConfigMap to automatically provision the dashboard.
+3. **Grafana** — Open the Grafana Route URL and view the "ShopInsights - Products Service" dashboard with metrics panels and live log stream
 
 ## Verification
-
-Run these checks to confirm everything is working:
 
 ```bash
 # 1. User workload monitoring is enabled
 oc get pods -n openshift-user-workload-monitoring | grep prometheus-user-workload
 
-# 2. ServiceMonitor exists
-oc get servicemonitor products-service-monitor -o yaml
+# 2. ServiceMonitor and PrometheusRule exist
+oc get servicemonitor,prometheusrule -n shopinsights
 
-# 3. PrometheusRule exists
-oc get prometheusrule products-alerting-rules -o yaml
+# 3. Loki is running
+oc get lokistack -n openshift-logging
 
-# 4. Metrics endpoint is reachable
-oc exec deploy/products-service -- curl -s http://localhost:8080/metrics | head -20
+# 4. Collectors are forwarding logs
+oc get pods -n openshift-logging -l app.kubernetes.io/component=collector
 
-# 5. Prometheus is scraping (query returns data)
-TOKEN=$(oc whoami -t)
-THANOS_URL=$(oc get route thanos-querier -n openshift-monitoring -o jsonpath='{.spec.host}' 2>/dev/null || echo "thanos-querier-openshift-monitoring.apps-crc.testing")
-curl -sk -H "Authorization: Bearer $TOKEN" \
-  "https://$THANOS_URL/api/v1/query?query=http_requests_total" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-if data.get('data', {}).get('result'):
-    print('Prometheus is scraping metrics successfully.')
-    for r in data['data']['result'][:3]:
-        print(f\"  {r['metric'].get('endpoint', 'unknown')}: {r['value'][1]}\")
-else:
-    print('WARNING: No metrics found. Check ServiceMonitor and wait 30-60s.')
-"
-
-# 6. Alerts are loaded
-oc get prometheusrule products-alerting-rules
+# 5. Grafana is accessible
+oc get route grafana-route -n shopinsights
 ```
 
 ## K8s vs OpenShift Comparison
@@ -642,55 +467,37 @@ oc get prometheusrule products-alerting-rules
 |--------|-----------|-----------|
 | Prometheus | Install yourself (Helm chart, Operator) | Pre-installed, managed by Cluster Monitoring Operator |
 | Alertmanager | Install and configure yourself | Pre-installed, accessible in Web Console |
-| Grafana | Install yourself, full admin access | Pre-installed (read-only), deploy your own for custom dashboards |
 | ServiceMonitor CRD | Available if you install Prometheus Operator | Available out of the box |
 | PrometheusRule CRD | Available if you install Prometheus Operator | Available out of the box |
-| User workload monitoring | You configure scrape targets manually | Flip one flag, create ServiceMonitors in your namespace |
-| Metrics UI | Port-forward to Prometheus, or install Grafana | Built-in Web Console Observe tab with PromQL editor |
-| Alert management | Configure Alertmanager YAML | Web Console UI for viewing, silencing, and routing alerts |
-| Log aggregation | Install EFK/Loki stack yourself | OpenShift Logging operator (managed) |
-| Log viewing | `kubectl logs` only | `oc logs` + Web Console log viewer + optional Kibana/Loki |
-| Maintenance | You upgrade and patch everything | Cluster Monitoring Operator handles upgrades |
+| User workload monitoring | Configure scrape targets manually | Flip one flag, create ServiceMonitors |
+| Log aggregation | Install EFK/Loki stack yourself | Loki Operator + Cluster Logging Operator (managed) |
+| Log collection | Deploy Promtail/Fluentd/Vector DaemonSet | ClusterLogForwarder CR deploys Vector collectors automatically |
+| Log storage | Provision and manage object storage | CCO auto-provisions S3 credentials on AWS clusters |
+| Log viewing | Port-forward to Grafana or Kibana | Built-in Console Observe > Logs with LogQL |
+| Grafana dashboards | Deploy Grafana, configure manually | Community Grafana Operator with CRD-based provisioning |
+| Metrics UI | Port-forward to Prometheus/Grafana | Built-in Web Console Observe tab with PromQL editor |
+| Maintenance | You upgrade and patch everything | Operators handle upgrades automatically |
 
 ## Key Takeaways
 
-- OpenShift's monitoring stack (Prometheus, Alertmanager, Grafana) is **pre-installed and managed** -- you never install or upgrade it yourself
-- Enable user workload monitoring with a single ConfigMap change (`enableUserWorkload: true`) to start scraping your own applications
-- `ServiceMonitor` and `PrometheusRule` CRDs are the same APIs used by the Prometheus Operator on vanilla Kubernetes -- your existing knowledge transfers directly
+- OpenShift's monitoring stack (Prometheus, Alertmanager) is **pre-installed and managed** — you never install or upgrade it yourself
+- Enable user workload monitoring with `enableUserWorkload: true` to start scraping your applications
+- The **Loki Operator + Cluster Logging Operator** provide centralized log aggregation with a `ClusterLogForwarder` CR — no manual DaemonSet configuration
+- LokiStack requires S3-compatible storage; on AWS, the **Cloud Credential Operator** auto-provisions IAM credentials
+- The built-in Grafana is **read-only** — use the community **Grafana Operator** for custom dashboards
+- `GrafanaDatasource` and `GrafanaDashboard` CRs let you provision datasources and dashboards declaratively — no manual UI clicks
 - The `prometheus_client` Python library makes instrumentation straightforward: define metrics, add middleware, mount `/metrics`
-- Use **Counters** for totals (requests), **Histograms** for distributions (latency), and **Gauges** for current state (active connections)
-- The Web Console's **Observe** section provides PromQL querying, alert management, and target status without needing to port-forward to Prometheus
-- Structured JSON logging from your Python services integrates with the OpenShift Logging stack for field-level searching
 
 ## Cleanup
 
+Run the cleanup script to remove all monitoring, logging, and Grafana components:
+
 ```bash
-# Remove the monitoring resources
-oc delete servicemonitor products-service-monitor
-oc delete prometheusrule products-alerting-rules
-oc delete configmap shopinsights-grafana-dashboard
-
-# Roll back the products-service to the original image
-oc set image deployment/products-service \
-  products-service=ghcr.io/<your-username>/shopinsights-products:latest
-oc rollout status deployment/products-service
-
-# (Optional) Disable user workload monitoring — requires kubeadmin
-# oc login -u kubeadmin ...
-# oc delete configmap cluster-monitoring-config -n openshift-monitoring
-
-# Clean up test products created during traffic generation
-oc exec deploy/products-service -- curl -s http://localhost:8080/products | python3 -c "
-import sys, json
-products = json.load(sys.stdin)
-test_products = [p for p in products if p.get('category') == 'test']
-if test_products:
-    print(f'Found {len(test_products)} test products to clean up manually.')
-else:
-    print('No test products found.')
-"
+./scripts/cleanup.sh
 ```
+
+This removes (in reverse order): Grafana resources, ClusterLogForwarder, LokiStack, S3 bucket, CredentialsRequest, operator subscriptions, logging namespaces, ServiceMonitor, and PrometheusRule. User workload monitoring is **not** disabled (other lessons may use it).
 
 ## Next Steps
 
-Your services are now observable with custom metrics and alerts. In [L08: CI/CD Pipeline](../L08_cicd_pipeline/), you will set up OpenShift Pipelines (Tekton) to automate building, testing, and deploying the ShopInsights stack -- including running the instrumented version of the Products Service through a full pipeline.
+Your services are now fully observable with custom metrics, centralized logs, and unified dashboards. In [L08: CI/CD Pipeline](../L08_cicd_pipeline/), you will set up OpenShift Pipelines (Tekton) to automate building, testing, and deploying the ShopInsights stack.
