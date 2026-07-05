@@ -1,0 +1,23 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: tempo
+  namespace: shopinsights
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  datasource:
+    name: Tempo
+    type: tempo
+    access: proxy
+    url: https://tempo-sample-gateway.istio-system.svc.cluster.local:8080/api/traces/v1/dev
+    jsonData:
+      httpHeaderName1: Authorization
+      tlsSkipVerify: true
+      tracesToLogsV2:
+        datasourceUid: "${DS_LOKI}"
+      nodeGraph:
+        enabled: true
+    secureJsonData:
+      httpHeaderValue1: "Bearer __GRAFANA_TOKEN__"
