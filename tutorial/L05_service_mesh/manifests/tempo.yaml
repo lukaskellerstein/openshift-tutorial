@@ -1,6 +1,7 @@
 # TempoMonolithic instance — distributed tracing backend
-# Multitenancy (OpenShift mode) enables the Console Traces UI plugin
-# and provides auth on ingest/query paths via the Tempo gateway
+# Multitenancy (OpenShift mode) is required by the Console Traces UI plugin
+# Jaeger UI route is disabled — not usable with multitenancy (gateway requires token auth)
+# Use Console Traces (Observe > Traces) instead
 apiVersion: tempo.grafana.com/v1alpha1
 kind: TempoMonolithic
 metadata:
@@ -11,9 +12,7 @@ spec:
     traces:
       backend: memory
   jaegerui:
-    enabled: true
-    route:
-      enabled: true
+    enabled: false
   multitenancy:
     enabled: true
     mode: openshift

@@ -1,0 +1,25 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: Grafana
+metadata:
+  name: grafana
+  namespace: shopinsights
+  labels:
+    app: grafana
+    dashboards: grafana
+spec:
+  route:
+    spec:
+      tls:
+        termination: edge
+  config:
+    auth.anonymous:
+      enabled: "true"
+      org_role: Viewer
+    auth:
+      disable_login_form: "false"
+    security:
+      admin_user: admin
+      admin_password: admin
+    log:
+      mode: console
+      level: warn

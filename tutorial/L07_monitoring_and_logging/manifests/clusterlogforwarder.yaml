@@ -1,0 +1,41 @@
+apiVersion: observability.openshift.io/v1
+kind: ClusterLogForwarder
+metadata:
+  name: instance
+  namespace: openshift-logging
+spec:
+  serviceAccount:
+    name: cluster-logging-operator
+  outputs:
+    - name: default-lokistack
+      type: lokiStack
+      lokiStack:
+        target:
+          name: logging-loki
+          namespace: openshift-logging
+        authentication:
+          token:
+            from: serviceAccount
+      tls:
+        ca:
+          configMapName: openshift-service-ca.crt
+          key: service-ca.crt
+  inputs:
+    - name: shopinsights-app-logs
+      type: application
+      application:
+        includes:
+          - namespace: shopinsights
+            container: products-service
+          - namespace: shopinsights
+            container: orders-service
+          - namespace: shopinsights
+            container: analytics-service
+          - namespace: shopinsights
+            container: dashboard-ui
+  pipelines:
+    - name: application-logs
+      inputRefs:
+        - shopinsights-app-logs
+      outputRefs:
+        - default-lokistack
