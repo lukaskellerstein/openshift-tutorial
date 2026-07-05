@@ -1,17 +1,18 @@
-# LP-L07 — Monitoring & Logging: Prometheus + Loki + Grafana
+# LP-L07 — Monitoring & Logging: Prometheus + Loki
 
 **Level:** Personalized
 **Duration:** 1.5–2 hrs
 
 ## Overview
 
-OpenShift ships with a complete monitoring stack — Prometheus, Alertmanager, and Grafana — pre-installed and pre-configured for cluster infrastructure. In this lesson you build a full observability stack for your applications:
+OpenShift ships with a complete monitoring stack — Prometheus, Alertmanager, and a managed Grafana — pre-installed and pre-configured for cluster infrastructure. In this lesson you build an observability stack for your applications:
 
 1. **Prometheus** — custom metrics from the Products Service (counters, histograms, gauges)
 2. **Loki** — centralized log aggregation for all pods across all namespaces
-3. **Grafana** — unified dashboards combining metrics and logs in one UI
 
-By the end you will have request-rate counters, latency histograms, and DuckDB query timers flowing into Prometheus, application logs streamed into Loki, and a Grafana dashboard visualizing both — all accessible from the OpenShift Web Console and a dedicated Grafana instance.
+By the end you will have request-rate counters, latency histograms, and DuckDB query timers flowing into Prometheus, and application logs streamed into Loki — all viewable through the OpenShift Web Console (Observe > Metrics, Observe > Logs).
+
+> **What about Grafana dashboards?** L12 covers deploying a custom Grafana instance with unified dashboards for metrics, logs, traces, and alerts.
 
 > **Automation:** This lesson includes `scripts/setup.sh` to install everything automatically. You can run it end-to-end or follow the manual steps below to understand each component.
 
@@ -31,7 +32,7 @@ In vanilla Kubernetes, monitoring and logging are entirely DIY:
 - **Logging:** Install a logging stack (EFK, Loki+Promtail, etc.), configure log collection agents, manage storage backends, and handle retention policies.
 - **Dashboards:** Deploy Grafana, create datasources, and build dashboards manually.
 
-On OpenShift, the monitoring stack is **pre-installed and managed by the Cluster Monitoring Operator**. Logging and Grafana are installed via operators with CRD-based configuration — no Helm charts or manual YAML wrangling.
+On OpenShift, the monitoring stack is **pre-installed and managed by the Cluster Monitoring Operator**. Logging is installed via operators with CRD-based configuration — no Helm charts or manual YAML wrangling.
 
 ## Concepts
 
@@ -41,12 +42,12 @@ OpenShift deploys these components in the `openshift-monitoring` namespace:
 
 - **Prometheus** — scrapes cluster components (API server, etcd, kubelet, node-exporter)
 - **Alertmanager** — routes alerts from Prometheus rules to notification channels
-- **Grafana** — pre-built dashboards for cluster health (read-only, managed by the operator)
+- **Grafana** — pre-built dashboards for cluster health (read-only, managed by the operator — cannot be customized)
 - **Thanos Querier** — provides a unified query endpoint across multiple Prometheus instances
 
 You do not install, upgrade, or configure any of these. They are managed by the **Cluster Monitoring Operator**.
 
-> **Where are the native UIs?** In vanilla Kubernetes, Prometheus has a web UI at `:9090/graph`, Alertmanager at `:9093`, and you'd deploy Grafana separately. On OpenShift, these native UIs are **not exposed** — the routes only serve `/api` endpoints. The **OpenShift Console** (Observe > Metrics, Observe > Logs, Observe > Alerts) is the unified frontend that wraps all of them. Loki has **no UI at all** — it's a pure API backend queried by the Console and Grafana. To access the native Prometheus or Alertmanager UIs for debugging, use `oc port-forward` (see TEST.md for commands).
+> **Where are the native UIs?** In vanilla Kubernetes, Prometheus has a web UI at `:9090/graph`, Alertmanager at `:9093`, and you'd deploy Grafana separately. On OpenShift, these native UIs are **not exposed** — the routes only serve `/api` endpoints. The **OpenShift Console** (Observe > Metrics, Observe > Logs, Observe > Alerts) is the unified frontend that wraps all of them. Loki has **no UI at all** — it's a pure API backend queried by the Console. To access the native Prometheus or Alertmanager UIs for debugging, use `oc port-forward` (see TEST.md for commands).
 
 ### User Workload Monitoring
 
@@ -98,16 +99,6 @@ A `ClusterLogForwarder` CR configures log collection pipelines:
 
 OpenShift Logging 6.x uses the `observability.openshift.io/v1` API version and Vector as the default collector.
 
-### Grafana Operator (Community)
-
-The built-in Grafana in OpenShift is **read-only** — it only shows pre-built cluster dashboards and cannot be customized. To create custom dashboards, you install the **community Grafana Operator** and deploy your own Grafana instance:
-
-- **Grafana CR** — deploys a Grafana pod with a Route
-- **GrafanaDatasource CR** — connects Grafana to Prometheus (Thanos Querier) and Loki
-- **GrafanaDashboard CR** — provisions dashboards from JSON definitions
-
-This is the same pattern used in vanilla Kubernetes, but with CRD-based provisioning instead of manual UI configuration.
-
 ## Architecture
 
 ```mermaid
@@ -132,18 +123,10 @@ graph TD
     Thanos --> Console1[OpenShift Console<br/>Observe > Metrics]
     Loki --> Console2[OpenShift Console<br/>Observe > Logs]
 
-    Thanos --> Grafana[Grafana Dashboard]
-    Loki --> Grafana
-
-    Grafana --> MP[Metrics Panels]
-    Grafana --> LP[Latency Panels]
-    Grafana --> LogP[Logs Panel]
-
     Prom --> AM[Alertmanager<br/>PrometheusRule → alerts]
 
     style Prom fill:#e8f5e9,stroke:#388e3c
     style Loki fill:#e3f2fd,stroke:#1565c0
-    style Grafana fill:#fff3e0,stroke:#ef6c00
     style Console1 fill:#e8f5e9,stroke:#388e3c
     style Console2 fill:#e3f2fd,stroke:#1565c0
 ```
@@ -358,63 +341,7 @@ oc get pods -n openshift-logging -l app.kubernetes.io/component=collector
 
 Once collectors are running, logs from the ShopInsights services flow into Loki. View them in the Web Console under **Observe > Logs**.
 
-### Step 9: Install the Grafana Operator
-
-```bash
-oc apply -f manifests/operator-grafana.yaml
-```
-
-Wait for the CSV:
-
-```bash
-oc get csv -n openshift-operators | grep grafana
-```
-
-### Step 10: Deploy Grafana Instance
-
-Create a ServiceAccount with permissions to read Prometheus metrics and Loki logs:
-
-```bash
-oc create serviceaccount grafana-sa -n shopinsights
-
-# Prometheus access
-oc adm policy add-cluster-role-to-user cluster-monitoring-view \
-  -z grafana-sa -n shopinsights
-
-# Loki access (application tenant)
-# Apply ClusterRole + ClusterRoleBinding for loki.grafana.com/application logs
-```
-
-Create a long-lived token and deploy Grafana with datasources:
-
-```bash
-GRAFANA_TOKEN=$(oc create token grafana-sa -n shopinsights --duration=8760h)
-
-oc apply -f manifests/grafana-instance.yaml
-```
-
-The `setup.sh` script creates the datasources inline with the token. The datasource manifests in `manifests/` use `${GRAFANA_TOKEN}` as a placeholder — replace it with the actual token or use the setup script.
-
-### Step 11: Deploy the Grafana Dashboard
-
-```bash
-oc apply -f manifests/grafana-dashboard.yaml
-```
-
-The dashboard includes 8 panels:
-
-| Panel | Data Source | What It Shows |
-|-------|-----------|---------------|
-| Request Rate | Prometheus | req/s by endpoint |
-| Error Rate | Prometheus | 5xx error percentage |
-| P50/P95/P99 Latency | Prometheus | Response time distribution |
-| DuckDB Query Duration | Prometheus | Database query timing by type |
-| Active Connections | Prometheus | Current in-flight requests |
-| Total Requests | Prometheus | All-time request count |
-| Requests by Status Code | Prometheus | Pie chart of HTTP status codes |
-| Recent Logs | Loki | Live log stream from Products Service |
-
-### Step 12: Generate Traffic and Explore
+### Step 9: Generate Traffic and Explore
 
 Run the demo script to generate traffic and verify all three pillars:
 
@@ -440,8 +367,6 @@ Then explore:
 
 2. **Console > Observe > Logs** — Filter by namespace `shopinsights` to see Products Service access logs
 
-3. **Grafana** — Open the Grafana Route URL and view the "ShopInsights - Products Service" dashboard with metrics panels and live log stream
-
 ## Verification
 
 ```bash
@@ -456,9 +381,6 @@ oc get lokistack -n openshift-logging
 
 # 4. Collectors are forwarding logs
 oc get pods -n openshift-logging -l app.kubernetes.io/component=collector
-
-# 5. Grafana is accessible
-oc get route grafana-route -n shopinsights
 ```
 
 ## K8s vs OpenShift Comparison
@@ -474,7 +396,6 @@ oc get route grafana-route -n shopinsights
 | Log collection | Deploy Promtail/Fluentd/Vector DaemonSet | ClusterLogForwarder CR deploys Vector collectors automatically |
 | Log storage | Provision and manage object storage | CCO auto-provisions S3 credentials on AWS clusters |
 | Log viewing | Port-forward to Grafana or Kibana | Built-in Console Observe > Logs with LogQL |
-| Grafana dashboards | Deploy Grafana, configure manually | Community Grafana Operator with CRD-based provisioning |
 | Metrics UI | Port-forward to Prometheus/Grafana | Built-in Web Console Observe tab with PromQL editor |
 | Maintenance | You upgrade and patch everything | Operators handle upgrades automatically |
 
@@ -484,20 +405,20 @@ oc get route grafana-route -n shopinsights
 - Enable user workload monitoring with `enableUserWorkload: true` to start scraping your applications
 - The **Loki Operator + Cluster Logging Operator** provide centralized log aggregation with a `ClusterLogForwarder` CR — no manual DaemonSet configuration
 - LokiStack requires S3-compatible storage; on AWS, the **Cloud Credential Operator** auto-provisions IAM credentials
-- The built-in Grafana is **read-only** — use the community **Grafana Operator** for custom dashboards
-- `GrafanaDatasource` and `GrafanaDashboard` CRs let you provision datasources and dashboards declaratively — no manual UI clicks
 - The `prometheus_client` Python library makes instrumentation straightforward: define metrics, add middleware, mount `/metrics`
 
 ## Cleanup
 
-Run the cleanup script to remove all monitoring, logging, and Grafana components:
+Run the cleanup script to remove all monitoring and logging components:
 
 ```bash
 ./scripts/cleanup.sh
 ```
 
-This removes (in reverse order): Grafana resources, ClusterLogForwarder, LokiStack, S3 bucket, CredentialsRequest, operator subscriptions, logging namespaces, ServiceMonitor, and PrometheusRule. User workload monitoring is **not** disabled (other lessons may use it).
+This removes (in reverse order): ClusterLogForwarder, LokiStack, S3 bucket, CredentialsRequest, operator subscriptions, logging namespaces, ServiceMonitor, and PrometheusRule. User workload monitoring is **not** disabled (other lessons may use it).
 
 ## Next Steps
 
-Your services are now fully observable with custom metrics, centralized logs, and unified dashboards. In [L08: CI/CD Pipeline](../L08_cicd_pipeline/), you will set up OpenShift Pipelines (Tekton) to automate building, testing, and deploying the ShopInsights stack.
+Your services are now fully observable with custom metrics and centralized logs, all viewable through the OpenShift Console. In [L08: CI/CD Pipeline](../L08_cicd_pipeline/), you will set up OpenShift Pipelines (Tekton) to automate building, testing, and deploying the ShopInsights stack.
+
+In **L12 — Custom Monitoring Dashboards**, you will deploy a custom Grafana instance with unified dashboards for metrics, logs, traces, and alerts — bringing all observability data into a single pane of glass.

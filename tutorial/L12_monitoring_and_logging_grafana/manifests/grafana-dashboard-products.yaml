@@ -155,6 +155,26 @@ spec:
             "sortOrder": "Descending",
             "dedupStrategy": "none"
           }
+        },
+        {
+          "title": "Alert Status",
+          "type": "alertlist",
+          "gridPos": { "h": 6, "w": 24, "x": 0, "y": 38 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "options": {
+            "showOptions": "current",
+            "maxItems": 10,
+            "sortOrder": 1,
+            "alertName": "Products",
+            "dashboardAlerts": false,
+            "stateFilter": {
+              "firing": true,
+              "pending": true,
+              "noData": true,
+              "normal": true,
+              "error": true
+            }
+          }
         }
       ],
       "schemaVersion": 39,

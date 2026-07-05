@@ -1,436 +1,269 @@
 # L07 — Testing & Validation Guide
 
-Test every L07 observability feature: Prometheus metrics, Loki centralized logs, Grafana dashboards, and alerting rules. Generate traffic from the ShopInsights dashboard and observe all three pillars in the OpenShift Console and Grafana.
+Walk through the ShopInsights Dashboard and OpenShift Console to verify that Prometheus metrics, Loki centralized logs, and alerting rules are all working.
 
-**Prerequisites:** Run `scripts/setup.sh` or complete all manual steps. The instrumented Products Service, ServiceMonitor, PrometheusRule, LokiStack, ClusterLogForwarder, and Grafana should all be deployed.
-
----
-
-## Observability Architecture
-
-```mermaid
-graph TD
-    Browser[Browser] --> DashUI[Dashboard UI]
-    DashUI --> PS[Products Service :8080]
-
-    PS --> MW[Middleware<br/>counters + histograms]
-    PS --> STDOUT[stdout<br/>access logs]
-    PS --> DDB[DuckDB<br/>query timers]
-
-    MW --> ME[/metrics endpoint/]
-    STDOUT --> CL[Container logs]
-    DDB --> DQD[duckdb_query_duration]
-
-    ME --> Prom[Prometheus<br/>user-workload]
-    CL --> Vec[Vector Collector<br/>DaemonSet]
-
-    Prom --> Thanos[Thanos Querier<br/>unified PromQL]
-    Vec --> Loki[LokiStack<br/>openshift-logging]
-
-    Thanos --> Console1[OpenShift Console<br/>Observe > Metrics]
-    Loki --> Console2[OpenShift Console<br/>Observe > Logs]
-
-    Thanos --> Grafana[Grafana Dashboard]
-    Loki --> Grafana
-
-    Grafana --> MP[Metrics Panels]
-    Grafana --> LP[Latency Panels]
-    Grafana --> LogP[Logs Panel]
-
-    Prom --> AM[Alertmanager<br/>PrometheusRule → alerts]
-
-    style Prom fill:#e8f5e9,stroke:#388e3c
-    style Loki fill:#e3f2fd,stroke:#1565c0
-    style Grafana fill:#fff3e0,stroke:#ef6c00
-    style Console1 fill:#e8f5e9,stroke:#388e3c
-    style Console2 fill:#e3f2fd,stroke:#1565c0
-```
+**Prerequisites:** Run `scripts/setup.sh` first. The instrumented Products Service, ServiceMonitor, PrometheusRule, LokiStack, and ClusterLogForwarder should all be deployed.
 
 ---
 
-## Get All URLs
+## URLs You Need
 
-Run this to print every URL you need for testing:
+Open these two URLs in separate browser tabs:
+
+| Tab | URL |
+|-----|-----|
+| **ShopInsights Dashboard** | `https://<dashboard-ui route>/` |
+| **OpenShift Console** | `https://<console route>/` |
+
+To get the exact URLs for your cluster:
 
 ```bash
-echo ""
-echo "=== L07 Observability URLs ==="
-echo ""
-echo "--- ShopInsights App ---"
-echo "  Dashboard UI:       https://$(oc get route dashboard-ui -n shopinsights -o jsonpath='{.spec.host}')"
-echo "  Products Service:   https://$(oc get route products-service -n shopinsights -o jsonpath='{.spec.host}')"
-echo "  Products /metrics:  https://$(oc get route products-service -n shopinsights -o jsonpath='{.spec.host}')/metrics"
-echo ""
-echo "--- OpenShift Console (wraps Prometheus + Loki) ---"
-CONSOLE=$(oc get route console -n openshift-console -o jsonpath='{.spec.host}')
-echo "  Metrics (PromQL):   https://${CONSOLE}/monitoring/query-browser"
-echo "  Targets:            https://${CONSOLE}/monitoring/targets"
-echo "  Alerts:             https://${CONSOLE}/monitoring/alerts"
-echo "  Logs (Loki):        https://${CONSOLE}/monitoring/logs"
-echo ""
-echo "--- Grafana (custom instance) ---"
-echo "  Dashboard:          https://$(oc get route grafana-route -n shopinsights -o jsonpath='{.spec.host}')"
-echo "  Login:              admin / admin  (or browse anonymously)"
-echo ""
-echo "--- Native UIs (API-only routes, use port-forward for full UI) ---"
-echo "  Prometheus API:     https://$(oc get route prometheus-k8s -n openshift-monitoring -o jsonpath='{.spec.host}')/api"
-echo "  Thanos API:         https://$(oc get route thanos-querier -n openshift-monitoring -o jsonpath='{.spec.host}')/api"
-echo "  Alertmanager API:   https://$(oc get route alertmanager-main -n openshift-monitoring -o jsonpath='{.spec.host}')/api"
-echo ""
-```
-
-Open these URLs in separate browser tabs:
-
-| Tab | URL | Purpose |
-|-----|-----|---------|
-| **ShopInsights** | Dashboard UI URL | Generate traffic by clicking around |
-| **Console Metrics** | `.../monitoring/query-browser` | Run PromQL queries, view Prometheus data |
-| **Console Logs** | `.../monitoring/logs` | View centralized Loki logs |
-| **Console Targets** | `.../monitoring/targets` | Verify ServiceMonitor scrape target |
-| **Console Alerts** | `.../monitoring/alerts` | Check PrometheusRule alert status |
-| **Grafana** | Grafana route URL | View unified metrics + logs dashboard |
-
-### Where are the native Prometheus / Alertmanager UIs?
-
-OpenShift exposes Prometheus, Thanos Querier, and Alertmanager routes, but only for their `/api` paths — the web UIs (Prometheus `/graph`, Alertmanager `/#/alerts`) are **not routed**. This is by design: the OpenShift Console is the unified frontend that wraps all of them.
-
-To access the native UIs (useful for debugging or if you're used to the classic Prometheus UI), use `oc port-forward`:
-
-```bash
-# Prometheus native UI → http://localhost:9090
-oc port-forward -n openshift-monitoring svc/prometheus-k8s 9090:9090 &
-
-# Thanos Querier native UI → http://localhost:9091
-oc port-forward -n openshift-monitoring svc/thanos-querier 9091:9091 &
-
-# Alertmanager native UI → http://localhost:9093
-oc port-forward -n openshift-monitoring svc/alertmanager-main 9093:9093 &
-```
-
-> **Note:** Loki has **no native UI** — it's a pure API backend. You browse Loki logs either through the OpenShift Console (Observe > Logs) or through Grafana's Explore view with the Loki datasource.
-
-| System | Has its own UI? | How to access on OpenShift |
-|--------|----------------|--------------------------|
-| **Prometheus** | Yes (`:9090/graph`) | `oc port-forward` or Console > Observe > Metrics |
-| **Thanos Querier** | Yes (`:9091/graph`) | `oc port-forward` or Console > Observe > Metrics |
-| **Alertmanager** | Yes (`:9093`) | `oc port-forward` or Console > Observe > Alerts |
-| **Loki** | No (API only) | Console > Observe > Logs, or Grafana Explore |
-| **Grafana** | Yes | Exposed via Route (our custom instance) |
-
----
-
-## Step 1: Verify the stack is healthy
-
-Before generating traffic, confirm all components are running:
-
-```bash
-echo "=== Stack Health Check ==="
-echo ""
-echo "1. User workload Prometheus:"
-oc get pods -n openshift-user-workload-monitoring --no-headers | grep prometheus-user-workload
-echo ""
-echo "2. ServiceMonitor + PrometheusRule:"
-oc get servicemonitor,prometheusrule -n shopinsights --no-headers
-echo ""
-echo "3. LokiStack:"
-oc get lokistack -n openshift-logging --no-headers
-echo ""
-echo "4. Loki pods:"
-oc get pods -n openshift-logging -l app.kubernetes.io/instance=logging-loki --no-headers
-echo ""
-echo "5. Vector collector:"
-oc get pods -n openshift-logging -l app.kubernetes.io/component=collector --no-headers
-echo ""
-echo "6. Grafana:"
-oc get pods -n shopinsights -l app=grafana --no-headers
-echo ""
-echo "7. Products Service:"
-oc get pods -n shopinsights -l component=products-service --no-headers
-```
-
-**Expected:** All pods show `Running` with `1/1` or `2/2` ready. The LokiStack shows 7 pods (compactor, distributor, gateway, index-gateway, ingester, querier, query-frontend).
-
----
-
-## Step 2: Verify the scrape target is UP
-
-1. Open **Console Targets** tab (`/monitoring/targets`)
-2. Find `products-service-monitor` in the `shopinsights` namespace
-3. Confirm:
-   - **Status**: Up (green checkmark)
-   - **Last Scrape**: a recent timestamp (within 15s)
-   - **Scrape Duration**: a few milliseconds (typically 5-10ms)
-
-**This validates:** the ServiceMonitor is correctly configured and Prometheus is scraping `/metrics` from the Products Service.
-
----
-
-## Step 3: Generate traffic from the ShopInsights Dashboard
-
-Open the **ShopInsights Dashboard UI** and interact with it:
-
-1. Click **Products** tab — this calls `GET /products`
-2. Click **Refresh** 10-15 times to generate sustained traffic
-3. Click on individual products to trigger `GET /products/{id}` requests
-4. If the Dashboard has a "Create Product" form, create 2-3 test products (triggers `POST /products`)
-
-Every request increments the `http_requests_total` counter, records a duration in the `http_request_duration_seconds` histogram, and instruments the underlying DuckDB query.
-
-Alternatively, generate traffic from the CLI:
-
-```bash
-PRODUCTS_URL=$(oc get route products-service -n shopinsights -o jsonpath='{.spec.host}')
-for i in $(seq 1 50); do curl -sk "https://$PRODUCTS_URL/products" > /dev/null; done
-echo "50 requests sent"
-```
-
-Or use the demo script which sends ~95 requests across multiple endpoints:
-
-```bash
-./scripts/demo.sh
+echo "Dashboard UI:     https://$(oc get route dashboard-ui -n shopinsights -o jsonpath='{.spec.host}')"
+echo "OpenShift Console: https://$(oc get route console -n openshift-console -o jsonpath='{.spec.host}')"
 ```
 
 ---
 
-## Step 4: View metrics in the Prometheus UI (Console)
+## Step 1: Generate traffic from the ShopInsights Dashboard
 
-Open the **Console Metrics** tab (`/monitoring/query-browser`).
+Open the **ShopInsights Dashboard** in your browser. You should see a page with three tabs at the top: **Products**, **Orders**, and **Analytics**.
 
-### 4a. Request rate by endpoint
+### 1a. Products tab (generates metrics on the Products Service)
 
-Paste this PromQL query and click **Run Queries**, then switch to **Graph** view:
+1. The **Products** tab is selected by default. You should see a table with columns: **ID**, **Name**, **Category**, **Price**, **Stock**.
+2. Click the **Refresh** button (top-right of the table) **10–15 times**. Each click sends a `GET /products` request to the Products Service, which increments the `http_requests_total` counter and records a duration in the `http_request_duration_seconds` histogram.
+3. Click the **Add Product** button. A form appears — fill in a name (e.g. `Test Widget`), category, price, and stock, then submit. This sends a `POST /products` request.
+4. After adding, the table should show your new product at the bottom.
 
-```promql
-sum(rate(http_requests_total{namespace="shopinsights"}[5m])) by (exported_endpoint, method)
-```
+### 1b. Orders tab
 
-**What to look for:**
-- A line chart showing request rates for each endpoint
-- `exported_endpoint` values: `/products`, `/products/{id}`, `/healthz`, `/ready`, `/docs`, `/openapi.json`
-- `/healthz` and `/ready` have a steady baseline (Kubernetes probes)
-- `/products` spikes when you click in the Dashboard
+1. Click the **Orders** tab. You should see a table with columns: **ID**, **Customer**, **Product**, **Qty**, **Total**, **Status**, **Date**.
+2. Click **Refresh** a few times. Each click sends a `GET /orders` request to the Orders Service.
+3. Click **Create Order** to submit a new order if you want additional traffic.
 
-> **Note:** Our app's `endpoint` label gets renamed to `exported_endpoint` by Prometheus because `endpoint` is a reserved ServiceMonitor label. Always use `exported_endpoint` in queries.
+### 1c. Analytics tab
 
-### 4b. P95 latency by endpoint
+1. Click the **Analytics** tab. You should see four summary cards at the top:
+   - **Total Products** — number of products in the catalog
+   - **Total Orders** — number of orders placed
+   - **Total Revenue** — sum of all order totals
+   - **Avg Order Value** — average order total
+2. Below the cards, you should see three tables: **Revenue by Category**, **Revenue by Month**, and **Top Products by Revenue**.
+3. Click **Refresh** a few times. Each click sends a `GET /analytics/summary` request to the Analytics Service.
 
-```promql
-histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace="shopinsights"}[5m])) by (le, exported_endpoint))
-```
-
-**What to look for:**
-- `/healthz` is very fast (<5ms)
-- `/products` is slower — it queries DuckDB
-
-### 4c. DuckDB query duration
-
-```promql
-histogram_quantile(0.95, sum(rate(duckdb_query_duration_seconds_bucket{namespace="shopinsights"}[5m])) by (le, query_type))
-```
-
-**What to look for:**
-- `query_type` labels: `select_all`, `select_by_id`, `init_read_parquet`
-- All should be sub-millisecond
-
-### 4d. Active connections
-
-```promql
-active_connections{namespace="shopinsights"}
-```
-
-### 4e. Error rate
-
-```promql
-sum(rate(http_requests_total{namespace="shopinsights", status=~"5.."}[5m])) / sum(rate(http_requests_total{namespace="shopinsights"}[5m])) * 100
-```
-
-**Expected:** 0% or no data (no 5xx errors under normal operation).
+> **Why this matters:** Every request you make in the Dashboard generates Prometheus metrics (counters, histograms), application logs (stdout), and DuckDB query timers. You'll observe all of these in the OpenShift Console next.
 
 ---
 
-## Step 5: Check alerting rules
+## Step 2: View metrics in the OpenShift Console
 
-Open the **Console Alerts** tab (`/monitoring/alerts`) and click **Alerting rules**.
+Switch to the **OpenShift Console** browser tab. Make sure you are in the **Administrator** perspective (check the dropdown in the top-left corner — it should say "Administrator", not "Developer").
 
-1. Filter by **Source: User**
-2. You should see two rules:
-   - **ProductsHighLatency** — Severity: Warning, State: Inactive
-   - **ProductsHighErrorRate** — Severity: Critical, State: Inactive
-3. Click either rule to see its PromQL expression, annotations, and labels
+### 2a. Navigate to the Metrics page
 
-**This validates:** alerting rules are loaded and evaluated. Both are inactive because latency is below 500ms and there are no 5xx errors.
+1. In the left sidebar, click **Observe**.
+2. In the submenu that appears, click **Metrics**.
+3. You should see a page titled **Metrics** with a text input area labeled **Expression** (or a query box) and an empty chart area below.
 
----
+### 2b. Query: Request rate by endpoint
 
-## Step 6: View the /metrics endpoint directly
+1. In the **Expression** field, paste this PromQL query:
 
-See the raw Prometheus text format:
+   ```promql
+   sum(rate(http_requests_total{namespace="shopinsights"}[5m])) by (exported_endpoint, method)
+   ```
 
-```bash
-oc exec deploy/products-service -- python3 -c "
-import urllib.request
-print(urllib.request.urlopen('http://localhost:8080/metrics').read().decode()[:3000])
-"
-```
+2. Click **Run queries** (the blue button to the right of the expression field).
+3. You should see a line chart appear with one line per endpoint. Look for:
+   - **`/products`** — should show the highest rate (from your Refresh clicks)
+   - **`/healthz`** and **`/ready`** — steady baseline from Kubernetes probes
+   - **`/products/{id}`** — appears if you clicked individual products
+4. Switch between the **Chart** and **Table** views using the toggle above the results.
 
-Or open the Products Service `/metrics` URL in a browser (from the URLs printed in Step 0).
+> **Note:** The app's `endpoint` label gets renamed to `exported_endpoint` by Prometheus because `endpoint` is a reserved ServiceMonitor label. Always use `exported_endpoint` in queries.
 
-**What to look for:**
-- `# HELP` and `# TYPE` lines for each metric
-- `http_requests_total{endpoint="...",method="...",status="..."}` counter values
-- `http_request_duration_seconds_bucket{...}` histogram buckets
-- `duckdb_query_duration_seconds_bucket{...}` histogram buckets
-- `active_connections` gauge value
+### 2c. Query: P95 latency by endpoint
 
----
+1. Clear the expression field and paste:
 
-## Step 7: View centralized logs in Loki (Console)
+   ```promql
+   histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace="shopinsights"}[5m])) by (le, exported_endpoint))
+   ```
 
-Open the **Console Logs** tab (`/monitoring/logs`).
+2. Click **Run queries**.
+3. You should see lines showing the 95th-percentile response time for each endpoint. Expect:
+   - **`/healthz`** — very fast (under 5ms)
+   - **`/products`** — slightly slower (it queries DuckDB)
 
-### 7a. Browse by namespace
+### 2d. Query: DuckDB query duration
 
-1. In the **Namespace** filter, select `shopinsights`
-2. You should see live log entries from all ShopInsights pods
-3. Click the **Pod** filter and select the `products-service-*` pod
-4. You should see Uvicorn access log lines: `GET /products 200`, `GET /healthz 200`
+1. Clear the expression field and paste:
 
-### 7b. Try a LogQL query
+   ```promql
+   histogram_quantile(0.95, sum(rate(duckdb_query_duration_seconds_bucket{namespace="shopinsights"}[5m])) by (le, query_type))
+   ```
 
-Click **Show LogQL** and paste:
+2. Click **Run queries**.
+3. You should see lines for different `query_type` values: `select_all`, `select_by_id`, `init_read_parquet`. All should be sub-millisecond.
 
-```logql
-{kubernetes_namespace_name="shopinsights"} |= "products"
-```
+### 2e. Query: Error rate
 
-This filters for log lines containing "products" from any pod in the namespace.
+1. Clear the expression field and paste:
 
-### 7c. Verify from CLI
+   ```promql
+   sum(rate(http_requests_total{namespace="shopinsights", status=~"5.."}[5m])) / sum(rate(http_requests_total{namespace="shopinsights"}[5m])) * 100
+   ```
 
-```bash
-# Query Loki directly for recent products-service logs
-TOKEN=$(oc create token grafana-sa -n shopinsights --duration=1h)
-oc exec -n openshift-logging deploy/logging-loki-querier -- curl -sk \
-  -H "Authorization: Bearer $TOKEN" \
-  "https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application/loki/api/v1/query_range" \
-  --data-urlencode 'query={kubernetes_namespace_name="shopinsights",kubernetes_container_name="products-service"}' \
-  --data-urlencode 'limit=5' | python3 -m json.tool | head -30
-```
-
-**What to look for:**
-- Logs appear within 10-30 seconds of generating traffic
-- `/healthz` and `/ready` probes appear as a steady stream
-- `/products` requests appear when you click in the Dashboard
+2. Click **Run queries**.
+3. **Expected:** The chart shows nothing (or 0%). Under normal operation, there are no 5xx errors.
 
 ---
 
-## Step 8: View pod logs (CLI and Console)
+## Step 3: Verify the scrape target
 
-### 8a. CLI logs
+### 3a. Navigate to Targets
 
-```bash
-# Stream live logs (Ctrl+C to stop)
-oc logs -f deploy/products-service
+1. In the left sidebar, click **Observe** > **Targets**.
+2. You should see a list of all Prometheus scrape targets, grouped by namespace.
 
-# Last 20 lines
-oc logs deploy/products-service --tail=20
+### 3b. Find the Products Service target
 
-# Logs from the last 5 minutes
-oc logs deploy/products-service --since=5m
-```
+1. In the **Filter** or search box, type `shopinsights` to narrow the list.
+2. Look for an entry named **`products-service-monitor`** (or `shopinsights/products-service-monitor`).
+3. Verify these three things:
+   - **Status**: should show **Up** with a green indicator
+   - **Last Scrape**: should show a recent timestamp (within the last 15 seconds)
+   - **Scrape Duration**: typically 5–10 ms
 
-### 8b. Console pod logs
-
-1. In the **Console**, switch to the **Developer** perspective
-2. Select the `shopinsights` project
-3. Navigate to **Topology** and click the `products-service` pod
-4. Click the **Logs** tab in the side panel
-5. Live tail is enabled — new requests appear in real time as you click in the Dashboard
+> **What this tells you:** The ServiceMonitor is correctly configured and Prometheus is actively scraping the `/metrics` endpoint from the Products Service.
 
 ---
 
-## Step 9: Explore the Grafana Dashboard
+## Step 4: Check alerting rules
 
-Open the **Grafana** URL and navigate to **Dashboards > shopinsights > ShopInsights - Products Service**.
+### 4a. Navigate to Alerting
 
-### 9a. Metrics panels (top section)
+1. In the left sidebar, click **Observe** > **Alerting**.
+2. You should see a page with tabs: **Alerts** and **Alerting rules** (or **Silences**).
 
-| Panel | Data Source | What to look for |
-|-------|-----------|-----------------|
-| **Request Rate** | Prometheus | req/s by endpoint — spikes when you click in Dashboard |
-| **Error Rate** | Prometheus | 0% under normal operation (shows "No data" if no errors) |
-| **P50/P95/P99 Latency** | Prometheus | Three lines showing response time distribution |
-| **DuckDB Query Duration** | Prometheus | P95 latency for select_all, select_by_id, init_read_parquet |
-| **Active Connections** | Prometheus | Current in-flight request count (near 0 normally) |
-| **Total Requests** | Prometheus | Cumulative count — increases with each Dashboard click |
-| **Requests by Status Code** | Prometheus | Pie chart — mostly 200s, some 404s |
+### 4b. View the alerting rules
 
-### 9b. Logs panel (bottom section)
+1. Click the **Alerting rules** tab.
+2. Click the **Source** filter dropdown and select **User** (this filters to rules defined in user namespaces, excluding platform rules).
+3. You should see two rules:
+   - **ProductsHighLatency** — Severity: Warning
+   - **ProductsHighErrorRate** — Severity: Critical
+4. Both should show **State: Inactive** (green) — meaning neither alert is currently firing.
+5. Click on either rule name to expand it. You should see:
+   - The PromQL expression that triggers the alert
+   - Annotations (summary, description)
+   - Labels (severity, namespace)
 
-Scroll down to **Recent Logs (Products Service)**:
-
-- Live log stream from the Products Service container via Loki
-- Each entry shows a timestamp and the full log JSON
-- Click **Enable log details** (expand a log line) to see Kubernetes labels: namespace, pod name, container, node
-
-### 9c. Verify datasource connections
-
-Go to **Connections > Data sources** in the Grafana sidebar:
-
-| Datasource | Type | Test |
-|-----------|------|------|
-| **Prometheus** | prometheus | Click **Test** — should show "Data source is working" |
-| **Loki** | loki | Click **Test** — should show "Data source successfully connected" |
+> **What this tells you:** The PrometheusRule CR is loaded and evaluated by Prometheus. Both rules are inactive because latency is below 500ms and there are no 5xx errors.
 
 ---
 
-## Step 10: Correlate metrics with logs (traffic burst test)
+## Step 5: View centralized logs in Loki
 
-This demonstrates the power of having metrics and logs in the same dashboard.
+### 5a. Navigate to Logs
 
-1. Open **Grafana** with the ShopInsights dashboard visible
-2. Set the time range to **Last 15 minutes** and enable **Auto-refresh** (every 10s)
-3. Switch to the **ShopInsights Dashboard UI** and rapidly click **Products** tab + **Refresh** 30+ times over ~30 seconds
-4. Switch back to **Grafana**
+1. In the left sidebar, click **Observe** > **Logs**.
+2. You should see a log viewer page with filter dropdowns at the top.
 
-**What to look for:**
-- The **Request Rate** panel shows a visible spike at the right edge
-- The **Recent Logs** panel shows a burst of log entries at the same timestamp
-- The spike in metrics and the burst in logs are correlated — same requests, two views
-- This is the core value of unified observability: one dashboard, metrics + logs
+> **If you don't see "Logs" under Observe:** The UIPlugin for the logging console plugin may not be deployed. Run `oc apply -f manifests/uiplugin-logging.yaml` from the L07 lesson directory and refresh the console.
+
+### 5b. Filter by namespace
+
+1. Click the **Namespace** dropdown and select **shopinsights**.
+2. Log entries from all ShopInsights pods should appear in the log stream below.
+3. You should see Uvicorn access log lines like:
+   ```
+   INFO: 10.x.x.x:xxxxx - "GET /products HTTP/1.1" 200 OK
+   INFO: 10.x.x.x:xxxxx - "GET /healthz HTTP/1.1" 200 OK
+   ```
+
+### 5c. Filter by pod
+
+1. Click the **Pod** dropdown and select the `products-service-*` pod.
+2. Now you should see only logs from the Products Service.
+3. Look for the `GET /products` log lines that correspond to your Refresh clicks in Step 1.
+
+### 5d. Try a LogQL query
+
+1. Click the **Show LogQL** toggle (or click the **LogQL** button — it may appear as a toggle or link near the query bar).
+2. In the LogQL expression field, paste:
+
+   ```logql
+   {kubernetes_namespace_name="shopinsights"} |= "products"
+   ```
+
+3. Press **Enter** or click **Run query**.
+4. You should see only log lines containing the word "products" from any pod in the `shopinsights` namespace.
 
 ---
 
-## Step 11: Developer perspective monitoring
+## Step 6: View pod logs in the Developer perspective
 
-1. In the **Console**, switch to the **Developer** perspective
-2. Click **Observe** in the left navigation
-3. Select the **Metrics** tab
+### 6a. Switch to Developer perspective
 
-**What to look for:**
-- Pre-built graphs for CPU and Memory usage of your workloads
-- Switch to a custom PromQL query and run the same queries from Step 4
-- The **Events** tab shows Kubernetes events (pod scheduling, image pulls, probe failures)
+1. Click the perspective dropdown in the top-left corner of the Console (it says "Administrator").
+2. Select **Developer**.
+
+### 6b. Navigate to the Products Service pod
+
+1. In the left sidebar, click **Topology**.
+2. Make sure the project dropdown at the top shows **shopinsights**.
+3. You should see circles/icons representing the ShopInsights deployments: `dashboard-ui`, `products-service`, `orders-service`, `analytics-service`.
+4. Click the **products-service** icon.
+
+### 6c. View pod logs
+
+1. A side panel opens on the right. Click the **Resources** tab in the panel.
+2. Click the pod name (e.g. `products-service-xxxxx-xxxxx`) to open the pod details page.
+3. Click the **Logs** tab at the top of the pod details page.
+4. You should see a live-streaming log view. New log lines appear in real time.
+5. Go back to the **ShopInsights Dashboard** tab and click **Refresh** on the Products tab.
+6. Switch back to the Console — you should see new `GET /products` log lines appear immediately.
+
+### 6d. Developer Observe
+
+1. In the Developer perspective left sidebar, click **Observe**.
+2. You should see pre-built **CPU Usage** and **Memory Usage** graphs for workloads in the `shopinsights` project.
+3. Click the **Metrics** tab to run custom PromQL queries (same queries from Step 2 work here too).
+4. Click the **Events** tab to see Kubernetes events (pod scheduling, image pulls, restarts).
+
+---
+
+## Step 7: Generate more traffic and watch it flow
+
+This step ties everything together. Open both the ShopInsights Dashboard and the OpenShift Console side by side.
+
+1. In the **ShopInsights Dashboard**, click the **Products** tab and click **Refresh** rapidly (20+ times).
+2. In the **OpenShift Console** (Administrator perspective):
+   - Go to **Observe > Metrics** and re-run the request rate query from Step 2b. You should see the `/products` line spike upward.
+   - Go to **Observe > Logs** and filter to `shopinsights` namespace. You should see a burst of new `GET /products` log lines.
+   - Go to **Observe > Targets** — the `products-service-monitor` target should still show **Up**.
+   - Go to **Observe > Alerting** > **Alerting rules** (filtered to **User**) — both rules should still be **Inactive** (unless you managed to push latency above 500ms).
 
 ---
 
 ## Summary
 
-| Feature | Generate by | Observe in |
-|---------|------------|------------|
-| Custom Prometheus metrics | Any Dashboard click | Console > Observe > Metrics |
-| Scrape target health | — | Console > Observe > Targets |
-| Alerting rules | — | Console > Observe > Alerting |
-| Request rate by endpoint | Dashboard Products tab | PromQL + Grafana Request Rate panel |
-| P95 latency | Dashboard Products tab | PromQL + Grafana Latency panel |
-| DuckDB query timing | Dashboard Products tab | PromQL + Grafana DuckDB panel |
-| Active connections | Dashboard Products tab | Grafana Active Connections stat |
-| Error rate | (none under normal use) | Grafana Error Rate panel |
-| Centralized logs | Any pod activity | Console > Observe > Logs |
-| Filtered logs (LogQL) | Any pod activity | Console > Observe > Logs (LogQL) |
-| Grafana metrics panels | Dashboard Products tab | Grafana dashboard (7 panels) |
-| Grafana logs panel | Dashboard Products tab | Grafana Recent Logs panel |
-| Metrics-logs correlation | Traffic burst | Grafana (spike + log burst at same time) |
+| What You Did | What You Should See |
+|-------------|---------------------|
+| Clicked Refresh on Products tab | `http_requests_total` counter increases in Observe > Metrics |
+| Clicked Refresh on Products tab | `GET /products` log lines appear in Observe > Logs |
+| Added a product | `POST /products` appears in logs, `http_requests_total` counter increases |
+| Clicked Orders / Analytics tabs | Traffic to other services visible in logs |
+| Ran PromQL request rate query | Line chart with lines per endpoint |
+| Ran PromQL P95 latency query | Line chart showing `/healthz` < `/products` |
+| Ran PromQL error rate query | Empty chart or 0% (no errors) |
+| Checked Observe > Targets | `products-service-monitor` shows Up (green) |
+| Checked Observe > Alerting rules | ProductsHighLatency + ProductsHighErrorRate both Inactive |
+| Filtered logs by namespace | Logs from all 4 ShopInsights services |
+| Filtered logs by pod | Only Products Service logs |
+| Ran LogQL query | Filtered logs containing "products" |
+| Viewed Topology > pod > Logs | Real-time log streaming from Products Service |
 
 ---
 
@@ -440,8 +273,10 @@ This demonstrates the power of having metrics and logs in the same dashboard.
 
 2. **Rate queries need time** — `rate(...[5m])` needs at least two scrapes within the 5-minute window. After deploying, wait ~30 seconds before running rate queries.
 
-3. **Loki log ingestion delay** — Logs may take 10-30 seconds to appear in Console > Observe > Logs or Grafana after being generated.
+3. **Loki log ingestion delay** — Logs may take 10–30 seconds to appear in Observe > Logs after being generated. If logs are missing, wait and refresh.
 
-4. **Grafana datasource tokens expire** — The `grafana-sa` token created with `--duration=8760h` lasts 1 year. If datasources stop working, regenerate the token and update the datasource CRs.
+4. **Container-level log filtering** — The ClusterLogForwarder collects only from `products-service`, `orders-service`, `analytics-service`, and `dashboard-ui` containers in the `shopinsights` namespace. Logs from other containers (build pods, sidecars) are not forwarded to Loki.
 
-5. **Container-level log filtering** — The ClusterLogForwarder collects only from `products-service`, `orders-service`, `analytics-service`, and `dashboard-ui` containers in the `shopinsights` namespace. Logs from other containers (build pods, sidecars) are not forwarded to Loki.
+---
+
+> **Next:** For custom Grafana dashboards with unified metrics, logs, and traces views, see **L12 — Custom Monitoring Dashboards (Grafana)**.

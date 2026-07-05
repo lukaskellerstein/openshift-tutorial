@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# L07 — Demo: generate traffic and verify all three observability pillars
+# L07 — Demo: generate traffic and verify observability via OpenShift Console
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LESSON_DIR="$(dirname "$SCRIPT_DIR")"
@@ -66,18 +66,13 @@ if [ -n "$LOKI_ROUTE" ]; then
     "https://${LOKI_ROUTE}/api/logs/v1/application/loki/api/v1/query_range?query=%7Bkubernetes_namespace_name%3D%22shopinsights%22%7D&limit=5" \
     2>/dev/null | python3 -m json.tool 2>/dev/null | head -40 || echo "(no logs yet — collector pods may need a minute)"
 else
-  echo "No Loki gateway route found. Checking via internal service..."
-  oc exec deploy/grafana-deployment -n shopinsights -- \
-    curl -sk -H "Authorization: Bearer $(oc create token grafana-sa -n shopinsights)" \
-    "https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application/loki/api/v1/query_range?query=%7Bkubernetes_namespace_name%3D%22shopinsights%22%7D&limit=5" \
-    2>/dev/null | python3 -m json.tool 2>/dev/null | head -40 || echo "(no logs yet)"
+  echo "No Loki gateway route found — view logs via Console > Observe > Logs."
 fi
 
 # --- Step 4: Print URLs ---
 step 4 "Explore the full stack"
 
 CONSOLE_HOST=$(oc get route console -n openshift-console -o jsonpath='{.spec.host}' 2>/dev/null)
-GRAFANA_HOST=$(oc get route grafana-route -n shopinsights -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
 DASHBOARD_HOST=$(oc get route dashboard-ui -n shopinsights -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
 
 echo "============================================"
@@ -99,11 +94,6 @@ echo "  4. Alerting Rules (Console):"
 echo "     https://${CONSOLE_HOST}/monitoring/alerts"
 echo "     Filter by Source: User"
 echo ""
-if [ -n "$GRAFANA_HOST" ]; then
-  echo "  5. Grafana Dashboard:"
-  echo "     https://${GRAFANA_HOST}"
-  echo "     Login: admin/admin (or browse anonymously)"
-  echo "     Dashboard: ShopInsights - Products Service"
-  echo ""
-fi
 echo "=== L07 Demo Complete ==="
+echo ""
+echo "Next: L12 (custom Grafana dashboards for metrics, logs, traces, and alerts)"

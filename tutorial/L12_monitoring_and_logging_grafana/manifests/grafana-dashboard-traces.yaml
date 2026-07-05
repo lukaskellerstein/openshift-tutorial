@@ -1,0 +1,72 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: shopinsights-traces
+  namespace: shopinsights
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  json: |
+    {
+      "annotations": { "list": [] },
+      "description": "ShopInsights — Distributed traces from Istio service mesh via Tempo",
+      "editable": true,
+      "panels": [
+        {
+          "title": "Trace Search",
+          "description": "Search for traces by service name. Traces come from the Istio waypoint proxy (L05 service mesh) — they show service-to-service HTTP calls, not internal application spans.",
+          "type": "traces",
+          "gridPos": { "h": 16, "w": 24, "x": 0, "y": 0 },
+          "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+          "targets": [
+            {
+              "queryType": "traceqlSearch",
+              "refId": "A",
+              "filters": [
+                {
+                  "id": "service-name",
+                  "tag": "service.name",
+                  "operator": "=~",
+                  "value": [".*"],
+                  "scope": "resource"
+                }
+              ],
+              "limit": 20
+            }
+          ]
+        },
+        {
+          "title": "Service Graph",
+          "description": "Visual map of service-to-service calls captured by the Istio mesh.",
+          "type": "nodeGraph",
+          "gridPos": { "h": 12, "w": 24, "x": 0, "y": 16 },
+          "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+          "targets": [
+            {
+              "queryType": "serviceMap",
+              "refId": "A"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["shopinsights", "traces", "tempo"],
+      "templating": {
+        "list": [
+          {
+            "name": "DS_TEMPO",
+            "type": "datasource",
+            "query": "tempo",
+            "current": { "text": "Tempo", "value": "Tempo" },
+            "hide": 2
+          }
+        ]
+      },
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "ShopInsights - Traces",
+      "uid": "shopinsights-traces",
+      "version": 1
+    }

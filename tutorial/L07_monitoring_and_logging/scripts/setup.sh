@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# L07 — Monitoring & Logging Setup: Prometheus + Loki + Grafana
+# L07 — Monitoring & Logging Setup: Prometheus + Loki (OpenShift built-in)
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LESSON_DIR="$(dirname "$SCRIPT_DIR")"
@@ -46,37 +46,8 @@ BUILD_DIR=$(mktemp -d)
 trap "rm -rf $BUILD_DIR" EXIT
 
 cp "$LESSON_DIR/app/products_service_with_metrics.py" "$BUILD_DIR/app.py"
-
-cat > "$BUILD_DIR/pyproject.toml" <<'PYPROJECT'
-[project]
-name = "products-service"
-version = "1.0.0"
-description = "ShopInsights Products Service — FastAPI + DuckDB"
-requires-python = ">=3.11"
-dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn>=0.30.6",
-    "duckdb>=1.1.0",
-    "pydantic>=2.9.0",
-    "pyarrow>=17.0.0",
-    "prometheus_client>=0.21.0",
-]
-PYPROJECT
-
-cat > "$BUILD_DIR/Dockerfile" <<'DOCKERFILE'
-FROM python:3.11-slim
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-RUN useradd -m -u 1001 appuser
-WORKDIR /app
-COPY pyproject.toml ./
-RUN uv lock && uv sync --frozen --no-dev --no-install-project
-COPY app.py .
-RUN mkdir -p /data && chown appuser:appuser /data
-ENV UV_CACHE_DIR=/tmp/uv-cache
-USER 1001
-EXPOSE 8080
-CMD ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
-DOCKERFILE
+cp "$LESSON_DIR/app/pyproject.toml" "$BUILD_DIR/pyproject.toml"
+cp "$LESSON_DIR/app/Dockerfile" "$BUILD_DIR/Dockerfile"
 
 # Remove contextDir from BuildConfig if present (binary builds can't use contextDir)
 oc get bc products-service -n shopinsights -o jsonpath='{.spec.source.contextDir}' 2>/dev/null && \
@@ -225,47 +196,9 @@ else
 fi
 
 echo "Creating S3 bucket via a one-shot Job..."
-cat <<JOBEOF | oc apply -f -
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: create-loki-bucket
-  namespace: openshift-logging
-spec:
-  ttlSecondsAfterFinished: 300
-  template:
-    spec:
-      restartPolicy: Never
-      containers:
-        - name: aws-cli
-          image: amazon/aws-cli:latest
-          command: ["sh", "-c"]
-          args:
-            - |
-              aws s3api create-bucket \
-                --bucket "\${S3_BUCKET}" \
-                --region "\${AWS_REGION}" \
-                --create-bucket-configuration LocationConstraint="\${AWS_REGION}" \
-              2>/dev/null || echo "Bucket may already exist — continuing."
-              echo "Bucket \${S3_BUCKET} ready."
-          env:
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: logging-loki-aws
-                  key: access_key_id
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: logging-loki-aws
-                  key: access_key_secret
-            - name: AWS_DEFAULT_REGION
-              value: "$AWS_REGION"
-            - name: S3_BUCKET
-              value: "$S3_BUCKET"
-            - name: AWS_REGION
-              value: "$AWS_REGION"
-JOBEOF
+sed -e "s|__S3_BUCKET__|${S3_BUCKET}|g" \
+    -e "s|__AWS_REGION__|${AWS_REGION}|g" \
+    "$LESSON_DIR/manifests/job-create-s3-bucket.yaml" | oc apply -f -
 
 echo -n "Waiting for bucket creation Job to complete..."
 until oc get job create-loki-bucket -n openshift-logging -o jsonpath='{.status.succeeded}' 2>/dev/null | grep -q 1; do
@@ -314,149 +247,22 @@ echo " Running!"
 echo "Collector pods:"
 oc get pods -n openshift-logging -l app.kubernetes.io/component=collector
 
-# --- Step 8: Install Grafana Operator ---
-step 8 "Install the Grafana Operator (community)"
-oc apply -f "$LESSON_DIR/manifests/operator-grafana.yaml"
+# Enable the Logging Console Plugin (Observe > Logs tab)
+echo ""
+echo "Enabling the Logging Console Plugin..."
+oc apply -f "$LESSON_DIR/manifests/uiplugin-logging.yaml"
 
-echo -n "Waiting for Grafana Operator CSV..."
-WAIT_COUNT=0
-until oc get csv -n openshift-operators 2>/dev/null | grep -i grafana | grep -q Succeeded; do
-  for ip in $(oc get installplan -n openshift-operators --no-headers 2>/dev/null \
-    | awk '$4=="false" {print $1}'); do
-    oc patch installplan "$ip" -n openshift-operators --type merge \
-      -p '{"spec":{"approved":true}}' 2>/dev/null || true
-  done
-  WAIT_COUNT=$((WAIT_COUNT + 1))
-  if [ "$WAIT_COUNT" -gt 12 ]; then
-    LATEST=$(oc get csv -n openshift-operators --no-headers 2>/dev/null \
-      | grep -i grafana | sort -V -k1 | tail -1 | awk '{print $1}')
-    for csv in $(oc get csv -n openshift-operators --no-headers 2>/dev/null \
-      | grep -i grafana | grep Pending | awk '{print $1}'); do
-      if [ "$csv" != "$LATEST" ]; then
-        echo -n "(removing stuck $csv) "
-        oc delete csv "$csv" -n openshift-operators 2>/dev/null || true
-      fi
-    done
-  fi
-  echo -n "."
-  sleep 10
-done
-echo " Ready!"
-
-# --- Step 9: Create Grafana RBAC ---
-step 9 "Configure Grafana ServiceAccount RBAC"
-
-echo "Waiting for Grafana operator to create grafana-sa..."
-until oc get sa grafana-sa -n shopinsights &>/dev/null; do
-  echo -n "."
-  sleep 3
-done
-echo " Found!"
-
-oc adm policy add-cluster-role-to-user cluster-monitoring-view \
-  -z grafana-sa -n shopinsights
-
-cat <<'RBAC' | oc apply -f -
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: grafana-loki-logs-reader
-rules:
-  - apiGroups: ["loki.grafana.com"]
-    resources: ["application"]
-    resourceNames: ["logs"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: grafana-loki-logs-reader
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: grafana-loki-logs-reader
-subjects:
-  - kind: ServiceAccount
-    name: grafana-sa
-    namespace: shopinsights
-RBAC
-
-GRAFANA_TOKEN=$(oc create token grafana-sa -n shopinsights --duration=8760h)
-echo "Grafana SA token created (valid for 1 year)."
-
-# --- Step 10: Deploy Grafana instance + datasources + dashboard ---
-step 10 "Deploy Grafana instance, datasources, and dashboard"
-
-oc apply -f "$LESSON_DIR/manifests/grafana-instance.yaml"
-
-echo -n "Waiting for Grafana pod..."
-until oc get pods -n shopinsights -l app=grafana 2>/dev/null | grep -q Running; do
+echo -n "Waiting for logging-view-plugin to register..."
+until oc get consoleplugin logging-view-plugin &>/dev/null; do
   echo -n "."
   sleep 5
 done
-echo " Running!"
+echo " Registered!"
 
-THANOS_URL="https://thanos-querier.openshift-monitoring.svc.cluster.local:9091"
-LOKI_URL="https://logging-loki-gateway-http.openshift-logging.svc.cluster.local:8080/api/logs/v1/application"
-
-echo "Creating Prometheus datasource..."
-cat <<DSEOF | oc apply -f -
-apiVersion: grafana.integreatly.org/v1beta1
-kind: GrafanaDatasource
-metadata:
-  name: prometheus
-  namespace: shopinsights
-spec:
-  instanceSelector:
-    matchLabels:
-      dashboards: grafana
-  datasource:
-    name: Prometheus
-    type: prometheus
-    access: proxy
-    url: ${THANOS_URL}
-    isDefault: true
-    jsonData:
-      httpHeaderName1: Authorization
-      timeInterval: "15s"
-      tlsSkipVerify: true
-    secureJsonData:
-      httpHeaderValue1: "Bearer ${GRAFANA_TOKEN}"
-DSEOF
-
-echo "Creating Loki datasource..."
-cat <<DSEOF | oc apply -f -
-apiVersion: grafana.integreatly.org/v1beta1
-kind: GrafanaDatasource
-metadata:
-  name: loki
-  namespace: shopinsights
-spec:
-  instanceSelector:
-    matchLabels:
-      dashboards: grafana
-  datasource:
-    name: Loki
-    type: loki
-    access: proxy
-    url: ${LOKI_URL}
-    jsonData:
-      httpHeaderName1: Authorization
-      tlsSkipVerify: true
-    secureJsonData:
-      httpHeaderValue1: "Bearer ${GRAFANA_TOKEN}"
-DSEOF
-
-echo "Creating Grafana dashboard..."
-oc apply -f "$LESSON_DIR/manifests/grafana-dashboard.yaml"
-
-echo "Grafana resources deployed."
-
-# --- Step 11: Print URLs ---
-step 11 "Setup complete — URLs"
+# --- Step 8: Print URLs ---
+step 8 "Setup complete — URLs"
 
 CONSOLE_HOST=$(oc get route console -n openshift-console -o jsonpath='{.spec.host}' 2>/dev/null)
-GRAFANA_HOST=$(oc get route grafana-route -n shopinsights -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
 DASHBOARD_HOST=$(oc get route dashboard-ui -n shopinsights -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
 
 echo "============================================"
@@ -469,9 +275,6 @@ echo "    Metrics:     https://${CONSOLE_HOST}/monitoring/query-browser"
 echo "    Logs:        https://${CONSOLE_HOST}/monitoring/logs"
 echo "    Alerts:      https://${CONSOLE_HOST}/monitoring/alerts"
 echo "    Targets:     https://${CONSOLE_HOST}/monitoring/targets"
-if [ -n "$GRAFANA_HOST" ]; then
-  echo "  Grafana:       https://${GRAFANA_HOST}"
-  echo "    (admin/admin or anonymous viewer)"
-fi
 echo ""
 echo "Next: ./demo.sh (generate traffic and explore)"
+echo "Then: L12 (custom Grafana dashboards)"

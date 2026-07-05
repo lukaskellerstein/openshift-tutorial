@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-loki-bucket
+  namespace: openshift-logging
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: aws-cli
+          image: amazon/aws-cli:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              aws s3api create-bucket \
+                --bucket "${S3_BUCKET}" \
+                --region "${AWS_REGION}" \
+                --create-bucket-configuration LocationConstraint="${AWS_REGION}" \
+              2>/dev/null || echo "Bucket may already exist — continuing."
+              echo "Bucket ${S3_BUCKET} ready."
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: logging-loki-aws
+                  key: access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: logging-loki-aws
+                  key: access_key_secret
+            - name: AWS_DEFAULT_REGION
+              value: "__AWS_REGION__"
+            - name: S3_BUCKET
+              value: "__S3_BUCKET__"
+            - name: AWS_REGION
+              value: "__AWS_REGION__"

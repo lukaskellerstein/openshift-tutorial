@@ -1,0 +1,163 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: shopinsights-overview
+  namespace: shopinsights
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  json: |
+    {
+      "annotations": { "list": [] },
+      "description": "ShopInsights — Cross-service health overview",
+      "editable": true,
+      "panels": [
+        {
+          "title": "CPU Usage by Container",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"shopinsights\", container!=\"\", container!=\"POD\"}[5m])) by (container)",
+              "legendFormat": "{{ container }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "custom": { "fillOpacity": 15 } },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Memory Usage by Container",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"shopinsights\", container!=\"\", container!=\"POD\"}) by (container)",
+              "legendFormat": "{{ container }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "bytes" },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Container Restarts",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 12, "x": 0, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "targets": [
+            {
+              "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"shopinsights\"}) by (container)",
+              "legendFormat": "{{ container }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "title": "Network Receive by Pod",
+          "type": "timeseries",
+          "gridPos": { "h": 4, "w": 12, "x": 12, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"shopinsights\"}[5m])) by (pod)",
+              "legendFormat": "{{ pod }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "Bps" },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Products Service — Request Rate (req/s)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{namespace=\"shopinsights\"}[5m])) by (exported_endpoint)",
+              "legendFormat": "{{ exported_endpoint }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps" },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Products Service — P95 Latency",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace=\"shopinsights\"}[5m])) by (le))",
+              "legendFormat": "p95"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Alert Status",
+          "type": "alertlist",
+          "gridPos": { "h": 6, "w": 24, "x": 0, "y": 20 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "options": {
+            "showOptions": "current",
+            "maxItems": 10,
+            "sortOrder": 1,
+            "alertName": "",
+            "dashboardAlerts": false,
+            "stateFilter": {
+              "firing": true,
+              "pending": true,
+              "noData": true,
+              "normal": true,
+              "error": true
+            },
+            "folder": { "id": null, "title": "" },
+            "alertInstanceLabelFilter": ""
+          }
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["shopinsights", "overview"],
+      "templating": {
+        "list": [
+          {
+            "name": "DS_PROMETHEUS",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": { "text": "Prometheus", "value": "Prometheus" },
+            "hide": 2
+          }
+        ]
+      },
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "ShopInsights - Overview",
+      "uid": "shopinsights-overview",
+      "version": 1
+    }

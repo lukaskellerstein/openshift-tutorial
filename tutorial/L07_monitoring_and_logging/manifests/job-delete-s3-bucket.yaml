@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: delete-loki-bucket
+  namespace: openshift-logging
+spec:
+  ttlSecondsAfterFinished: 120
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: aws-cli
+          image: amazon/aws-cli:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              aws s3 rb "s3://${S3_BUCKET}" --force --region "${AWS_REGION}" 2>/dev/null || echo "Bucket removal failed or already gone."
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              value: "__AWS_KEY__"
+            - name: AWS_SECRET_ACCESS_KEY
+              value: "__AWS_SECRET__"
+            - name: AWS_DEFAULT_REGION
+              value: "__AWS_REGION__"
+            - name: S3_BUCKET
+              value: "__S3_BUCKET__"
+            - name: AWS_REGION
+              value: "__AWS_REGION__"

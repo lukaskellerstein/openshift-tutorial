@@ -117,18 +117,7 @@ echo "Creating TempoMonolithic instance..."
 oc apply -f "$LESSON_DIR/manifests/tempo.yaml"
 
 echo "Creating Telemetry resource (100% trace sampling)..."
-cat <<'TELEMETRY' | oc apply -f -
-apiVersion: telemetry.istio.io/v1
-kind: Telemetry
-metadata:
-  name: mesh-tracing
-  namespace: istio-system
-spec:
-  tracing:
-    - providers:
-        - name: tempo
-      randomSamplingPercentage: 100
-TELEMETRY
+oc apply -f "$LESSON_DIR/manifests/telemetry-tracing.yaml"
 
 echo "Granting Kiali SA cluster-monitoring-view for Prometheus access..."
 oc adm policy add-cluster-role-to-user cluster-monitoring-view \
@@ -152,56 +141,10 @@ echo "Creating OTel collector ServiceAccount..."
 oc create serviceaccount otel-collector -n istio-system 2>/dev/null || true
 
 echo "Creating RBAC for OTel collector to write traces to 'dev' tenant..."
-cat <<'RBAC_WRITE' | oc apply -f -
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: tempomonolithic-traces-write
-rules:
-  - apiGroups: ['tempo.grafana.com']
-    resources: [dev]
-    resourceNames: [traces]
-    verbs: ['create']
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: tempomonolithic-traces-write
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: tempomonolithic-traces-write
-subjects:
-  - kind: ServiceAccount
-    name: otel-collector
-    namespace: istio-system
-RBAC_WRITE
+oc apply -f "$LESSON_DIR/manifests/rbac-tempo-write.yaml"
 
 echo "Creating RBAC for authenticated users to read traces..."
-cat <<'RBAC_READ' | oc apply -f -
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: tempomonolithic-traces-read
-rules:
-  - apiGroups: ['tempo.grafana.com']
-    resources: [dev]
-    resourceNames: [traces]
-    verbs: ['get']
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: tempomonolithic-traces-read
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: tempomonolithic-traces-read
-subjects:
-  - kind: Group
-    apiGroup: rbac.authorization.k8s.io
-    name: system:authenticated
-RBAC_READ
+oc apply -f "$LESSON_DIR/manifests/rbac-tempo-read.yaml"
 
 echo "Creating OpenTelemetry Collector..."
 oc apply -f "$LESSON_DIR/manifests/otel-collector.yaml"
@@ -219,29 +162,7 @@ oc apply -f "$LESSON_DIR/manifests/uiplugin-tracing.yaml"
 # Grant ztunnel SA permission to impersonate service accounts (needed for SPIFFE cert fetching)
 echo ""
 echo "Granting ztunnel impersonation RBAC..."
-cat <<'RBAC' | oc apply -f -
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: ztunnel-impersonation
-rules:
-- apiGroups: [""]
-  resources: ["serviceaccounts"]
-  verbs: ["impersonate"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: ztunnel-impersonation
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: ztunnel-impersonation
-subjects:
-- kind: ServiceAccount
-  name: ztunnel
-  namespace: ztunnel
-RBAC
+oc apply -f "$LESSON_DIR/manifests/rbac-ztunnel-impersonation.yaml"
 
 # --- Step 7: Enroll the ShopInsights Namespace ---
 step 7 "Enroll shopinsights namespace in ambient mesh"
