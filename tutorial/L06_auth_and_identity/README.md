@@ -1,11 +1,21 @@
-# LP-L06 — Authentication & Authorization: OAuth, RBAC, and Keycloak
+# LP-L06 — Cluster Authentication & RBAC: Who Can Use the Platform
 
 **Level:** Personalized
 **Duration:** 45 min
 
 ## Overview
 
-OpenShift has a built-in OAuth server that handles cluster authentication — user login, token issuance, and session management. In this lesson, you configure an identity provider (HTPasswd), create users with different roles, and set up RBAC to control who can deploy to `shopinsights-dev` and `shopinsights-staging`. You also learn how the built-in OAuth server relates to Keycloak, which you already use for application-level authentication.
+This lesson is about **cluster authentication** — controlling who can access the OpenShift platform itself. This is NOT about securing your application's APIs or adding a login page to your app (that's [L11 — Application Authentication with Keycloak](../L11_app_auth_keycloak/)).
+
+Cluster auth answers questions like:
+
+- Who can run `oc login` and access the API server?
+- Which developers can deploy to the `dev` project but not `staging`?
+- What permissions does a pod's ServiceAccount have?
+
+Without cluster auth, anyone with the API server URL could deploy, delete, or modify workloads on your cluster. In this lesson, you configure an identity provider (HTPasswd), create users with different roles, and set up RBAC to control who can deploy to `shopinsights-dev` and `shopinsights-staging`.
+
+> **Cluster auth vs app auth:** Cluster auth controls who can use the *platform* (`oc login`, deploy pods, create Routes). Application auth controls who can use *your application* (dashboard login, API access, user roles within ShopInsights). They are separate layers — you need both. This lesson covers cluster auth; [L11](../L11_app_auth_keycloak/) covers app auth with Keycloak.
 
 ## Prerequisites
 
@@ -150,6 +160,8 @@ graph TD
 ```
 
 **Bottom line**: OpenShift OAuth replaces the "how do I authenticate users to my cluster" problem that you solve with Keycloak + OIDC flags in vanilla K8s. But Keycloak remains essential for application-level authentication in ShopInsights.
+
+You will deploy Keycloak and wire it into ShopInsights in [L11 — Application Authentication with Keycloak](../L11_app_auth_keycloak/).
 
 ## Step-by-Step
 
@@ -770,3 +782,5 @@ Note: This removes the HTPasswd identity provider. After cleanup, only `kubeadmi
 ## Next Steps
 
 Your cluster now has proper authentication and RBAC. In [L07: Monitoring & Logging](../L07_monitoring_and_logging/), you will add custom Prometheus metrics to the ShopInsights services, create ServiceMonitors, set up alerts, and configure log forwarding — giving you production-grade observability.
+
+Later, in [L11: Application Authentication with Keycloak](../L11_app_auth_keycloak/), you will deploy Keycloak and add OIDC login to the ShopInsights application — the "app auth" layer that complements the cluster auth you set up here. That lesson covers three patterns: user login to the dashboard, JWT-protected API endpoints, and service-to-service authentication using client credentials.

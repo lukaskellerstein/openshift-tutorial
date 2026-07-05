@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-auth-config
+  labels:
+    app: shopinsights
+    component: keycloak
+    tutorial: personalized
+    lesson: "11"
+data:
+  KEYCLOAK_URL: "__KEYCLOAK_URL__"
+  KEYCLOAK_REALM: "shopinsights"

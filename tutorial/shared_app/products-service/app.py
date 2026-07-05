@@ -1,6 +1,8 @@
 import os
 import duckdb
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
+
+from auth import get_current_user
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -116,7 +118,7 @@ def get_product(product_id: int):
 
 
 @app.post("/products")
-def create_product(product: Product):
+def create_product(product: Product, user: dict | None = Depends(get_current_user)):
     conn = get_connection()
     max_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM products").fetchone()[0]
     new_id = max_id + 1
