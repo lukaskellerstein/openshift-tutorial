@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+  labels:
+    app: shopinsights
+    component: keycloak
+    tutorial: personalized
+    lesson: "11"
+data:
+  shopinsights-realm.json: |
+    {
+      "realm": "shopinsights",
+      "enabled": true,
+      "sslRequired": "external",
+      "registrationAllowed": false,
+      "roles": {
+        "realm": [
+          {
+            "name": "viewer",
+            "description": "Can view data"
+          },
+          {
+            "name": "editor",
+            "description": "Can create and modify data"
+          }
+        ]
+      },
+      "clients": [
+        {
+          "clientId": "shopinsights-dashboard",
+          "enabled": true,
+          "publicClient": true,
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "redirectUris": ["*"],
+          "webOrigins": ["*"],
+          "defaultClientScopes": ["openid", "profile", "email"],
+          "protocol": "openid-connect"
+        },
+        {
+          "clientId": "shopinsights-api",
+          "enabled": true,
+          "bearerOnly": true,
+          "protocol": "openid-connect"
+        },
+        {
+          "clientId": "analytics-service",
+          "enabled": true,
+          "publicClient": false,
+          "serviceAccountsEnabled": true,
+          "standardFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "secret": "analytics-service-secret",
+          "protocol": "openid-connect"
+        }
+      ],
+      "users": [
+        {
+          "username": "alice",
+          "enabled": true,
+          "emailVerified": true,
+          "email": "alice@example.com",
+          "firstName": "Alice",
+          "lastName": "Developer",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "alice123",
+              "temporary": false
+            }
+          ],
+          "realmRoles": ["editor"]
+        },
+        {
+          "username": "bob",
+          "enabled": true,
+          "emailVerified": true,
+          "email": "bob@example.com",
+          "firstName": "Bob",
+          "lastName": "Viewer",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "bob123",
+              "temporary": false
+            }
+          ],
+          "realmRoles": ["viewer"]
+        },
+        {
+          "username": "admin",
+          "enabled": true,
+          "emailVerified": true,
+          "email": "admin@example.com",
+          "firstName": "Admin",
+          "lastName": "User",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "admin123",
+              "temporary": false
+            }
+          ],
+          "realmRoles": ["editor", "viewer"]
+        }
+      ]
+    }

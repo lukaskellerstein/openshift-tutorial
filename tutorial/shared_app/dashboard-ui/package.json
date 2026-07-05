@@ -18,7 +18,8 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.5.4",
-    "lucide-react": "^0.451.0"
+    "lucide-react": "^0.451.0",
+    "keycloak-js": "^25.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.2",

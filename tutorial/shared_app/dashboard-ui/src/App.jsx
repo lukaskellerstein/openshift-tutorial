@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Package, ShoppingCart, BarChart3, Plus, RefreshCw, DollarSign, TrendingUp, Loader2 } from 'lucide-react'
+import { Package, ShoppingCart, BarChart3, Plus, RefreshCw, DollarSign, TrendingUp, Loader2, LogOut } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { useKeycloak } from './keycloak'
 
 const API = {
   products: '/api/products',
@@ -15,6 +16,11 @@ const API = {
   summary: '/api/analytics/summary',
   revenue: '/api/analytics/revenue',
   topProducts: '/api/analytics/top-products',
+}
+
+function getAuthHeaders(token) {
+  if (!token) return {}
+  return { Authorization: `Bearer ${token}` }
 }
 
 function formatCurrency(value) {
@@ -36,15 +42,16 @@ function ProductsTab() {
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({ name: '', category: '', price: '', stock: '' })
+  const { token } = useKeycloak()
 
   const fetchProducts = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(API.products)
+      const res = await fetch(API.products, { headers: getAuthHeaders(token) })
       if (res.ok) setProducts(await res.json())
     } catch { /* ignore */ }
     setLoading(false)
-  }, [])
+  }, [token])
 
   useEffect(() => { fetchProducts() }, [fetchProducts])
 
@@ -54,7 +61,7 @@ function ProductsTab() {
     try {
       const res = await fetch(API.products, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(token) },
         body: JSON.stringify({
           name: form.name,
           category: form.category,
@@ -169,19 +176,20 @@ function OrdersTab() {
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({ product_id: '', quantity: '1', customer_name: '' })
+  const { token } = useKeycloak()
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
       const [ordersRes, productsRes] = await Promise.all([
-        fetch(API.orders),
-        fetch(API.products),
+        fetch(API.orders, { headers: getAuthHeaders(token) }),
+        fetch(API.products, { headers: getAuthHeaders(token) }),
       ])
       if (ordersRes.ok) setOrders(await ordersRes.json())
       if (productsRes.ok) setProducts(await productsRes.json())
     } catch { /* ignore */ }
     setLoading(false)
-  }, [])
+  }, [token])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -191,7 +199,7 @@ function OrdersTab() {
     try {
       const res = await fetch(API.orders, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(token) },
         body: JSON.stringify({
           product_id: parseInt(form.product_id, 10),
           quantity: parseInt(form.quantity, 10),
@@ -314,21 +322,22 @@ function AnalyticsTab() {
   const [revenue, setRevenue] = useState(null)
   const [topProducts, setTopProducts] = useState(null)
   const [loading, setLoading] = useState(true)
+  const { token } = useKeycloak()
 
   const fetchAnalytics = useCallback(async () => {
     setLoading(true)
     try {
       const [summaryRes, revenueRes, topRes] = await Promise.all([
-        fetch(API.summary),
-        fetch(API.revenue),
-        fetch(API.topProducts),
+        fetch(API.summary, { headers: getAuthHeaders(token) }),
+        fetch(API.revenue, { headers: getAuthHeaders(token) }),
+        fetch(API.topProducts, { headers: getAuthHeaders(token) }),
       ])
       if (summaryRes.ok) setSummary(await summaryRes.json())
       if (revenueRes.ok) setRevenue(await revenueRes.json())
       if (topRes.ok) setTopProducts(await topRes.json())
     } catch { /* ignore */ }
     setLoading(false)
-  }, [])
+  }, [token])
 
   useEffect(() => { fetchAnalytics() }, [fetchAnalytics])
 
@@ -481,6 +490,8 @@ function AnalyticsTab() {
 }
 
 export default function App() {
+  const { authenticated, username, keycloak } = useKeycloak()
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
@@ -488,6 +499,15 @@ export default function App() {
           <BarChart3 className="h-6 w-6 text-primary mr-2" />
           <h1 className="text-xl font-bold">ShopInsights</h1>
           <span className="ml-2 text-sm text-muted-foreground">E-Commerce Analytics</span>
+          {authenticated && (
+            <div className="ml-auto flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">{username}</span>
+              <Button variant="outline" size="sm" onClick={() => keycloak.logout()}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </Button>
+            </div>
+          )}
         </div>
       </header>
       <main className="container mx-auto px-4 py-6">

@@ -3,7 +3,9 @@ from datetime import datetime, timezone
 
 import duckdb
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
+
+from auth import get_current_user
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -160,7 +162,7 @@ def get_order(order_id: int):
 
 
 @app.post("/orders")
-def create_order(order: OrderCreate):
+def create_order(order: OrderCreate, user: dict | None = Depends(get_current_user)):
     # Validate product and get price from Products Service
     try:
         resp = httpx.get(

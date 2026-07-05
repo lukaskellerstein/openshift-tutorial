@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime, timezone
 
 import duckdb
@@ -27,6 +28,56 @@ ORDERS_SERVICE_URL = os.getenv(
 
 HTTP_TIMEOUT = 10.0
 
+KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "")
+KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "shopinsights")
+KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "")
+KEYCLOAK_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET", "")
+
+_token_cache: dict | None = None
+
+
+# ---------------------------------------------------------------------------
+# Service-to-service token (client credentials grant)
+# ---------------------------------------------------------------------------
+
+def _get_service_token() -> str | None:
+    """Acquire a token via client credentials grant, with caching."""
+    global _token_cache
+    if not (KEYCLOAK_URL and KEYCLOAK_CLIENT_ID and KEYCLOAK_CLIENT_SECRET):
+        return None
+
+    if _token_cache and _token_cache["expires_at"] > time.time():
+        return _token_cache["access_token"]
+
+    token_url = (
+        f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}"
+        "/protocol/openid-connect/token"
+    )
+    resp = httpx.post(
+        token_url,
+        data={
+            "grant_type": "client_credentials",
+            "client_id": KEYCLOAK_CLIENT_ID,
+            "client_secret": KEYCLOAK_CLIENT_SECRET,
+        },
+        timeout=10.0,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    _token_cache = {
+        "access_token": data["access_token"],
+        "expires_at": time.time() + data.get("expires_in", 300) - 30,
+    }
+    return _token_cache["access_token"]
+
+
+def _auth_headers() -> dict:
+    """Return Authorization header if service token is available."""
+    token = _get_service_token()
+    if token:
+        return {"Authorization": f"Bearer {token}"}
+    return {}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -34,21 +85,33 @@ HTTP_TIMEOUT = 10.0
 
 def fetch_products() -> list[dict]:
     """Fetch all products from the Products Service."""
-    resp = httpx.get(f"{PRODUCTS_SERVICE_URL}/products", timeout=HTTP_TIMEOUT)
+    resp = httpx.get(
+        f"{PRODUCTS_SERVICE_URL}/products",
+        headers=_auth_headers(),
+        timeout=HTTP_TIMEOUT,
+    )
     resp.raise_for_status()
     return resp.json()
 
 
 def fetch_orders() -> list[dict]:
     """Fetch all orders from the Orders Service."""
-    resp = httpx.get(f"{ORDERS_SERVICE_URL}/orders", timeout=HTTP_TIMEOUT)
+    resp = httpx.get(
+        f"{ORDERS_SERVICE_URL}/orders",
+        headers=_auth_headers(),
+        timeout=HTTP_TIMEOUT,
+    )
     resp.raise_for_status()
     return resp.json()
 
 
 def fetch_order_stats() -> dict:
     """Fetch aggregated order stats from the Orders Service."""
-    resp = httpx.get(f"{ORDERS_SERVICE_URL}/orders/stats", timeout=HTTP_TIMEOUT)
+    resp = httpx.get(
+        f"{ORDERS_SERVICE_URL}/orders/stats",
+        headers=_auth_headers(),
+        timeout=HTTP_TIMEOUT,
+    )
     resp.raise_for_status()
     return resp.json()
 

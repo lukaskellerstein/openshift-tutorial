@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-keycloak-config
+  labels:
+    app: shopinsights
+    component: keycloak
+    tutorial: personalized
+    lesson: "11"
+data:
+  keycloak-config.json: |
+    {
+      "url": "__KEYCLOAK_URL__",
+      "realm": "shopinsights",
+      "clientId": "shopinsights-dashboard"
+    }

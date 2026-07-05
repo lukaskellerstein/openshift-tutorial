@@ -2,7 +2,7 @@
 
 **Audience:** You know Kubernetes. You use Traefik, Keycloak, and vanilla K8s. Now you want to understand OpenShift — not every feature, but the ones that matter for running real microservices.
 
-**Approach:** One project, ten lessons. Each lesson adds an OpenShift capability to the same application. By the end, you have a production-ready microservices platform with Routes, Service Mesh, CI/CD, GitOps, monitoring, and serverless.
+**Approach:** One project, eleven lessons. Each lesson adds an OpenShift capability to the same application. By the end, you have a production-ready microservices platform with Routes, Service Mesh, CI/CD, GitOps, monitoring, and serverless.
 
 **Environment:** Red Hat Demo Platform (recommended), Developer Sandbox, or OpenShift Local (CRC).
 
@@ -341,8 +341,9 @@ crc status                 # Check if the cluster is running
 | 08 | [CI/CD Pipeline](L08_cicd_pipeline/) | 1 hr 15 min | Tekton pipeline: GitHub → test → build → push to GHCR → deploy. |
 | 09 | [GitOps with ArgoCD](L09_gitops/) | 1 hr | **Why GitOps?** ArgoCD, Kustomize overlays, drift detection, auto-heal. |
 | 10 | [Serverless](L10_serverless/) | 45 min | **Why serverless?** Knative, scale-to-zero, cold starts, eventing. |
+| 11 | [Application Auth (Keycloak)](L11_app_auth_keycloak/) | 75 min | Three auth patterns: user OIDC login, JWT-protected APIs, service-to-service (client credentials). |
 
-**Total:** ~8 hours
+**Total:** ~9 hours
 
 ---
 
@@ -405,7 +406,7 @@ Quick pointers to where each of your original questions is addressed:
 | Your Question | Answer | Lesson |
 |---|---|---|
 | Is Route a replacement for Traefik? | Yes, for HTTP/HTTPS ingress. HAProxy router is pre-installed. | L04 |
-| Is OAuth a replacement for Keycloak? | For cluster auth, yes. For app-level SSO, no — you still need Keycloak/RHSSO. | L06 |
+| Is OAuth a replacement for Keycloak? | For cluster auth, yes. For app-level auth, no — you still need Keycloak/RHSSO. | L06 (cluster auth), L11 (app auth) |
 | Why should I use serverless? | Scale-to-zero saves resources for sporadic workloads. | L10 |
 | Why should I use GitOps? | Git becomes the single source of truth. No more "who changed what on the cluster." | L09 |
 | Is BuildConfig related to CI/CD? | BuildConfig is the build step. CI/CD (Tekton) orchestrates the full workflow. | L02, L08 |
@@ -426,4 +427,5 @@ tutorial/
   L02_builds_and_images/
   ...
   L10_serverless/
+  L11_app_auth_keycloak/
 ```
