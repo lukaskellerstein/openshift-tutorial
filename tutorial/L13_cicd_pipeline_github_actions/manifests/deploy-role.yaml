@@ -1,0 +1,20 @@
+# Least-privilege Role — can only read and patch Deployments.
+# Compare with L08 where the pipeline SA had the broad "edit" ClusterRole.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployer
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "13"
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/status"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]

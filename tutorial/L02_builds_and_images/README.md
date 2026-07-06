@@ -52,6 +52,39 @@ Kubernetes itself has no build primitives. You need external CI (GitHub Actions,
 
 This is flexible but requires assembling multiple tools. OpenShift offers an integrated alternative.
 
+## Build and Deploy Architecture
+
+This lesson uses **internal build** and **internal registry** — everything stays inside the cluster:
+
+```mermaid
+graph LR
+    subgraph "Outside Cluster"
+        GH["GitHub Repo<br/>(source code)"]
+    end
+
+    subgraph "OpenShift Cluster"
+        BC["BuildConfig<br/>(manual oc start-build)"]
+        IR["Internal Registry<br/>(ImageStream)"]
+        DEP["Deployment<br/>(auto-redeploy on<br/>image change)"]
+    end
+
+    GH -->|"git clone<br/>(build pulls source)"| BC
+    BC -->|"push image"| IR
+    IR -->|"image change<br/>trigger"| DEP
+
+    style BC fill:#2196F3,color:#fff
+    style IR fill:#2196F3,color:#fff
+```
+
+> **How this lesson fits in the tutorial:**
+>
+> | Lesson | Build | Registry | CI/CD | Deploy |
+> |--------|-------|----------|-------|--------|
+> | **L02 (this)** | **Internal (BuildConfig)** | **Internal (ImageStream)** | **Manual** | **Auto (image trigger)** |
+> | [L08](../L08_cicd_pipeline/) | Internal (Tekton + buildah) | External (GHCR) | Internal (Tekton) | Pipeline (`oc set image`) |
+> | [L13](../L13_cicd_pipeline_github_actions/) | External (GitHub Actions) | External (GHCR) | External (GitHub Actions) | Pipeline (`oc set image`) |
+> | [L09](../L09_gitops/) | — (images pre-built) | External (GHCR) | — | GitOps (ArgoCD) |
+
 ## Concepts
 
 ### BuildConfig

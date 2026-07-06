@@ -114,6 +114,40 @@ The Analytics Service is a textbook serverless candidate: it is stateless (queri
 
 ---
 
+## Build and Deploy Architecture
+
+This lesson replaces the Analytics Service Deployment with a **Knative Service** that scales to zero. The image comes from an external registry, built by CI in a previous lesson:
+
+```mermaid
+graph LR
+    subgraph "Outside Cluster"
+        GHCR["GHCR<br/>(pre-built image<br/>from L08 or L13)"]
+    end
+
+    subgraph "OpenShift Cluster"
+        KSVC["Knative Service<br/>(analytics-service)"]
+        KN["Knative Serving<br/>(scale-to-zero)"]
+        RT["Route<br/>(auto-managed)"]
+    end
+
+    GHCR -->|"pull image"| KSVC
+    KN -->|"manages"| KSVC
+    KSVC --> RT
+
+    style KSVC fill:#2196F3,color:#fff
+    style KN fill:#2196F3,color:#fff
+```
+
+> **How this lesson fits in the tutorial:**
+>
+> | Lesson | Build | Registry | Deploy |
+> |--------|-------|----------|--------|
+> | [L02](../L02_builds_and_images/) | Internal (BuildConfig) | Internal (ImageStream) | Deployment (always-on) |
+> | [L08](../L08_cicd_pipeline/) | Internal (Tekton + buildah) | External (GHCR) | Deployment via pipeline |
+> | [L13](../L13_cicd_pipeline_github_actions/) | External (GitHub Actions) | External (GHCR) | Deployment via pipeline |
+> | **L10 (this)** | **— (uses pre-built image)** | **External (GHCR)** | **Knative Service (scale-to-zero)** |
+> | [L09](../L09_gitops/) | — (images pre-built) | External (GHCR) | GitOps (ArgoCD auto-sync) |
+
 ## Concepts
 
 ### Knative Serving
