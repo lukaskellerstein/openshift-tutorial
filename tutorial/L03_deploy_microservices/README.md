@@ -75,6 +75,8 @@ These are identical to Kubernetes probes — OpenShift does not change them. But
 
 ## Architecture
 
+### Application Architecture
+
 ```mermaid
 graph TD
     UI["Dashboard UI (React)<br/>Products | Orders | Analytics"]
@@ -106,6 +108,35 @@ graph TD
 ```
 
 All services listen on port 8080 inside the cluster. The Analytics Service calls Products and Orders via Kubernetes Service DNS (`http://products-service:8080`).
+
+### Build and Deploy Architecture
+
+This lesson deploys from the **internal registry** using images built in L02 — everything stays inside the cluster:
+
+```mermaid
+graph LR
+    subgraph "OpenShift Cluster"
+        IR["Internal Registry<br/>(ImageStreams from L02)"]
+        DEP["Deployments<br/>(4 services)"]
+        SVC["Services + Routes<br/>(networking)"]
+    end
+
+    IR -->|"image reference"| DEP
+    DEP --> SVC
+
+    style DEP fill:#2196F3,color:#fff
+    style SVC fill:#2196F3,color:#fff
+```
+
+> **How this lesson fits in the tutorial:**
+>
+> | Lesson | Build | Registry | Deploy |
+> |--------|-------|----------|--------|
+> | [L02](../L02_builds_and_images/) | Internal (BuildConfig) | Internal (ImageStream) | Auto (image trigger) |
+> | **L03 (this)** | **— (uses L02 images)** | **Internal (ImageStream)** | **Manual (`oc apply`)** |
+> | [L08](../L08_cicd_pipeline/) | Internal (Tekton + buildah) | External (GHCR) | Pipeline (`oc set image`) |
+> | [L13](../L13_cicd_pipeline_github_actions/) | External (GitHub Actions) | External (GHCR) | Pipeline (`oc set image`) |
+> | [L09](../L09_gitops/) | — (images pre-built) | External (GHCR) | GitOps (ArgoCD auto-sync) |
 
 ## Step-by-Step
 

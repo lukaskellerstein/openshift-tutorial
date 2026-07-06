@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions-deployer
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "13"
+subjects:
+  - kind: ServiceAccount
+    name: github-actions-deployer
+roleRef:
+  kind: Role
+  name: deployer
+  apiGroup: rbac.authorization.k8s.io

@@ -25,6 +25,53 @@ In vanilla Kubernetes, CI/CD is entirely external. You use GitHub Actions, Jenki
 
 OpenShift Pipelines (Tekton) runs CI/CD inside the cluster. The pipeline engine is a Kubernetes-native system: Tasks are pods, Pipelines are custom resources, and PipelineRuns are execution records stored in etcd. Everything is declarative YAML, versioned, and observable through the same tools you use for your workloads.
 
+## Build and Deploy Architecture
+
+This lesson uses **internal CI/CD** (Tekton runs as pods inside the cluster) but pushes to an **external registry** (GHCR):
+
+```mermaid
+graph LR
+    subgraph "Outside Cluster"
+        GH["GitHub Repo<br/>(source code)"]
+        GHCR["GHCR<br/>(ghcr.io)"]
+    end
+
+    subgraph "OpenShift Cluster"
+        EL["EventListener<br/>(webhook receiver)"]
+        CLONE["Task: Clone"]
+        TEST["Task: Test"]
+        BUILD["Task: Build & Push<br/>(buildah)"]
+        DEPLOY["Task: Deploy<br/>(oc set image)"]
+        APP["Deployment<br/>(workloads)"]
+    end
+
+    GH -->|"webhook"| EL
+    EL --> CLONE
+    CLONE --> TEST
+    TEST --> BUILD
+    BUILD -->|"push image"| GHCR
+    GHCR -.->|"pull image"| APP
+    DEPLOY -->|"patch image ref"| APP
+
+    style EL fill:#2196F3,color:#fff
+    style CLONE fill:#2196F3,color:#fff
+    style TEST fill:#2196F3,color:#fff
+    style BUILD fill:#2196F3,color:#fff
+    style DEPLOY fill:#2196F3,color:#fff
+    style GHCR fill:#FF9800,color:#fff
+```
+
+Everything highlighted in blue runs as pods inside the cluster. The orange GHCR is external. Compare this with the fully external pattern in [L13](../L13_cicd_pipeline_github_actions/).
+
+> **How this lesson fits in the tutorial:**
+>
+> | Lesson | Build | Registry | CI/CD | Deploy |
+> |--------|-------|----------|-------|--------|
+> | [L02](../L02_builds_and_images/) | Internal (BuildConfig) | Internal (ImageStream) | Manual | Auto (image trigger) |
+> | **L08 (this)** | **Internal (Tekton + buildah)** | **External (GHCR)** | **Internal (Tekton)** | **Pipeline (`oc set image`)** |
+> | [L13](../L13_cicd_pipeline_github_actions/) | External (GitHub Actions) | External (GHCR) | External (GitHub Actions) | Pipeline (`oc set image`) |
+> | [L09](../L09_gitops/) | — (images pre-built) | External (GHCR) | — | GitOps (ArgoCD auto-sync) |
+
 ## Concepts
 
 ### Tekton Primitives
@@ -49,6 +96,20 @@ Here, **Tekton orchestrates the full lifecycle**: clone, test, build, push, depl
 Think of it this way:
 - **BuildConfig** = "cluster, build this image for me" (single step)
 - **Tekton Pipeline** = "cluster, run my entire CI/CD workflow" (multi-step)
+
+### Why an External Registry (GHCR)?
+
+In L02, BuildConfig pushed images to OpenShift's internal registry — simple, no credentials needed, and perfectly fine for single-cluster development. So why does this lesson push to GitHub Container Registry instead?
+
+Because in production, teams almost always use an external registry:
+
+- **Portability** — images are accessible from any cluster, not locked inside one OpenShift instance. If you rebuild the cluster, your images still exist.
+- **Multi-cluster deploys** — staging and production clusters pull the same image from the same registry. No need to copy images between internal registries.
+- **Disaster recovery** — the internal registry lives on the cluster's storage. If the cluster goes down, the images go with it. An external registry is independently available.
+- **External CI integration** — when CI runs outside the cluster (GitHub Actions, GitLab CI), it needs a registry it can push to without cluster access. GHCR is the natural choice for GitHub-hosted workflows — you will see this in [L13](../L13_cicd_pipeline_github_actions/).
+- **GitOps** — ArgoCD ([L09](../L09_gitops/)) or other deployment tools can reference external image tags without needing access to the cluster's internal registry.
+
+> **Note:** For single-cluster learning and development, the internal registry works great — L02 already demonstrated that. The external registry pattern here prepares you for production workflows where cluster independence matters.
 
 ### ClusterTasks and Tekton Hub
 
@@ -870,6 +931,67 @@ oc get pods -l component=products-service
 - **Tekton Triggers** automate pipeline execution via webhooks — every `git push` creates a new PipelineRun.
 - **buildah** runs unprivileged on OpenShift (with `--storage-driver=vfs`) — no Docker daemon needed, no root required.
 - The **Web Console** provides a visual pipeline graph with live logs — far better than scrolling through CI log files.
+
+## Production Considerations
+
+In this lesson, the Tekton pipeline runs on the same cluster — and in the same namespace — as the application workloads. This is convenient for learning, but in production it introduces real risks:
+
+- **Resource contention** — buildah builds are CPU and memory intensive. A burst of pipeline runs can starve application pods of resources, causing latency spikes or OOM kills.
+- **Blast radius** — a badly written pipeline (infinite loop, resource leak, runaway builds) can degrade the entire cluster, not just the CI/CD namespace.
+- **Security surface** — the pipeline ServiceAccount has `edit` access to the namespace. A compromised pipeline could modify or delete production workloads.
+
+Production teams address this by:
+
+1. **Separating CI from workloads** — run pipelines on a dedicated CI/CD cluster or in an isolated namespace with strict `ResourceQuotas` and `LimitRanges`.
+2. **Using external CI** — move the build and test stages off-cluster entirely (GitHub Actions, GitLab CI, Jenkins). Only the deploy step reaches into the cluster, using a tightly scoped ServiceAccount. See [L13: External CI/CD with GitHub Actions](../L13_cicd_pipeline_github_actions/) for this pattern.
+3. **Least-privilege RBAC** — give the pipeline SA only the permissions it actually needs (e.g., `patch deployments` rather than the broad `edit` role).
+
+The in-cluster Tekton approach taught here is valid for small teams, dev/test environments, and scenarios where keeping everything in one place simplifies operations. For production workloads at scale, separating CI infrastructure from application infrastructure is the standard practice.
+
+### How Production Teams Actually Do It
+
+In real companies, CI and CD are separate systems run by separate infrastructure. Here are the three patterns you will see, from most to least common:
+
+**Pattern 1: Fully External CI + GitOps (industry default)**
+
+```
+Developer pushes code
+       │
+       ▼
+External CI (GitHub Actions / GitLab CI / Jenkins)
+  ├── lint + unit tests
+  ├── build image
+  ├── push to external registry (Quay, GHCR, ECR)
+  └── update image tag in GitOps repo
+       │
+       ▼
+ArgoCD on target cluster detects GitOps repo change
+  ├── renders Kustomize/Helm manifests
+  └── syncs new image to the cluster
+```
+
+Most teams use this. CI never touches the cluster. The cluster is a pure deployment target. ArgoCD (covered in [L09](../L09_gitops/)) or Flux handles the CD side. See [L13](../L13_cicd_pipeline_github_actions/) for the external CI half of this pattern.
+
+**Pattern 2: Dedicated CI Cluster (enterprise OpenShift shops)**
+
+```
+CI Cluster (Tekton) ──> Quay/Artifactory ──> Staging Cluster (ArgoCD) ──> Prod Cluster (ArgoCD)
+```
+
+Companies fully committed to OpenShift (banks, telcos, government) sometimes run Tekton on a separate non-production cluster. They want everything Kubernetes-native — pipeline definitions, executions, and audit trails all live as CRDs in etcd. This matters when compliance requires all infrastructure to be auditable through one control plane. The CI cluster is sized for burst build capacity and has no production workloads.
+
+**Pattern 3: Shared Cluster with Namespace Isolation (budget-constrained)**
+
+```
+Same cluster, different namespaces:
+  ci-pipelines  ── ResourceQuota: 4 CPU, 8Gi RAM, LimitRange per pod
+  staging       ── workloads
+  production    ── workloads, stricter RBAC, NetworkPolicies
+```
+
+Smaller teams that cannot afford multiple clusters run pipelines in an isolated namespace with strict `ResourceQuotas` and `LimitRanges` so builds cannot starve workloads. It works but requires careful tuning and monitoring.
+
+**What nobody does** is run Tekton pipelines in the same namespace as production workloads with the broad `edit` role — which is what this lesson teaches for simplicity. In production, the deploy step always uses a least-privilege ServiceAccount (see [L13](../L13_cicd_pipeline_github_actions/) for an example), and images always flow through an external registry — never the internal registry as the source of truth for production.
 
 ## Cleanup
 

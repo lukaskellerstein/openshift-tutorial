@@ -1,0 +1,14 @@
+# Long-lived token for the ServiceAccount.
+# In OpenShift 4.x / K8s 1.24+, ServiceAccounts no longer auto-generate
+# persistent tokens. This Secret creates one explicitly.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-actions-deployer-token
+  labels:
+    app: shopinsights
+    tutorial: personalized
+    lesson: "13"
+  annotations:
+    kubernetes.io/service-account.name: github-actions-deployer
+type: kubernetes.io/service-account-token

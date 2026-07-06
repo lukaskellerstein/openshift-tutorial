@@ -63,6 +63,53 @@ GitOps is not just "putting YAML in Git." You probably already do that. The crit
 | Self-healing | ArgoCD auto-corrects unauthorized manual changes |
 | Disaster recovery | The entire cluster state is in Git — recreate from scratch |
 
+## Build and Deploy Architecture
+
+This lesson focuses on **CD only** — ArgoCD syncs manifests from Git to the cluster. It does not build images. The images are assumed to already exist in an external registry, built by CI in [L08](../L08_cicd_pipeline/) or [L13](../L13_cicd_pipeline_github_actions/):
+
+```mermaid
+graph LR
+    subgraph "Outside Cluster"
+        GR["GitOps Repo<br/>(Kustomize manifests)"]
+        GHCR["GHCR<br/>(pre-built images)"]
+    end
+
+    subgraph "OpenShift Cluster"
+        ARGO["ArgoCD<br/>(watches Git repo)"]
+        APP["Deployments<br/>(workloads)"]
+    end
+
+    GR -->|"continuous sync"| ARGO
+    ARGO -->|"apply manifests"| APP
+    GHCR -.->|"pull image"| APP
+
+    style ARGO fill:#2196F3,color:#fff
+    style GR fill:#FF9800,color:#fff
+```
+
+In the full production flow, CI feeds into this: a pipeline (L08 or L13) builds an image, pushes it to GHCR, and updates the image tag in the GitOps repo. ArgoCD detects the change and syncs it to the cluster:
+
+```mermaid
+graph LR
+    DEV["Developer<br/>pushes code"] --> CI["CI Pipeline<br/>(L08 Tekton or<br/>L13 GitHub Actions)"]
+    CI -->|"push image"| GHCR["GHCR"]
+    CI -->|"update image tag"| GR["GitOps Repo"]
+    GR -->|"sync"| ARGO["ArgoCD"]
+    ARGO -->|"deploy"| APP["Workloads"]
+    GHCR -.->|"pull"| APP
+
+    style ARGO fill:#2196F3,color:#fff
+```
+
+> **How this lesson fits in the tutorial:**
+>
+> | Lesson | Build | Registry | CI/CD | Deploy |
+> |--------|-------|----------|-------|--------|
+> | [L02](../L02_builds_and_images/) | Internal (BuildConfig) | Internal (ImageStream) | Manual | Auto (image trigger) |
+> | [L08](../L08_cicd_pipeline/) | Internal (Tekton + buildah) | External (GHCR) | Internal (Tekton) | Pipeline (`oc set image`) |
+> | [L13](../L13_cicd_pipeline_github_actions/) | External (GitHub Actions) | External (GHCR) | External (GitHub Actions) | Pipeline (`oc set image`) |
+> | **L09 (this)** | **— (images pre-built)** | **External (GHCR)** | **—** | **GitOps (ArgoCD auto-sync)** |
+
 ## Concepts
 
 ### ArgoCD Architecture
