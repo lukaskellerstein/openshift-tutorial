@@ -1,13 +1,38 @@
 import os
+import re
+import time
 from datetime import datetime, timezone
 
 import duckdb
 import httpx
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import Counter, Gauge, Histogram, make_asgi_app
+from pydantic import BaseModel
 
 from auth import get_current_user
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+
+http_requests_total = Counter(
+    "http_requests_total",
+    "Total number of HTTP requests",
+    ["method", "endpoint", "status"],
+)
+http_request_duration_seconds = Histogram(
+    "http_request_duration_seconds",
+    "HTTP request duration in seconds",
+    ["method", "endpoint"],
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+)
+duckdb_query_duration_seconds = Histogram(
+    "duckdb_query_duration_seconds",
+    "DuckDB query duration in seconds",
+    ["query_type"],
+    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+active_connections = Gauge(
+    "active_connections",
+    "Number of currently active HTTP connections",
+)
 
 app = FastAPI(title="Orders Service")
 
@@ -17,6 +42,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
+
+_ID_RE = re.compile(r"/\d+")
+
+
+def _normalise_path(path: str) -> str:
+    return _ID_RE.sub("/{id}", path)
+
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    if request.url.path.startswith("/metrics"):
+        return await call_next(request)
+    active_connections.inc()
+    start_time = time.perf_counter()
+    status_code = 500
+    try:
+        response: Response = await call_next(request)
+        status_code = response.status_code
+        return response
+    except Exception:
+        raise
+    finally:
+        duration = time.perf_counter() - start_time
+        endpoint = _normalise_path(request.url.path)
+        http_requests_total.labels(
+            method=request.method, endpoint=endpoint, status=str(status_code)
+        ).inc()
+        http_request_duration_seconds.labels(
+            method=request.method, endpoint=endpoint
+        ).observe(duration)
+        active_connections.dec()
 
 DATA_DIR = os.getenv("DATA_DIR", "/data")
 DB_PATH = os.path.join(DATA_DIR, "orders.parquet")
@@ -59,32 +118,35 @@ def seed(conn):
 def get_connection():
     conn = duckdb.connect()
     if os.path.exists(DB_PATH):
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS orders AS SELECT * FROM read_parquet(?)",
-            [DB_PATH],
-        )
+        with duckdb_query_duration_seconds.labels(query_type="init_read_parquet").time():
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS orders AS SELECT * FROM read_parquet(?)",
+                [DB_PATH],
+            )
         if conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0] == 0:
             seed(conn)
     else:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER,
-                product_id INTEGER,
-                product_name VARCHAR,
-                quantity INTEGER,
-                unit_price DOUBLE,
-                total_price DOUBLE,
-                customer_name VARCHAR,
-                status VARCHAR,
-                created_at VARCHAR
-            )
-        """)
+        with duckdb_query_duration_seconds.labels(query_type="init_create_table").time():
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS orders (
+                    id INTEGER,
+                    product_id INTEGER,
+                    product_name VARCHAR,
+                    quantity INTEGER,
+                    unit_price DOUBLE,
+                    total_price DOUBLE,
+                    customer_name VARCHAR,
+                    status VARCHAR,
+                    created_at VARCHAR
+                )
+            """)
         seed(conn)
     return conn
 
 
 def save(conn):
-    conn.execute(f"COPY orders TO '{DB_PATH}' (FORMAT PARQUET)")
+    with duckdb_query_duration_seconds.labels(query_type="save_parquet").time():
+        conn.execute(f"COPY orders TO '{DB_PATH}' (FORMAT PARQUET)")
 
 
 def row_to_dict(r):
@@ -119,13 +181,15 @@ def ready():
 @app.get("/orders/stats")
 def order_stats():
     conn = get_connection()
-    total = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
-    revenue = conn.execute(
-        "SELECT COALESCE(SUM(total_price), 0) FROM orders"
-    ).fetchone()[0]
-    by_status = conn.execute(
-        "SELECT status, COUNT(*) as count FROM orders GROUP BY status ORDER BY status"
-    ).fetchall()
+    with duckdb_query_duration_seconds.labels(query_type="stats_count").time():
+        total = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
+        revenue = conn.execute(
+            "SELECT COALESCE(SUM(total_price), 0) FROM orders"
+        ).fetchone()[0]
+    with duckdb_query_duration_seconds.labels(query_type="stats_by_status").time():
+        by_status = conn.execute(
+            "SELECT status, COUNT(*) as count FROM orders GROUP BY status ORDER BY status"
+        ).fetchall()
     conn.close()
     return {
         "total_orders": total,
@@ -137,11 +201,12 @@ def order_stats():
 @app.get("/orders")
 def list_orders():
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT id, product_id, product_name, quantity, unit_price, "
-        "total_price, customer_name, status, created_at "
-        "FROM orders ORDER BY id"
-    ).fetchall()
+    with duckdb_query_duration_seconds.labels(query_type="select_all").time():
+        rows = conn.execute(
+            "SELECT id, product_id, product_name, quantity, unit_price, "
+            "total_price, customer_name, status, created_at "
+            "FROM orders ORDER BY id"
+        ).fetchall()
     conn.close()
     return [row_to_dict(r) for r in rows]
 
@@ -149,12 +214,13 @@ def list_orders():
 @app.get("/orders/{order_id}")
 def get_order(order_id: int):
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT id, product_id, product_name, quantity, unit_price, "
-        "total_price, customer_name, status, created_at "
-        "FROM orders WHERE id = ?",
-        [order_id],
-    ).fetchall()
+    with duckdb_query_duration_seconds.labels(query_type="select_by_id").time():
+        rows = conn.execute(
+            "SELECT id, product_id, product_name, quantity, unit_price, "
+            "total_price, customer_name, status, created_at "
+            "FROM orders WHERE id = ?",
+            [order_id],
+        ).fetchall()
     conn.close()
     if not rows:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -192,20 +258,21 @@ def create_order(order: OrderCreate, user: dict | None = Depends(get_current_use
     conn = get_connection()
     max_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM orders").fetchone()[0]
     new_id = max_id + 1
-    conn.execute(
-        "INSERT INTO orders VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-            new_id,
-            order.product_id,
-            product_name,
-            order.quantity,
-            unit_price,
-            total_price,
-            order.customer_name,
-            "pending",
-            created_at,
-        ],
-    )
+    with duckdb_query_duration_seconds.labels(query_type="insert").time():
+        conn.execute(
+            "INSERT INTO orders VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                new_id,
+                order.product_id,
+                product_name,
+                order.quantity,
+                unit_price,
+                total_price,
+                order.customer_name,
+                "pending",
+                created_at,
+            ],
+        )
     save(conn)
     conn.close()
     return {

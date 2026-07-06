@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: orders-service-monitor
+  labels:
+    app: shopinsights
+    component: orders-service
+    tutorial: personalized
+    lesson: "07"
+spec:
+  selector:
+    matchLabels:
+      app: shopinsights
+      component: orders-service
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scheme: http

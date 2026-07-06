@@ -1,10 +1,36 @@
 import os
+import re
+import time
+
 import duckdb
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import Counter, Gauge, Histogram, make_asgi_app
+from pydantic import BaseModel
 
 from auth import get_current_user
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+
+http_requests_total = Counter(
+    "http_requests_total",
+    "Total number of HTTP requests",
+    ["method", "endpoint", "status"],
+)
+http_request_duration_seconds = Histogram(
+    "http_request_duration_seconds",
+    "HTTP request duration in seconds",
+    ["method", "endpoint"],
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+)
+duckdb_query_duration_seconds = Histogram(
+    "duckdb_query_duration_seconds",
+    "DuckDB query duration in seconds",
+    ["query_type"],
+    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+active_connections = Gauge(
+    "active_connections",
+    "Number of currently active HTTP connections",
+)
 
 app = FastAPI(title="Products Service")
 
@@ -14,6 +40,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
+
+_ID_RE = re.compile(r"/\d+")
+
+
+def _normalise_path(path: str) -> str:
+    return _ID_RE.sub("/{id}", path)
+
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    if request.url.path.startswith("/metrics"):
+        return await call_next(request)
+    active_connections.inc()
+    start_time = time.perf_counter()
+    status_code = 500
+    try:
+        response: Response = await call_next(request)
+        status_code = response.status_code
+        return response
+    except Exception:
+        raise
+    finally:
+        duration = time.perf_counter() - start_time
+        endpoint = _normalise_path(request.url.path)
+        http_requests_total.labels(
+            method=request.method, endpoint=endpoint, status=str(status_code)
+        ).inc()
+        http_request_duration_seconds.labels(
+            method=request.method, endpoint=endpoint
+        ).observe(duration)
+        active_connections.dec()
 
 DATA_DIR = os.getenv("DATA_DIR", "/data")
 DB_PATH = os.path.join(DATA_DIR, "products.parquet")
@@ -51,28 +111,31 @@ def seed(conn):
 def get_connection():
     conn = duckdb.connect()
     if os.path.exists(DB_PATH):
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS products AS SELECT * FROM read_parquet(?)",
-            [DB_PATH],
-        )
+        with duckdb_query_duration_seconds.labels(query_type="init_read_parquet").time():
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS products AS SELECT * FROM read_parquet(?)",
+                [DB_PATH],
+            )
         if conn.execute("SELECT COUNT(*) FROM products").fetchone()[0] == 0:
             seed(conn)
     else:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS products (
-                id INTEGER,
-                name VARCHAR,
-                category VARCHAR,
-                price DOUBLE,
-                stock INTEGER
-            )
-        """)
+        with duckdb_query_duration_seconds.labels(query_type="init_create_table").time():
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS products (
+                    id INTEGER,
+                    name VARCHAR,
+                    category VARCHAR,
+                    price DOUBLE,
+                    stock INTEGER
+                )
+            """)
         seed(conn)
     return conn
 
 
 def save(conn):
-    conn.execute(f"COPY products TO '{DB_PATH}' (FORMAT PARQUET)")
+    with duckdb_query_duration_seconds.labels(query_type="save_parquet").time():
+        conn.execute(f"COPY products TO '{DB_PATH}' (FORMAT PARQUET)")
 
 
 @app.get("/healthz")
@@ -93,9 +156,10 @@ def ready():
 @app.get("/products")
 def list_products():
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT id, name, category, price, stock FROM products ORDER BY id"
-    ).fetchall()
+    with duckdb_query_duration_seconds.labels(query_type="select_all").time():
+        rows = conn.execute(
+            "SELECT id, name, category, price, stock FROM products ORDER BY id"
+        ).fetchall()
     conn.close()
     return [
         {"id": r[0], "name": r[1], "category": r[2], "price": r[3], "stock": r[4]}
@@ -106,10 +170,11 @@ def list_products():
 @app.get("/products/{product_id}")
 def get_product(product_id: int):
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT id, name, category, price, stock FROM products WHERE id = ?",
-        [product_id],
-    ).fetchall()
+    with duckdb_query_duration_seconds.labels(query_type="select_by_id").time():
+        rows = conn.execute(
+            "SELECT id, name, category, price, stock FROM products WHERE id = ?",
+            [product_id],
+        ).fetchall()
     conn.close()
     if not rows:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -122,10 +187,11 @@ def create_product(product: Product, user: dict | None = Depends(get_current_use
     conn = get_connection()
     max_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM products").fetchone()[0]
     new_id = max_id + 1
-    conn.execute(
-        "INSERT INTO products VALUES (?, ?, ?, ?, ?)",
-        [new_id, product.name, product.category, product.price, product.stock],
-    )
+    with duckdb_query_duration_seconds.labels(query_type="insert").time():
+        conn.execute(
+            "INSERT INTO products VALUES (?, ?, ?, ?, ?)",
+            [new_id, product.name, product.category, product.price, product.stock],
+        )
     save(conn)
     conn.close()
     return {"id": new_id, **product.model_dump()}

@@ -38,43 +38,25 @@ until oc get pods -n openshift-user-workload-monitoring 2>/dev/null | grep -q "R
 done
 echo " Running!"
 
-# --- Step 2: Build and deploy instrumented Products Service ---
-step 2 "Build instrumented Products Service (binary build)"
+# --- Step 2: Create ServiceMonitors + PrometheusRule ---
+step 2 "Create ServiceMonitors and PrometheusRule"
 oc project shopinsights 2>/dev/null || oc new-project shopinsights
 
-BUILD_DIR=$(mktemp -d)
-trap "rm -rf $BUILD_DIR" EXIT
+# Ensure port names are set for ServiceMonitor matching
+for svc in products-service orders-service analytics-service; do
+  oc get service "$svc" -n shopinsights -o jsonpath='{.spec.ports[0].name}' 2>/dev/null | grep -q http || \
+    oc patch service "$svc" -n shopinsights --type=json \
+      -p '[{"op":"replace","path":"/spec/ports/0/name","value":"http"}]' 2>/dev/null || true
+done
 
-cp "$LESSON_DIR/app/products_service_with_metrics.py" "$BUILD_DIR/app.py"
-cp "$LESSON_DIR/app/pyproject.toml" "$BUILD_DIR/pyproject.toml"
-cp "$LESSON_DIR/app/Dockerfile" "$BUILD_DIR/Dockerfile"
-
-# Remove contextDir from BuildConfig if present (binary builds can't use contextDir)
-oc get bc products-service -n shopinsights -o jsonpath='{.spec.source.contextDir}' 2>/dev/null && \
-  oc patch bc products-service -n shopinsights --type=json \
-    -p '[{"op": "remove", "path": "/spec/source/contextDir"}]' 2>/dev/null || true
-
-echo "Starting binary build..."
-oc start-build products-service --from-dir="$BUILD_DIR" --follow -n shopinsights
-
-echo "Waiting for rollout..."
-oc rollout status deployment/products-service -n shopinsights --timeout=120s
-
-# Ensure port name is set for ServiceMonitor matching
-oc get service products-service -n shopinsights -o jsonpath='{.spec.ports[0].name}' 2>/dev/null | grep -q http || \
-  oc patch service products-service -n shopinsights --type=json \
-    -p '[{"op":"replace","path":"/spec/ports/0/name","value":"http"}]'
-
-echo "Products Service deployed."
-
-# --- Step 3: Create ServiceMonitor + PrometheusRule ---
-step 3 "Create ServiceMonitor and PrometheusRule"
 oc apply -f "$LESSON_DIR/manifests/products-servicemonitor.yaml" -n shopinsights
+oc apply -f "$LESSON_DIR/manifests/orders-servicemonitor.yaml" -n shopinsights
+oc apply -f "$LESSON_DIR/manifests/analytics-servicemonitor.yaml" -n shopinsights
 oc apply -f "$LESSON_DIR/manifests/products-prometheusrule.yaml" -n shopinsights
-echo "ServiceMonitor and PrometheusRule applied."
+echo "ServiceMonitors and PrometheusRule applied."
 
-# --- Step 4: Install Loki Operator ---
-step 4 "Install the Loki Operator"
+# --- Step 3: Install Loki Operator ---
+step 3 "Install the Loki Operator"
 oc apply -f "$LESSON_DIR/manifests/ns-openshift-operators-redhat.yaml"
 oc apply -f "$LESSON_DIR/manifests/operator-loki.yaml"
 
@@ -103,8 +85,8 @@ until oc get csv -n openshift-operators-redhat 2>/dev/null | grep -i loki | grep
 done
 echo " Ready!"
 
-# --- Step 5: Install Cluster Logging Operator ---
-step 5 "Install the Cluster Logging Operator"
+# --- Step 4: Install Cluster Logging Operator ---
+step 4 "Install the Cluster Logging Operator"
 oc apply -f "$LESSON_DIR/manifests/ns-openshift-logging.yaml"
 oc apply -f "$LESSON_DIR/manifests/operator-cluster-logging.yaml"
 
@@ -133,8 +115,8 @@ until oc get csv -n openshift-logging 2>/dev/null | grep -i cluster-logging | gr
 done
 echo " Ready!"
 
-# --- Step 6: Create S3 bucket + LokiStack ---
-step 6 "Provision S3 storage and deploy LokiStack"
+# --- Step 5: Create S3 bucket + LokiStack ---
+step 5 "Provision S3 storage and deploy LokiStack"
 
 S3_BUCKET="loki-${CLUSTER_ID}"
 echo "S3 bucket name: $S3_BUCKET"
@@ -226,8 +208,8 @@ done
 echo " LokiStack pods running!"
 oc get pods -n openshift-logging -l app.kubernetes.io/instance=logging-loki --no-headers 2>/dev/null
 
-# --- Step 7: Create ClusterLogForwarder ---
-step 7 "Deploy ClusterLogForwarder"
+# --- Step 6: Create ClusterLogForwarder ---
+step 6 "Deploy ClusterLogForwarder"
 
 echo "Granting cluster-logging-operator SA required RBAC..."
 oc adm policy add-cluster-role-to-user collect-application-logs \
@@ -259,8 +241,8 @@ until oc get consoleplugin logging-view-plugin &>/dev/null; do
 done
 echo " Registered!"
 
-# --- Step 8: Print URLs ---
-step 8 "Setup complete — URLs"
+# --- Step 7: Print URLs ---
+step 7 "Setup complete — URLs"
 
 CONSOLE_HOST=$(oc get route console -n openshift-console -o jsonpath='{.spec.host}' 2>/dev/null)
 DASHBOARD_HOST=$(oc get route dashboard-ui -n shopinsights -o jsonpath='{.spec.host}' 2>/dev/null || echo "")

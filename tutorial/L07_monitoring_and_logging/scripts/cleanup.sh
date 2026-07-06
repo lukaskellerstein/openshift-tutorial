@@ -81,8 +81,10 @@ oc delete project openshift-logging 2>/dev/null || true
 oc delete project openshift-operators-redhat 2>/dev/null || true
 
 # --- Prometheus resources in shopinsights ---
-echo "Removing ServiceMonitor and PrometheusRule..."
+echo "Removing ServiceMonitors and PrometheusRule..."
 oc delete servicemonitor products-service-monitor -n shopinsights 2>/dev/null || true
+oc delete servicemonitor orders-service-monitor -n shopinsights 2>/dev/null || true
+oc delete servicemonitor analytics-service-monitor -n shopinsights 2>/dev/null || true
 oc delete prometheusrule products-alerting-rules -n shopinsights 2>/dev/null || true
 
 echo ""

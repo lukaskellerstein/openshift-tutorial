@@ -57,7 +57,9 @@ Open the **ShopInsights Dashboard** in your browser. You should see a page with 
 
 ## Step 2: View metrics in the OpenShift Console
 
-Switch to the **OpenShift Console** browser tab. Make sure you are in the **Administrator** perspective (check the dropdown in the top-left corner — it should say "Administrator", not "Developer").
+Switch to the **OpenShift Console** browser tab. You should be in the **Administrator** perspective — verify by checking that the left sidebar shows items like **Home**, **Workloads**, **Networking**, **Storage**, **Observe**, etc.
+
+> **Note:** In OpenShift 4.20+, there may not be a perspective-switcher dropdown in the top-left corner. If you only see the Administrator sidebar, the Developer perspective may need to be enabled separately (look for "Enable the Developer Perspective" in the Getting Started panel on the Overview page).
 
 ### 2a. Navigate to the Metrics page
 
@@ -76,8 +78,10 @@ Switch to the **OpenShift Console** browser tab. Make sure you are in the **Admi
 2. Click **Run queries** (the blue button to the right of the expression field).
 3. You should see a line chart appear with one line per endpoint. Look for:
    - **`/products`** — should show the highest rate (from your Refresh clicks)
+   - **`/orders`** — appears from Orders tab refreshes
+   - **`/analytics/summary`** — appears from Analytics tab refreshes
    - **`/healthz`** and **`/ready`** — steady baseline from Kubernetes probes
-   - **`/products/{id}`** — appears if you clicked individual products
+   - **`/products/{id}`** — appears if you clicked on a product row to see its details
 4. Switch between the **Chart** and **Table** views using the toggle above the results.
 
 > **Note:** The app's `endpoint` label gets renamed to `exported_endpoint` by Prometheus because `endpoint` is a reserved ServiceMonitor label. Always use `exported_endpoint` in queries.
@@ -104,7 +108,7 @@ Switch to the **OpenShift Console** browser tab. Make sure you are in the **Admi
    ```
 
 2. Click **Run queries**.
-3. You should see lines for different `query_type` values: `select_all`, `select_by_id`, `init_read_parquet`. All should be sub-millisecond.
+3. You should see lines for different `query_type` values from all three services: `select_all`, `select_by_id`, `init_read_parquet` (from Products/Orders), `stats_count`, `stats_by_status` (from Orders), `build_orders_table`, `revenue_total` (from Analytics). All should be sub-millisecond.
 
 ### 2e. Query: Error rate
 
@@ -126,16 +130,19 @@ Switch to the **OpenShift Console** browser tab. Make sure you are in the **Admi
 1. In the left sidebar, click **Observe** > **Targets**.
 2. You should see a list of all Prometheus scrape targets, grouped by namespace.
 
-### 3b. Find the Products Service target
+### 3b. Find the ShopInsights service targets
 
 1. In the **Filter** or search box, type `shopinsights` to narrow the list.
-2. Look for an entry named **`products-service-monitor`** (or `shopinsights/products-service-monitor`).
-3. Verify these three things:
+2. Look for three entries:
+   - **`products-service-monitor`** (or `shopinsights/products-service-monitor`)
+   - **`orders-service-monitor`** (or `shopinsights/orders-service-monitor`)
+   - **`analytics-service-monitor`** (or `shopinsights/analytics-service-monitor`)
+3. For each, verify:
    - **Status**: should show **Up** with a green indicator
    - **Last Scrape**: should show a recent timestamp (within the last 15 seconds)
    - **Scrape Duration**: typically 5–10 ms
 
-> **What this tells you:** The ServiceMonitor is correctly configured and Prometheus is actively scraping the `/metrics` endpoint from the Products Service.
+> **What this tells you:** All three ServiceMonitors are correctly configured and Prometheus is actively scraping the `/metrics` endpoints from all ShopInsights services.
 
 ---
 
@@ -206,8 +213,10 @@ Switch to the **OpenShift Console** browser tab. Make sure you are in the **Admi
 
 ### 6a. Switch to Developer perspective
 
-1. Click the perspective dropdown in the top-left corner of the Console (it says "Administrator").
-2. Select **Developer**.
+1. If your Console has a perspective-switcher dropdown in the top-left corner, click it and select **Developer**.
+2. If there's no dropdown (OpenShift 4.20+), go to **Home > Overview** and click **"Enable the Developer Perspective →"** in the Getting Started panel. Once enabled, a perspective switcher will appear — select **Developer**.
+
+> **If the Developer perspective is already enabled**, you'll see a dropdown in the top-left corner that says "Administrator" — click it and select "Developer".
 
 ### 6b. Navigate to the Products Service pod
 
@@ -239,10 +248,10 @@ Switch to the **OpenShift Console** browser tab. Make sure you are in the **Admi
 This step ties everything together. Open both the ShopInsights Dashboard and the OpenShift Console side by side.
 
 1. In the **ShopInsights Dashboard**, click the **Products** tab and click **Refresh** rapidly (20+ times).
-2. In the **OpenShift Console** (Administrator perspective):
+2. In the **OpenShift Console** (Administrator perspective — the default view with sidebar items like Home, Workloads, Observe):
    - Go to **Observe > Metrics** and re-run the request rate query from Step 2b. You should see the `/products` line spike upward.
    - Go to **Observe > Logs** and filter to `shopinsights` namespace. You should see a burst of new `GET /products` log lines.
-   - Go to **Observe > Targets** — the `products-service-monitor` target should still show **Up**.
+   - Go to **Observe > Targets** — all three ServiceMonitor targets (`products-service-monitor`, `orders-service-monitor`, `analytics-service-monitor`) should still show **Up**.
    - Go to **Observe > Alerting** > **Alerting rules** (filtered to **User**) — both rules should still be **Inactive** (unless you managed to push latency above 500ms).
 
 ---
@@ -253,12 +262,13 @@ This step ties everything together. Open both the ShopInsights Dashboard and the
 |-------------|---------------------|
 | Clicked Refresh on Products tab | `http_requests_total` counter increases in Observe > Metrics |
 | Clicked Refresh on Products tab | `GET /products` log lines appear in Observe > Logs |
+| Clicked a product row | `GET /products/{id}` appears in metrics and logs |
 | Added a product | `POST /products` appears in logs, `http_requests_total` counter increases |
-| Clicked Orders / Analytics tabs | Traffic to other services visible in logs |
-| Ran PromQL request rate query | Line chart with lines per endpoint |
+| Clicked Orders / Analytics tabs | Traffic to orders-service and analytics-service visible in metrics and logs |
+| Ran PromQL request rate query | Line chart with lines per endpoint from all three services |
 | Ran PromQL P95 latency query | Line chart showing `/healthz` < `/products` |
 | Ran PromQL error rate query | Empty chart or 0% (no errors) |
-| Checked Observe > Targets | `products-service-monitor` shows Up (green) |
+| Checked Observe > Targets | All three ServiceMonitors show Up (green) |
 | Checked Observe > Alerting rules | ProductsHighLatency + ProductsHighErrorRate both Inactive |
 | Filtered logs by namespace | Logs from all 4 ShopInsights services |
 | Filtered logs by pod | Only Products Service logs |

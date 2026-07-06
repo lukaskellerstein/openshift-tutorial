@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Package, ShoppingCart, BarChart3, Plus, RefreshCw, DollarSign, TrendingUp, Loader2, LogOut } from 'lucide-react'
+import { Package, ShoppingCart, BarChart3, Plus, RefreshCw, DollarSign, TrendingUp, Loader2, LogOut, ArrowLeft } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'
@@ -42,6 +42,8 @@ function ProductsTab() {
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({ name: '', category: '', price: '', stock: '' })
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
   const { token } = useKeycloak()
 
   const fetchProducts = useCallback(async () => {
@@ -54,6 +56,15 @@ function ProductsTab() {
   }, [token])
 
   useEffect(() => { fetchProducts() }, [fetchProducts])
+
+  const fetchProductDetail = useCallback(async (id) => {
+    setDetailLoading(true)
+    try {
+      const res = await fetch(`${API.products}/${id}`, { headers: getAuthHeaders(token) })
+      if (res.ok) setSelectedProduct(await res.json())
+    } catch { /* ignore */ }
+    setDetailLoading(false)
+  }, [token])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -76,6 +87,52 @@ function ProductsTab() {
       }
     } catch { /* ignore */ }
     setSubmitting(false)
+  }
+
+  if (selectedProduct || detailLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Product Details</h2>
+          <Button variant="outline" size="sm" onClick={() => setSelectedProduct(null)}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to products
+          </Button>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            {detailLoading ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />Loading...
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">ID</p>
+                  <p className="font-mono text-lg">{selectedProduct.id}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Name</p>
+                  <p className="font-medium text-lg">{selectedProduct.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Category</p>
+                  <Badge variant="outline">{selectedProduct.category}</Badge>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Price</p>
+                  <p className="font-medium text-lg">{formatCurrency(selectedProduct.price)}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Stock</p>
+                  <p className="text-lg">{selectedProduct.stock}</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -153,7 +210,7 @@ function ProductsTab() {
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No products yet</TableCell>
                 </TableRow>
               ) : products.map(p => (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => fetchProductDetail(p.id)}>
                   <TableCell className="font-mono">{p.id}</TableCell>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell><Badge variant="outline">{p.category}</Badge></TableCell>

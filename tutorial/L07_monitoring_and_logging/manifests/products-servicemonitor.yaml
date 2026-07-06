@@ -19,7 +19,7 @@ spec:
       app: shopinsights
       component: products-service
   endpoints:
-    - port: "8080"
+    - port: http
       path: /metrics
       interval: 15s
       scheme: http

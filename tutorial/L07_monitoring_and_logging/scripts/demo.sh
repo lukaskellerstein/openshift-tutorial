@@ -9,8 +9,9 @@ step() { echo "" && echo "=== Step $1: $2 ===" && echo ""; }
 oc project shopinsights
 
 # --- Step 1: Generate Traffic ---
-step 1 "Generate traffic to Products Service"
+step 1 "Generate traffic to all ShopInsights services"
 
+echo "--- Products Service ---"
 echo "Sending 50 requests to /products..."
 for i in $(seq 1 50); do
   oc exec deploy/dashboard-ui -n shopinsights -- \
@@ -24,12 +25,6 @@ for i in $(seq 1 30); do
     curl -s "http://products-service:8080/products/${ID}" > /dev/null 2>&1 || true
 done
 
-echo "Sending 10 requests to /healthz..."
-for i in $(seq 1 10); do
-  oc exec deploy/dashboard-ui -n shopinsights -- \
-    curl -s http://products-service:8080/healthz > /dev/null 2>&1 || true
-done
-
 echo "Sending 5 requests to a non-existent product (triggers 404)..."
 for i in $(seq 1 5); do
   oc exec deploy/dashboard-ui -n shopinsights -- \
@@ -37,7 +32,35 @@ for i in $(seq 1 5); do
 done
 
 echo ""
-echo "Total: ~95 requests sent."
+echo "--- Orders Service ---"
+echo "Sending 30 requests to /orders..."
+for i in $(seq 1 30); do
+  oc exec deploy/dashboard-ui -n shopinsights -- \
+    curl -s http://orders-service:8080/orders > /dev/null 2>&1 || true
+done
+
+echo "Sending 10 requests to /orders/stats..."
+for i in $(seq 1 10); do
+  oc exec deploy/dashboard-ui -n shopinsights -- \
+    curl -s http://orders-service:8080/orders/stats > /dev/null 2>&1 || true
+done
+
+echo ""
+echo "--- Analytics Service ---"
+echo "Sending 10 requests to /analytics/summary..."
+for i in $(seq 1 10); do
+  oc exec deploy/dashboard-ui -n shopinsights -- \
+    curl -s http://analytics-service:8080/analytics/summary > /dev/null 2>&1 || true
+done
+
+echo "Sending 5 requests to /analytics/revenue..."
+for i in $(seq 1 5); do
+  oc exec deploy/dashboard-ui -n shopinsights -- \
+    curl -s http://analytics-service:8080/analytics/revenue > /dev/null 2>&1 || true
+done
+
+echo ""
+echo "Total: ~140 requests sent across all three services."
 
 # --- Step 2: Verify Prometheus Metrics ---
 step 2 "Verify Prometheus metrics via Thanos Querier"

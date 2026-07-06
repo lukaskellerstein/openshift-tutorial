@@ -9,7 +9,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-COPY app.py .
+COPY app.py auth.py ./
 
 RUN mkdir -p /data && chown appuser:appuser /data
 ENV UV_CACHE_DIR=/tmp/uv-cache

@@ -7,10 +7,10 @@
 
 OpenShift ships with a complete monitoring stack — Prometheus, Alertmanager, and a managed Grafana — pre-installed and pre-configured for cluster infrastructure. In this lesson you build an observability stack for your applications:
 
-1. **Prometheus** — custom metrics from the Products Service (counters, histograms, gauges)
+1. **Prometheus** — custom metrics from all three Python services (counters, histograms, gauges)
 2. **Loki** — centralized log aggregation for all pods across all namespaces
 
-By the end you will have request-rate counters, latency histograms, and DuckDB query timers flowing into Prometheus, and application logs streamed into Loki — all viewable through the OpenShift Web Console (Observe > Metrics, Observe > Logs).
+All three ShopInsights Python services (Products, Orders, Analytics) ship with Prometheus instrumentation built in — request-rate counters, latency histograms, and DuckDB query timers. In this lesson you enable Prometheus to scrape those metrics via ServiceMonitors, define alerting rules, and deploy Loki for centralized logging — all viewable through the OpenShift Web Console (Observe > Metrics, Observe > Logs).
 
 > **What about Grafana dashboards?** L12 covers deploying a custom Grafana instance with unified dashboards for metrics, logs, traces, and alerts.
 
@@ -105,17 +105,28 @@ OpenShift Logging 6.x uses the `observability.openshift.io/v1` API version and V
 graph TD
     Browser[Browser] --> DashUI[Dashboard UI]
     DashUI --> PS[Products Service :8080]
+    DashUI --> OS[Orders Service :8080]
+    DashUI --> AS[Analytics Service :8080]
 
-    PS --> MW[Middleware<br/>counters + histograms]
-    PS --> STDOUT[stdout<br/>access logs]
-    PS --> DDB[DuckDB<br/>query timers]
+    PS --> MW1[Middleware<br/>counters + histograms]
+    OS --> MW2[Middleware<br/>counters + histograms]
+    AS --> MW3[Middleware<br/>counters + histograms]
 
-    MW --> ME[/metrics endpoint/]
-    STDOUT --> CL[Container logs]
-    DDB --> DQD[duckdb_query_duration]
+    PS --> STDOUT1[stdout logs]
+    OS --> STDOUT2[stdout logs]
+    AS --> STDOUT3[stdout logs]
 
-    ME --> Prom[Prometheus<br/>user-workload]
-    CL --> Vec[Vector Collector<br/>DaemonSet]
+    MW1 --> ME1[/metrics]
+    MW2 --> ME2[/metrics]
+    MW3 --> ME3[/metrics]
+
+    ME1 --> Prom[Prometheus<br/>user-workload]
+    ME2 --> Prom
+    ME3 --> Prom
+
+    STDOUT1 --> Vec[Vector Collector<br/>DaemonSet]
+    STDOUT2 --> Vec
+    STDOUT3 --> Vec
 
     Prom --> Thanos[Thanos Querier<br/>unified PromQL]
     Vec --> Loki[LokiStack<br/>openshift-logging]
@@ -163,111 +174,42 @@ oc get pods -n openshift-user-workload-monitoring -w
 
 You should see `prometheus-user-workload-*` and `thanos-ruler-user-workload-*` pods reach `Running` state (1-2 minutes).
 
-### Step 2: Examine the Instrumented Products Service
+### Step 2: Understand the Built-In Metrics Instrumentation
 
-Open `app/products_service_with_metrics.py` and review what changed compared to the original `shared_app/products-service/app.py`:
+All three ShopInsights Python services (Products, Orders, Analytics) already include Prometheus instrumentation via `prometheus_client`. Open `shared_app/products-service/app.py` to see the pattern — the other two services follow the same approach.
 
-**Four custom metrics are defined:**
+Each service defines four custom metrics:
 
-```python
-from prometheus_client import Counter, Gauge, Histogram, make_asgi_app
+| Metric | Type | Labels | Purpose |
+|--------|------|--------|---------|
+| `http_requests_total` | Counter | `method`, `endpoint`, `status` | Total HTTP requests |
+| `http_request_duration_seconds` | Histogram | `method`, `endpoint` | Request latency distribution |
+| `duckdb_query_duration_seconds` | Histogram | `query_type` | Database query duration |
+| `active_connections` | Gauge | — | Currently active connections |
 
-http_requests_total = Counter(
-    "http_requests_total",
-    "Total number of HTTP requests",
-    ["method", "endpoint", "status"],
-)
+A FastAPI middleware automatically tracks every request (except `/metrics` itself), and DuckDB queries are wrapped with timing. The `/metrics` endpoint is mounted via `make_asgi_app()` and serves Prometheus text format.
 
-http_request_duration_seconds = Histogram(
-    "http_request_duration_seconds",
-    "HTTP request duration in seconds",
-    ["method", "endpoint"],
-    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
-)
+> **No rebuild needed:** The metrics instrumentation is baked into the service images from the start. In lessons L01–L06, the `/metrics` endpoint simply goes unscraped — it causes no errors and adds negligible overhead.
 
-duckdb_query_duration_seconds = Histogram(
-    "duckdb_query_duration_seconds",
-    "DuckDB query duration in seconds",
-    ["query_type"],
-)
-
-active_connections = Gauge(
-    "active_connections",
-    "Number of currently active HTTP connections",
-)
-```
-
-**A middleware automatically tracks every request:**
-
-```python
-@app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
-    active_connections.inc()
-    start_time = time.perf_counter()
-    try:
-        response = await call_next(request)
-        status_code = response.status_code
-    except Exception:
-        status_code = 500
-        raise
-    finally:
-        duration = time.perf_counter() - start_time
-        endpoint = _normalise_path(request.url.path)
-        http_requests_total.labels(method=request.method, endpoint=endpoint, status=str(status_code)).inc()
-        http_request_duration_seconds.labels(method=request.method, endpoint=endpoint).observe(duration)
-        active_connections.dec()
-    return response
-```
-
-**DuckDB queries are wrapped with timing:**
-
-```python
-with duckdb_query_duration_seconds.labels(query_type="select_all").time():
-    rows = conn.execute("SELECT ...").fetchall()
-```
-
-**The `/metrics` endpoint is mounted automatically:**
-
-```python
-metrics_app = make_asgi_app()
-app.mount("/metrics", metrics_app)
-```
-
-### Step 3: Build and Deploy the Instrumented Version
-
-The `setup.sh` script handles this as a binary build. To do it manually:
-
-```bash
-oc project shopinsights
-
-# Start a binary build with the instrumented code
-oc start-build products-service --from-dir=<build-directory> --follow
-
-# Wait for the rollout
-oc rollout status deployment/products-service
-
-# Ensure the Service port has a name for ServiceMonitor matching
-oc patch service products-service --type=json \
-  -p '[{"op":"replace","path":"/spec/ports/0/name","value":"http"}]'
-```
-
-### Step 4: Create ServiceMonitor and PrometheusRule
+### Step 3: Create ServiceMonitors and PrometheusRule
 
 ```bash
 oc apply -f manifests/products-servicemonitor.yaml
+oc apply -f manifests/orders-servicemonitor.yaml
+oc apply -f manifests/analytics-servicemonitor.yaml
 oc apply -f manifests/products-prometheusrule.yaml
 ```
 
-The ServiceMonitor tells Prometheus to scrape `/metrics` on port `http` every 15 seconds. The PrometheusRule creates two alerts:
+The ServiceMonitors tell Prometheus to scrape `/metrics` on port `http` every 15 seconds for each service. The PrometheusRule creates two alerts:
 
 1. **ProductsHighLatency** — fires when average latency exceeds 500ms for 5 minutes
 2. **ProductsHighErrorRate** — fires when 5xx error rate exceeds 5% for 5 minutes
 
-Verify in the Web Console: **Observe > Targets** (look for `products-service-monitor` = UP) and **Observe > Alerting** (both alerts should be Inactive).
+Verify in the Web Console: **Observe > Targets** (look for `products-service-monitor`, `orders-service-monitor`, and `analytics-service-monitor` — all should be UP) and **Observe > Alerting** (both alerts should be Inactive).
 
 > **Note:** Prometheus renames our app's `endpoint` label to `exported_endpoint` because `endpoint` is reserved by ServiceMonitors. Use `exported_endpoint` in all PromQL queries that filter by path.
 
-### Step 5: Install the Loki Operator
+### Step 4: Install the Loki Operator
 
 Create the namespace and install the operator:
 
@@ -282,7 +224,7 @@ Wait for the operator CSV to reach `Succeeded`:
 oc get csv -n openshift-operators-redhat -w
 ```
 
-### Step 6: Install the Cluster Logging Operator
+### Step 5: Install the Cluster Logging Operator
 
 ```bash
 oc apply -f manifests/ns-openshift-logging.yaml
@@ -295,7 +237,7 @@ Wait for the CSV:
 oc get csv -n openshift-logging -w
 ```
 
-### Step 7: Provision S3 Storage and Deploy LokiStack
+### Step 6: Provision S3 Storage and Deploy LokiStack
 
 LokiStack requires S3-compatible object storage. On AWS clusters, the Cloud Credential Operator (CCO) auto-provisions IAM credentials:
 
@@ -319,7 +261,7 @@ Wait for LokiStack to become Ready (3-5 minutes):
 oc get lokistack logging-loki -n openshift-logging -w
 ```
 
-### Step 8: Deploy ClusterLogForwarder
+### Step 7: Deploy ClusterLogForwarder
 
 The ClusterLogForwarder tells Vector collectors which logs to collect and where to send them. Our CLF uses a custom input that filters to only the ShopInsights application containers (products-service, orders-service, analytics-service, dashboard-ui):
 
@@ -341,7 +283,7 @@ oc get pods -n openshift-logging -l app.kubernetes.io/component=collector
 
 Once collectors are running, logs from the ShopInsights services flow into Loki. View them in the Web Console under **Observe > Logs**.
 
-### Step 9: Generate Traffic and Explore
+### Step 8: Generate Traffic and Explore
 
 Run the demo script to generate traffic and verify all three pillars:
 
@@ -365,7 +307,7 @@ Then explore:
    sum(rate(http_requests_total{namespace="shopinsights"}[5m])) by (exported_endpoint, method)
    ```
 
-2. **Console > Observe > Logs** — Filter by namespace `shopinsights` to see Products Service access logs
+2. **Console > Observe > Logs** — Filter by namespace `shopinsights` to see access logs from all ShopInsights services
 
 ## Verification
 
@@ -373,7 +315,7 @@ Then explore:
 # 1. User workload monitoring is enabled
 oc get pods -n openshift-user-workload-monitoring | grep prometheus-user-workload
 
-# 2. ServiceMonitor and PrometheusRule exist
+# 2. All three ServiceMonitors and PrometheusRule exist
 oc get servicemonitor,prometheusrule -n shopinsights
 
 # 3. Loki is running
@@ -405,7 +347,7 @@ oc get pods -n openshift-logging -l app.kubernetes.io/component=collector
 - Enable user workload monitoring with `enableUserWorkload: true` to start scraping your applications
 - The **Loki Operator + Cluster Logging Operator** provide centralized log aggregation with a `ClusterLogForwarder` CR — no manual DaemonSet configuration
 - LokiStack requires S3-compatible storage; on AWS, the **Cloud Credential Operator** auto-provisions IAM credentials
-- The `prometheus_client` Python library makes instrumentation straightforward: define metrics, add middleware, mount `/metrics`
+- The `prometheus_client` Python library makes instrumentation straightforward: define metrics, add middleware, mount `/metrics`. All three ShopInsights services include this from the start
 
 ## Cleanup
 
@@ -415,7 +357,7 @@ Run the cleanup script to remove all monitoring and logging components:
 ./scripts/cleanup.sh
 ```
 
-This removes (in reverse order): ClusterLogForwarder, LokiStack, S3 bucket, CredentialsRequest, operator subscriptions, logging namespaces, ServiceMonitor, and PrometheusRule. User workload monitoring is **not** disabled (other lessons may use it).
+This removes (in reverse order): ClusterLogForwarder, LokiStack, S3 bucket, CredentialsRequest, operator subscriptions, logging namespaces, ServiceMonitors, and PrometheusRule. User workload monitoring is **not** disabled (other lessons may use it).
 
 ## Next Steps
 
