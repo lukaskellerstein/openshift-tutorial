@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import Counter, Gauge, Histogram, make_asgi_app
 
-SERVICE_VERSION = "1.0.0"
+SERVICE_VERSION = "2.0.0"
 
 http_requests_total = Counter(
     "http_requests_total",
@@ -34,7 +34,7 @@ active_connections = Gauge(
     ["version"],
 )
 
-app = FastAPI(title="Analytics Service")
+app = FastAPI(title="Analytics Service v2")
 
 app.add_middleware(
     CORSMiddleware,
@@ -281,7 +281,7 @@ def ready():
 
 
 # ---------------------------------------------------------------------------
-# Analytics endpoints
+# Analytics endpoints (same as v1)
 # ---------------------------------------------------------------------------
 
 @app.get("/analytics/revenue")
@@ -420,7 +420,6 @@ def summary():
     """Dashboard summary: total products, total orders, total revenue, avg order value."""
     errors = {}
 
-    # Fetch product count
     total_products = 0
     try:
         products = fetch_products()
@@ -428,7 +427,6 @@ def summary():
     except Exception as e:
         errors["products"] = str(e)
 
-    # Fetch order stats
     total_orders = 0
     total_revenue = 0.0
     avg_order_value = 0.0
@@ -443,7 +441,6 @@ def summary():
         errors["orders"] = str(e)
 
     if errors:
-        # Return partial data with warnings rather than failing entirely
         return {
             "total_products": total_products,
             "total_orders": total_orders,
@@ -458,6 +455,75 @@ def summary():
         "total_orders": total_orders,
         "total_revenue": total_revenue,
         "average_order_value": avg_order_value,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# v2-only endpoint: Trends
+# ---------------------------------------------------------------------------
+
+@app.get("/analytics/trends")
+def trends():
+    """Order volume trends and revenue growth rates by month (v2 only)."""
+    try:
+        orders = fetch_orders()
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=502, detail=f"Unable to reach upstream service: {e}"
+        )
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Upstream service error: {e.response.status_code}",
+        )
+
+    conn = duckdb.connect()
+    build_orders_table(conn, orders)
+
+    with duckdb_query_duration_seconds.labels(query_type="trends", version=SERVICE_VERSION).time():
+        rows = conn.execute("""
+            WITH monthly AS (
+                SELECT
+                    strftime(TRY_CAST(created_at AS TIMESTAMP), '%Y-%m') AS month,
+                    COUNT(*) AS order_count,
+                    ROUND(SUM(total_price), 2) AS revenue
+                FROM orders
+                WHERE TRY_CAST(created_at AS TIMESTAMP) IS NOT NULL
+                GROUP BY month
+                ORDER BY month
+            )
+            SELECT
+                month,
+                order_count,
+                revenue,
+                ROUND(
+                    100.0 * (order_count - LAG(order_count) OVER (ORDER BY month))
+                    / NULLIF(LAG(order_count) OVER (ORDER BY month), 0),
+                    2
+                ) AS order_growth_pct,
+                ROUND(
+                    100.0 * (revenue - LAG(revenue) OVER (ORDER BY month))
+                    / NULLIF(LAG(revenue) OVER (ORDER BY month), 0),
+                    2
+                ) AS revenue_growth_pct
+            FROM monthly
+            ORDER BY month
+        """).fetchall()
+
+    conn.close()
+
+    return {
+        "trends": [
+            {
+                "month": r[0],
+                "order_count": r[1],
+                "revenue": r[2],
+                "order_growth_pct": r[3],
+                "revenue_growth_pct": r[4],
+            }
+            for r in rows
+        ],
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 

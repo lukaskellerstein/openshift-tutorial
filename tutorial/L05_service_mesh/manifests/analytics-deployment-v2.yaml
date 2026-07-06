@@ -9,7 +9,7 @@ metadata:
     lesson: "05"
   annotations:
     image.openshift.io/triggers: >-
-      [{"from":{"kind":"ImageStreamTag","name":"analytics-service:latest"},
+      [{"from":{"kind":"ImageStreamTag","name":"analytics-service-v2:latest"},
         "fieldPath":"spec.template.spec.containers[?(@.name==\"analytics-service\")].image"}]
 spec:
   replicas: 1
@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: analytics-service
-          image: analytics-service:latest
+          image: analytics-service-v2:latest
           ports:
             - containerPort: 8080
           resources:

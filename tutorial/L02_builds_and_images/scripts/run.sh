@@ -32,6 +32,7 @@ step 1 "Create ImageStreams for all services"
 oc apply -f "$LESSON_DIR/manifests/products-imagestream.yaml"
 oc apply -f "$LESSON_DIR/manifests/orders-imagestream.yaml"
 oc apply -f "$LESSON_DIR/manifests/analytics-imagestream.yaml"
+oc apply -f "$LESSON_DIR/manifests/analytics-v2-imagestream.yaml"
 oc apply -f "$LESSON_DIR/manifests/dashboard-imagestream.yaml"
 oc get imagestreams -l app=shopinsights
 
@@ -40,6 +41,7 @@ step 2 "Create BuildConfigs"
 apply "manifests/products-buildconfig.yaml"
 apply "manifests/orders-buildconfig.yaml"
 apply "manifests/analytics-buildconfig.yaml"
+apply "manifests/analytics-v2-buildconfig.yaml"
 apply "manifests/dashboard-buildconfig.yaml"
 oc get buildconfigs -l app=shopinsights
 
@@ -48,6 +50,7 @@ step 3 "Start builds"
 oc start-build products-service
 oc start-build orders-service
 oc start-build analytics-service
+oc start-build analytics-service-v2
 oc start-build dashboard-ui
 
 # --- Step 4: Wait for builds to complete ---
@@ -55,7 +58,7 @@ step 4 "Waiting for builds to complete (this takes 5-10 minutes)..."
 echo "Builds started:"
 oc get builds
 
-for bc in products-service orders-service analytics-service dashboard-ui; do
+for bc in products-service orders-service analytics-service analytics-service-v2 dashboard-ui; do
   echo "Waiting for ${bc}-1..."
   while true; do
     phase=$(oc get build "${bc}-1" -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
@@ -83,5 +86,5 @@ oc get builds
 
 echo ""
 echo "=== L02 Complete ==="
-echo "All 4 images built and stored in the internal registry."
+echo "All 5 images built and stored in the internal registry."
 echo "Next: cd ../L03_deploy_microservices && ./scripts/run.sh"

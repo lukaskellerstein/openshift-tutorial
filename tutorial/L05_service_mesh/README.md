@@ -497,7 +497,14 @@ Now traffic to these services flows: pod → ztunnel → waypoint → ztunnel �
 
 ### Step 10: Deploy a Canary Version of Analytics Service
 
-Now use the waypoint's traffic management to do a canary deployment. You will deploy a second version of the Analytics Service and split traffic between them using a Gateway API HTTPRoute.
+Now use the waypoint's traffic management to do a canary deployment. You will deploy a second version of the Analytics Service — built from a **separate source directory** with its own image — and split traffic between them using a Gateway API HTTPRoute.
+
+The v2 analytics service (`shared_app/analytics-service-v2/`) is a genuine code variant:
+- It includes all v1 endpoints (`/analytics/revenue`, `/analytics/top-products`, `/analytics/summary`)
+- It adds a new endpoint: **`/analytics/trends`** — month-over-month order and revenue growth rates
+- Both v1 and v2 return their version in `/healthz` responses (`"version": "1.0.0"` vs `"2.0.0"`), so you can verify the canary split
+
+The v2 image was built in L02 from `shared_app/analytics-service-v2/` and stored in the `analytics-service-v2` ImageStream.
 
 First, add a `version` label to the existing deployment:
 
@@ -508,55 +515,14 @@ oc patch deployment analytics-service -n shopinsights -p '{"spec":{"template":{"
 Create separate Services for v1 and v2 (the HTTPRoute routes between Services, not subsets):
 
 ```bash
-# Create a Service that selects only v1 pods
-cat <<EOF | oc apply -f -
-apiVersion: v1
-kind: Service
-metadata:
-  name: analytics-service-v1
-  namespace: shopinsights
-  labels:
-    app: shopinsights
-    component: analytics-service
-spec:
-  selector:
-    app: shopinsights
-    component: analytics-service
-    version: v1
-  ports:
-    - port: 8080
-      targetPort: 8080
-EOF
+oc apply -f manifests/analytics-service-v1.yaml
+oc apply -f manifests/analytics-service-v2.yaml
 ```
 
-Create a v2 deployment and its Service:
+Deploy the v2 version (uses the `analytics-service-v2:latest` image):
 
 ```bash
-# Create v2 deployment
-oc get deployment analytics-service -n shopinsights -o yaml | \
-  sed 's/name: analytics-service/name: analytics-service-v2/g' | \
-  sed 's/version: v1/version: v2/g' | \
-  oc apply -f -
-
-# Create a Service that selects only v2 pods
-cat <<EOF | oc apply -f -
-apiVersion: v1
-kind: Service
-metadata:
-  name: analytics-service-v2
-  namespace: shopinsights
-  labels:
-    app: shopinsights
-    component: analytics-service
-spec:
-  selector:
-    app: shopinsights
-    component: analytics-service
-    version: v2
-  ports:
-    - port: 8080
-      targetPort: 8080
-EOF
+oc apply -f manifests/analytics-deployment-v2.yaml
 ```
 
 Label both version-specific services to use the waypoint:
@@ -597,7 +563,7 @@ spec:
           weight: 10
 ```
 
-Test the split by sending multiple requests:
+Test the split by sending multiple requests. Each response includes a `version` field so you can see which version handled the request:
 
 ```bash
 for i in $(seq 1 20); do
@@ -607,7 +573,16 @@ for i in $(seq 1 20); do
 done
 ```
 
-You should see roughly 18 responses from v1 and 2 from v2 (90/10 split). In a real canary, you would monitor error rates and latency in Kiali, then gradually shift more traffic to v2 by updating the HTTPRoute weights.
+You should see roughly 18 responses with `"version": "1.0.0"` and 2 with `"version": "2.0.0"` (90/10 split).
+
+Test the v2-only endpoint directly:
+
+```bash
+oc exec deploy/dashboard-ui -n shopinsights -- \
+  curl -s http://analytics-service-v2:8080/analytics/trends | python3 -m json.tool
+```
+
+This returns month-over-month growth rates — a feature only available in v2. In a real canary, you would monitor error rates and latency in Kiali, then gradually shift more traffic to v2 by updating the HTTPRoute weights.
 
 ### Step 11: Add a Circuit Breaker for Orders Service
 

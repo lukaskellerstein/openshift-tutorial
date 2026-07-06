@@ -40,11 +40,27 @@ oc apply -f "$LESSON_DIR/manifests/httproute-analytics.yaml" -n shopinsights
 
 echo ""
 echo "Testing canary split (20 requests — expect ~18 v1, ~2 v2):"
+echo "Look for 'version' field to distinguish responses:"
+V1=0; V2=0
 for i in $(seq 1 20); do
-  oc exec deploy/dashboard-ui -n shopinsights -- \
-    curl -s http://analytics-service:8080/healthz 2>/dev/null
-  echo ""
+  RESP=$(oc exec deploy/dashboard-ui -n shopinsights -- \
+    curl -s http://analytics-service:8080/healthz 2>/dev/null)
+  VERSION=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('version','unknown'))" 2>/dev/null || echo "unknown")
+  if [ "$VERSION" = "2.0.0" ]; then
+    V2=$((V2+1))
+  else
+    V1=$((V1+1))
+  fi
+  echo "  #${i}: version=${VERSION}"
 done
+echo ""
+echo "Results: v1=${V1}, v2=${V2} (expected ~18/2 with 90/10 split)"
+
+echo ""
+echo "Testing v2-only endpoint: /analytics/trends"
+oc exec deploy/dashboard-ui -n shopinsights -- \
+  curl -s http://analytics-service-v2:8080/analytics/trends 2>/dev/null \
+  | python3 -m json.tool 2>/dev/null || echo "(analytics-service-v2 not reachable)"
 
 # --- Step 11: Circuit Breaker ---
 step 11 "Apply circuit breaker for Orders Service"
