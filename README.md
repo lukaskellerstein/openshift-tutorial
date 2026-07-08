@@ -11,8 +11,8 @@ This repo contains three tutorial tracks that build on each other:
 | Track | Directory | Lessons | Duration | What It Covers |
 |-------|-----------|---------|----------|----------------|
 | **OpenShift Platform** | [`tutorial/`](tutorial/) | 10 | ~8 hrs | Routes, Service Mesh, CI/CD, GitOps, monitoring, serverless — one app (ShopInsights) across all lessons |
-| **OpenShift AI** | [`tutorial_ai/openshift_ai/`](tutorial_ai/openshift_ai/) | 66 | ~56-67 hrs | Model serving (KServe/vLLM), fine-tuning, RAG, pipelines, agents, evaluation — on the OpenShift AI platform |
-| **Red Hat AI Ecosystem** | [`tutorial_ai/redhat_ai/`](tutorial_ai/redhat_ai/) | 15 | ~11-15 hrs | Podman AI Lab, RHEL AI, InstructLab, Granite models, Validated Patterns — the full Red Hat AI stack |
+| **Red Hat AI Ecosystem** | [`tutorial_ai/01_redhat_ai/`](tutorial_ai/01_redhat_ai/) | 17 | ~14-18 hrs | Podman AI Lab, RHEL AI, Granite models, model optimization, cross-tier workflows — the full Red Hat AI stack |
+| **OpenShift AI** | [`tutorial_ai/02_openshift_ai/`](tutorial_ai/02_openshift_ai/) | 66 | ~56-67 hrs | Model serving (KServe/vLLM), fine-tuning, RAG, pipelines, agents, evaluation — on the OpenShift AI platform |
 
 Start with the **Platform** track if you're new to OpenShift. The **AI** tracks assume Platform knowledge and focus on ML/LLM workloads.
 
@@ -35,14 +35,14 @@ graph LR
         P1[Routes, Builds, Mesh,<br/>CI/CD, GitOps, Serverless]
     end
 
-    subgraph AI["OpenShift AI (tutorial_ai/openshift_ai/)"]
+    subgraph Eco["Red Hat AI Ecosystem (tutorial_ai/01_redhat_ai/)"]
         direction TB
-        A1[Model Serving, Fine-Tuning,<br/>RAG, Pipelines, Agents,<br/>Evaluation, Governance]
+        E1[Podman AI Lab,<br/>RHEL AI, Granite,<br/>Model Optimization]
     end
 
-    subgraph Eco["Red Hat AI Ecosystem (tutorial_ai/redhat_ai/)"]
+    subgraph AI["OpenShift AI (tutorial_ai/02_openshift_ai/)"]
         direction TB
-        E1[Podman AI Lab,<br/>RHEL AI, InstructLab,<br/>Granite, Validated Patterns]
+        A1[Model Serving, Fine-Tuning,<br/>RAG, Pipelines, Agents,<br/>Evaluation, Governance]
     end
 
     Platform -->|prerequisite| AI
@@ -123,8 +123,8 @@ oc login -u developer -p developer https://api.crc.testing:6443
 ### Start Learning
 
 - **Platform track:** Open [`tutorial/L01_projects/README.md`](tutorial/L01_projects/) and follow the instructions. Each lesson links to the next.
-- **OpenShift AI track:** See [`tutorial_ai/openshift_ai/syllabus.md`](tutorial_ai/openshift_ai/syllabus.md) — requires the [Red Hat Demo Platform](https://catalog.demo.redhat.com/) (GPU cluster with admin access).
-- **Red Hat AI Ecosystem:** See [`tutorial_ai/redhat_ai/`](tutorial_ai/redhat_ai/) — starts with Podman AI Lab on your laptop.
+- **Red Hat AI Ecosystem:** See [`tutorial_ai/01_redhat_ai/`](tutorial_ai/01_redhat_ai/) — starts with Podman AI Lab on your laptop, covers the three-tier journey (desktop → server → platform).
+- **OpenShift AI track:** See [`tutorial_ai/02_openshift_ai/syllabus.md`](tutorial_ai/02_openshift_ai/syllabus.md) — requires the [Red Hat Demo Platform](https://catalog.demo.redhat.com/) (GPU cluster with admin access).
 
 ## Platform Lessons
 
@@ -174,16 +174,15 @@ For the full 85+ resource comparison, see [`k8s_vs_openshift.md`](k8s_vs_openshi
 │   ├── ...
 │   └── L10_serverless/
 ├── tutorial_ai/
-│   ├── openshift_ai/                      # OpenShift AI track (66 lessons, ~56-67 hrs)
+│   ├── 01_redhat_ai/                      # Red Hat AI Ecosystem track (17 lessons, ~14-18 hrs)
+│   │   ├── syllabus.md                    #   2 levels: ecosystem → deep dives
+│   │   ├── level_1/                       #   Foundations: Podman AI Lab, RHEL AI, Granite
+│   │   └── level_2/                       #   Practitioner: model customization, cross-tier workflows
+│   ├── 02_openshift_ai/                   # OpenShift AI track (66 lessons, ~56-67 hrs)
 │   │   ├── syllabus.md                    #   3 levels: platform → serving → production
-│   │   ├── manifests/                     #   Working manifests (KServe, vLLM, etc.)
 │   │   ├── level_1/                       #   Foundations: setup, serving, fine-tuning
 │   │   ├── level_2/                       #   Practitioner: RAG, agents, pipelines
 │   │   └── level_3/                       #   Expert: governance, evaluation, production
-│   ├── redhat_ai/                         # Red Hat AI Ecosystem track (15 lessons, ~11-15 hrs)
-│   │   ├── syllabus.md                    #   2 levels: ecosystem → deep dives
-│   │   ├── level_1/                       #   Foundations: Podman AI Lab, RHEL AI, Granite
-│   │   └── level_2/                       #   Practitioner: InstructLab, cross-tier workflows
 │   └── README.md                          # AI tutorial overview and environment setup
 └── k8s_vs_openshift.md                    # Full K8s ↔ OpenShift resource mapping (85+ resources)
 ```

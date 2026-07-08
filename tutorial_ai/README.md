@@ -1,6 +1,21 @@
-# OpenShift AI Tutorial
+# AI Tutorial
 
-A project-based OpenShift AI tutorial for developers who already know Kubernetes and OpenShift. Covers both **OpenShift AI** (the platform) and the broader **Red Hat AI** ecosystem.
+A project-based AI tutorial for developers who already know Kubernetes and OpenShift. Covers two tracks: the **Red Hat AI Ecosystem** (desktop to server) and **OpenShift AI** (the cluster-scale platform).
+
+## Two Tracks, One Journey
+
+Red Hat provides a three-tier journey for AI adoption: **Podman AI Lab** (desktop), **RHEL AI** (server/bare-metal), and **OpenShift AI** (platform/cluster). This tutorial is split into two tracks that mirror that journey:
+
+| Track | What It Covers | Lessons | Time |
+|-------|---------------|---------|------|
+| [**01 — Red Hat AI Ecosystem**](01_redhat_ai/syllabus.md) | Everything *below* the platform: Podman AI Lab, RHEL AI, Granite models, model optimization, cross-tier workflows | 17 lessons | ~14-18h |
+| [**02 — OpenShift AI**](02_openshift_ai/syllabus.md) | The platform itself: KServe/vLLM serving, fine-tuning, RAG, agents, MCP, pipelines, governance, observability, production ops | 66 lessons | ~56-67h |
+
+**Start with Track 01** if you want the big picture — how models move from a laptop prototype (Podman AI Lab) to a single-server deployment (RHEL AI) to a cluster-scale platform (OpenShift AI). It provides the ecosystem context that makes Track 02 more concrete.
+
+**Start with Track 02** if you already understand the ecosystem and want to go hands-on with OpenShift AI immediately.
+
+Track 01 finishes with an on-ramp lesson (L1-4.1) that previews what OpenShift AI adds and directs you to Track 02 for hands-on coverage. Track 02 assumes you've completed the [main OpenShift tutorial](../tutorial/) or equivalent.
 
 ## Environment
 
@@ -19,13 +34,15 @@ Why not the alternatives?
 
 ```
 tutorial_ai/
-├── openshift_ai/                        # OpenShift AI tutorial (3 levels, 66 lessons, ~56-67h)
+├── 01_redhat_ai/                        # Red Hat AI Ecosystem (2 levels, 17 lessons, ~14-18h)
 │   ├── syllabus.md
-│   └── manifests/                       # Working manifests (used in lessons)
-│       ├── gemma4-e4b-servingruntime.yaml    # → L1-2.2
-│       └── gemma4-e4b-inferenceservice.yaml  # → L1-2.2
-├── redhat_ai/                           # Red Hat AI Ecosystem tutorial (2 levels, 15 lessons, ~11-15h)
-│   └── syllabus.md
+│   ├── level_1/                         #   Foundations: Podman AI Lab, RHEL AI, Granite
+│   └── level_2/                         #   Practitioner: model customization, cross-tier workflows
+├── 02_openshift_ai/                     # OpenShift AI platform (3 levels, 66 lessons, ~56-67h)
+│   ├── syllabus.md
+│   ├── level_1/                         #   Foundations: setup, serving, fine-tuning, evaluation
+│   ├── level_2/                         #   Practitioner: RAG, MCP, agents, pipelines, observability
+│   └── level_3/                         #   Expert: governance, evaluation, production ops
 ├── openshift_ai_docs.md                 # Reference links to official 3.5 docs
 ├── other_docs.md                        # Paths to sub-tutorial repos and source code
 └── README.md                            # This file
@@ -133,16 +150,7 @@ block-beta
 
 **Key takeaway:** OpenShift AI is an operator installed on OpenShift. That operator manages a `DataScienceCluster` CR whose `spec.components` section toggles ~13 sub-components on/off. One of those components is `trustyai`, which is itself an operator (TrustyAI Service Operator) that manages the TrustyAI Service, FMS-Guardrails, and **EvalHub** — a separate Go project with its own repo that the TrustyAI Operator deploys via an EvalHub custom resource.
 
-## Working Manifests
-
-The `openshift_ai/manifests/` directory contains tested, working manifests deployed on a real OpenShift AI cluster. These are referenced directly from lesson steps:
-
-| Manifest | Used In | What It Does |
-|----------|---------|-------------|
-| `gemma4-e4b-servingruntime.yaml` | L1-2.2 | vLLM ServingRuntime for Gemma 4 E4B (NVIDIA GPU, `dtype=half`, `max-model-len=8192`) |
-| `gemma4-e4b-inferenceservice.yaml` | L1-2.2 | InferenceService deploying Gemma 4 E4B (RawDeployment mode, 1x GPU, 24Gi memory) |
-
 ## Getting Started
 
-1. Start with the [OpenShift AI syllabus](openshift_ai/syllabus.md) — it references sub-tutorials when you need them.
-2. Optionally explore the [Red Hat AI Ecosystem syllabus](redhat_ai/syllabus.md) for Podman AI Lab, RHEL AI, and Granite models.
+1. Start with the [Red Hat AI Ecosystem syllabus](01_redhat_ai/syllabus.md) for the big picture — Podman AI Lab, RHEL AI, Granite models, and how they connect to OpenShift AI.
+2. Then work through the [OpenShift AI syllabus](02_openshift_ai/syllabus.md) — it references sub-tutorials when you need them.

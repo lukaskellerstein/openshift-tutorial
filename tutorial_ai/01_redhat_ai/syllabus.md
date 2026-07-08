@@ -8,7 +8,7 @@ Learn the full Red Hat AI ecosystem — from local desktop experimentation to en
 
 The main OpenShift AI tutorial covers the platform in depth, but Red Hat's AI story is broader. Developers and architects need to understand the full journey: prototyping locally with Podman AI Lab, running single-server AI workloads with RHEL AI, and scaling to clusters with OpenShift AI. This tutorial provides the ecosystem context and hands-on experience with the tools that sit outside (or below) the OpenShift AI platform.
 
-**Scope boundary with the OpenShift AI tutorial:** This track teaches everything *below* the OpenShift AI platform — desktop tools, single-server deployment, model optimization, and the Granite ecosystem. The [OpenShift AI tutorial](../openshift_ai/) covers platform-level features: KServe, distributed training, agents/MCP, governance, observability, and multi-tenant GPU management. The on-ramp lesson (L1-4.1) previews what OpenShift AI adds but directs learners to the OpenShift AI tutorial for hands-on coverage.
+**Scope boundary with the OpenShift AI tutorial:** This track teaches everything *below* the OpenShift AI platform — desktop tools, single-server deployment, model optimization, and the Granite ecosystem. The [OpenShift AI tutorial](../02_openshift_ai/) covers platform-level features: KServe, distributed training, agents/MCP, governance, observability, and multi-tenant GPU management. The on-ramp lesson (L1-4.1) previews what OpenShift AI adds but directs learners to the OpenShift AI tutorial for hands-on coverage.
 
 ## Target Audience
 

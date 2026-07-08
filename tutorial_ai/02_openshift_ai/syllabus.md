@@ -122,9 +122,9 @@ Tools you `pip install` and use in code. Red Hat documents how to use them on Op
 
 | Library | How You Use It | Sub-Tutorial |
 |---------|---------------|--------------|
-| NeMo Guardrails | `pip install nemoguardrails` — Colang 2.0 DSL for safety rails | `tutorial_ai/nemo_guardrails/` |
+| NeMo Guardrails | `pip install nemoguardrails` — Colang 2.0 DSL for safety rails | [nemo-guardrails-tutorial](https://github.com/lukaskellerstein/nemo-guardrails-tutorial) |
 | LangChain/LangGraph | `pip install langchain langgraph` — agent frameworks | External: `ai-agents-course` |
-| AutoRAG (standalone) | `pip install autorag` — local RAG optimization (different from Tier 2 dashboard feature) | `tutorial_ai/autorag/` |
+| AutoRAG (standalone) | `pip install autorag` — local RAG optimization (different from Tier 2 dashboard feature) | [autorag-tutorial](https://github.com/lukaskellerstein/autorag-tutorial) |
 | MLflow SDK | `pip install mlflow` — tracking/tracing API (server is Tier 1 `mlflowoperator`) | External: `mlflow-tutorial` |
 
 > **The practical difference**: Tier 1 = `oc apply` (operator deploys everything). Tier 2 = enable Tier 1 deps, feature appears in UI. Tier 3 = `pip install`, write code. Either way, you interact with the tool's OWN API — OpenShift AI provides infrastructure, not a different API.
@@ -164,10 +164,10 @@ These external tools are used extensively. Complete their sub-tutorials (in `tut
 
 | Tool | Sub-Tutorial | Needed Before | Tier |
 |------|-------------|---------------|------|
-| OGX (Llama Stack) | `tutorial_ai/ogx/` | L2-M1 (RAG) | Tier 1 (`llamastackoperator`) |
-| NeMo Guardrails | `tutorial_ai/nemo_guardrails/` | L3-M1 (Governance) | Tier 3 (Python library) |
-| EvalHub | `tutorial_ai/evalhub/` | L3-M2 (Agent Evaluation) | Tier 1 (part of `trustyai`) |
-| AutoRAG (standalone) | External: `autorag-tutorial` | L2-M1.6 (AutoRAG Dashboard) | Tier 3 (Python library) / Tier 2 (dashboard) |
+| OGX (Llama Stack) | [ogx-tutorial](https://github.com/lukaskellerstein/ogx-tutorial) | L2-M1 (RAG) | Tier 1 (`llamastackoperator`) |
+| NeMo Guardrails | [nemo-guardrails-tutorial](https://github.com/lukaskellerstein/nemo-guardrails-tutorial) | L3-M1 (Governance) | Tier 3 (Python library) |
+| EvalHub | [evalhub-tutorial](https://github.com/lukaskellerstein/evalhub-tutorial) | L3-M2 (Agent Evaluation) | Tier 1 (part of `trustyai`) |
+| AutoRAG (standalone) | [autorag-tutorial](https://github.com/lukaskellerstein/autorag-tutorial) | L2-M1.6 (AutoRAG Dashboard) | Tier 3 (Python library) / Tier 2 (dashboard) |
 
 > **Note:** vLLM, KFP SDK, and InstructLab are covered inline in the main syllabus lessons — no separate sub-tutorials needed. vLLM is bundled as a sub-release of `kserve`. KFP SDK is introduced in L2-M4. InstructLab is a niche advanced topic in L3-M4.1.
 
@@ -644,7 +644,7 @@ This tutorial targets **3.4-3.5** and notes feature status (GA, Tech Preview, De
 
 ### L2-1.1 — RAG Architecture with OGX
 **Duration:** 45 min
-**Prerequisites:** Sub-tutorial: `tutorial_ai/ogx/` (Level 1)
+**Prerequisites:** Sub-tutorial: [ogx-tutorial](https://github.com/lukaskellerstein/ogx-tutorial) (Level 1)
 **Topics:**
 - RAG fundamentals recap: retrieval + augmented generation
 - OGX (Open GenAI Stack / Llama Stack) architecture:
@@ -740,7 +740,7 @@ This tutorial targets **3.4-3.5** and notes feature status (GA, Tech Preview, De
 
 ### L2-1.6 — AutoRAG: Automated RAG Optimization (Dashboard)
 **Duration:** 45 min
-**Prerequisites:** L2-M1.1 through L2-M1.5 completed, Sub-tutorial: `tutorial_ai/autorag/` (standalone)
+**Prerequisites:** L2-M1.1 through L2-M1.5 completed, Sub-tutorial: [autorag-tutorial](https://github.com/lukaskellerstein/autorag-tutorial) (standalone)
 **Topics:**
 - AutoRAG as a Tier 2 dashboard feature (Technology Preview, 3.4+)
 - Required Tier 1 components: `dashboard` + `aipipelines` + `kserve` + `llamastackoperator`
@@ -902,7 +902,7 @@ This tutorial targets **3.4-3.5** and notes feature status (GA, Tech Preview, De
 
 ### L2-3.3 — OGX Agents API
 **Duration:** 1 hour
-**Prerequisites:** Sub-tutorial: `tutorial_ai/ogx/` (agents section)
+**Prerequisites:** Sub-tutorial: [ogx-tutorial](https://github.com/lukaskellerstein/ogx-tutorial) (agents section)
 **Topics:**
 - OGX Agents API (`/v1alpha/agents`):
   - Creating agent sessions
@@ -1340,7 +1340,7 @@ This tutorial targets **3.4-3.5** and notes feature status (GA, Tech Preview, De
 
 ### L3-1.4 — NeMo Guardrails for AI Safety
 **Duration:** 1 hour
-**Prerequisites:** Sub-tutorial: `tutorial_ai/nemo_guardrails/`
+**Prerequisites:** Sub-tutorial: [nemo-guardrails-tutorial](https://github.com/lukaskellerstein/nemo-guardrails-tutorial)
 **Topics:**
 - NeMo Guardrails on OpenShift AI (GA in 3.4)
 - Guardrails Orchestrator: middleware between application and LLM
@@ -1726,9 +1726,11 @@ This tutorial targets **3.4-3.5** and notes feature status (GA, Tech Preview, De
 
 ```
 tutorial_ai/
-├── GOAL.md                              # Original requirements
 ├── openshift_ai_docs.md                 # Reference links to official docs
-├── openshift_ai/
+├── other_docs.md                        # Paths to sub-tutorial repos and source code
+├── 01_redhat_ai/
+│   └── syllabus.md                      # Red Hat AI Ecosystem tutorial (Podman AI Lab, RHEL AI, Granite)
+├── 02_openshift_ai/
 │   ├── syllabus.md                      # This file — the master syllabus
 │   ├── level_1/
 │   │   ├── M1_platform_setup/
@@ -1816,17 +1818,9 @@ tutorial_ai/
 │           ├── 2_cicd/
 │           ├── 3_scaling_tuning/
 │           └── 4_capstone/
-├── redhat_ai/
-│   └── syllabus.md                      # Red Hat AI Ecosystem tutorial (Podman AI Lab, RHEL AI, Granite)
-├── ogx/
-│   └── syllabus.md                      # OGX (Llama Stack) sub-tutorial
-├── nemo_guardrails/
-│   └── syllabus.md                      # NeMo Guardrails sub-tutorial
-├── autorag/
-│   └── syllabus.md                      # AutoRAG (standalone) sub-tutorial
-└── evalhub/
-    └── syllabus.md                      # EvalHub sub-tutorial
 ```
+
+Sub-tutorials for OGX, NeMo Guardrails, AutoRAG, and EvalHub live in separate repos — see `tutorial_ai/other_docs.md` for paths.
 
 ## OpenShift AI Feature Coverage Matrix
 

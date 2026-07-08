@@ -17,7 +17,7 @@ tutorial/
 
 Lesson directories use `L<NN>_snake_case_name/`.
 
-## AI Tracks (`tutorial_ai/openshift_ai/` and `tutorial_ai/redhat_ai/`)
+## AI Tracks (`tutorial_ai/01_redhat_ai/` and `tutorial_ai/02_openshift_ai/`)
 
 Use a three-level architecture with modules:
 
@@ -26,9 +26,8 @@ Use a three-level architecture with modules:
 - **`level_3/`** — Expert: production operations, advanced topics
 
 ```
-tutorial_ai/openshift_ai/
+tutorial_ai/02_openshift_ai/
   syllabus.md
-  manifests/
   level_1/
     M1_platform_setup/
       1_architecture_overview/

@@ -382,11 +382,11 @@ OpenShift uses two proxy layers — this replaces the Traefik + manual Istio set
 
 ```mermaid
 graph LR
-    subgraph Edge Ingress — L04
+    subgraph edge["Edge Ingress — L04"]
         EXT((External<br/>Traffic)) --> HAProxy["HAProxy Router<br/>(Routes)"]
     end
 
-    subgraph Service Mesh — L05
+    subgraph mesh["Service Mesh — L05"]
         INT((Inter-service<br/>Traffic)) --> ZT["ztunnel (L4)<br/>+ waypoint (L7)"]
     end
 

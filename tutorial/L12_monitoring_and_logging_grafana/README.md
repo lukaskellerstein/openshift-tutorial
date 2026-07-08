@@ -399,5 +399,5 @@ This is the final lesson in the **Platform track**. You now have a complete Open
 
 To continue learning, explore the **AI tracks** in `tutorial_ai/`:
 
-- **[OpenShift AI](../../tutorial_ai/openshift_ai/syllabus.md)** — Model serving with KServe and vLLM, fine-tuning, RAG pipelines, AI agents, evaluation, and governance on the OpenShift AI platform (66 lessons).
-- **[Red Hat AI Ecosystem](../../tutorial_ai/redhat_ai/syllabus.md)** — Podman AI Lab, RHEL AI, InstructLab, IBM Granite models, and Validated Patterns (15 lessons).
+- **[Red Hat AI Ecosystem](../../tutorial_ai/01_redhat_ai/syllabus.md)** — Podman AI Lab, RHEL AI, Granite models, model optimization, and cross-tier workflows (17 lessons).
+- **[OpenShift AI](../../tutorial_ai/02_openshift_ai/syllabus.md)** — Model serving with KServe and vLLM, fine-tuning, RAG pipelines, AI agents, evaluation, and governance on the OpenShift AI platform (66 lessons).

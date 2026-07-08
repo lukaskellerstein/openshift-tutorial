@@ -138,4 +138,4 @@ LNN_lesson_name/
 
 ## Next Steps
 
-After completing this track, continue to the **OpenShift AI** tutorial (`tutorial_ai/openshift_ai/`) — 66 lessons across 3 levels covering model serving, fine-tuning, RAG, agents, pipelines, and production AI operations on OpenShift.
+After completing this track, continue to the **Red Hat AI Ecosystem** tutorial (`tutorial_ai/01_redhat_ai/`) for the big picture, then the **OpenShift AI** tutorial (`tutorial_ai/02_openshift_ai/`) — 66 lessons across 3 levels covering model serving, fine-tuning, RAG, agents, pipelines, and production AI operations on OpenShift.
