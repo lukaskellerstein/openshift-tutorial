@@ -4,24 +4,21 @@
 
 This is a project-based OpenShift tutorial for developers who already know Kubernetes. It contains three tutorial tracks:
 
-- **OpenShift Platform** (`tutorial/`) — 10 lessons, ~8 hours. One application ("ShopInsights") across all lessons. Each lesson adds an OpenShift capability — Routes, Service Mesh, CI/CD, GitOps, monitoring, and serverless.
-- **Red Hat AI Ecosystem** (`tutorial_ai/01_redhat_ai/`) — 17 lessons across 2 levels, ~14-18 hours. Podman AI Lab, RHEL AI, Granite models, model optimization, and cross-tier workflows.
-- **OpenShift AI** (`tutorial_ai/02_openshift_ai/`) — 66 lessons across 3 levels, ~56-67 hours. Model serving (KServe/vLLM), fine-tuning, RAG, pipelines, agents, evaluation, and governance on the OpenShift AI platform.
+- **OpenShift Platform** (`tutorial/`) — the prerequisite track covering core OpenShift capabilities (Routes, Service Mesh, CI/CD, GitOps, monitoring, serverless) using the "ShopInsights" application.
+- **Red Hat AI Ecosystem** (`tutorial_ai/01_redhat_ai/`) — Podman AI Lab, RHEL AI, Granite models, model optimization, and cross-tier workflows.
+- **OpenShift AI** (`tutorial_ai/02_openshift_ai/`) — model serving, fine-tuning, RAG, pipelines, agents, evaluation, and governance on the OpenShift AI platform.
 
-The Platform track is a prerequisite for the AI tracks. The Red Hat AI Ecosystem track provides context for OpenShift AI but can be taken independently.
+Each track has a `syllabus.md` file with the full lesson/module breakdown. Consult those for structure and scope — do not rely on this file for lesson listings.
 
 ## Technical Stack
 
 ### Platform Track
 - **Platform**: OpenShift 4.x (Red Hat OpenShift Container Platform)
-- **Local environment**: OpenShift Local (CRC) — Code Ready Containers
-- **Cloud sandbox**: Red Hat Developer Sandbox (free, optional)
 - **CLI**: `oc` (primary), `kubectl` (for comparisons)
 - **CI/CD**: OpenShift Pipelines (Tekton), OpenShift GitOps (ArgoCD)
 - **Service Mesh**: OpenShift Service Mesh (Istio-based)
 - **Serverless**: OpenShift Serverless (Knative)
 - **Monitoring**: Built-in Prometheus + Grafana stack
-- **Logging**: OpenShift Logging (Loki/Elasticsearch + Fluentd/Vector)
 - **Container runtime**: Podman (not Docker)
 
 ### AI Tracks
@@ -35,108 +32,30 @@ The Platform track is a prerequisite for the AI tracks. The Red Hat AI Ecosystem
 - **Models**: IBM Granite family (Apache 2.0), Gemma
 - **Environment**: Red Hat Demo Platform (GPU cluster with admin access)
 
-## Project Layout
+## Rules for the AI Agent
 
-```
-tutorial/                              # Platform track (flat, 10 lessons)
-  shared_app/                          #   ShopInsights application source
-    products-service/
-    orders-service/
-    analytics-service/
-    dashboard-ui/
-  L01_projects/
-  L02_builds_and_images/
-  ...
-  L10_serverless/
-tutorial_ai/
-  01_redhat_ai/                        # Red Hat AI Ecosystem track (2 levels, 17 lessons)
-    syllabus.md
-    level_1/                           #   Foundations: Podman AI Lab, RHEL AI, Granite
-    level_2/                           #   Practitioner: model customization, cross-tier workflows
-  02_openshift_ai/                     # OpenShift AI track (3 levels, 66 lessons)
-    syllabus.md
-    level_1/                           #   Foundations: setup, serving, fine-tuning
-      M1_platform_setup/
-      M2_model_serving/
-      ...
-    level_2/                           #   Practitioner: RAG, agents, pipelines
-    level_3/                           #   Expert: governance, evaluation, production
-  README.md                            #   AI tutorial overview and environment setup
-k8s_vs_openshift.md                    # Full K8s ↔ OpenShift resource mapping
-```
+### Where to find information
+- **Syllabus and lesson structure**: read the track's `syllabus.md` file (`tutorial/syllabus.md`, `tutorial_ai/01_redhat_ai/syllabus.md`, `tutorial_ai/02_openshift_ai/syllabus.md`).
+- **K8s ↔ OpenShift mapping**: see `k8s_vs_openshift.md` in the repo root.
+- **Detailed conventions**: modular rule files in `.claude/rules/`:
+  - `tutorial-structure.md` — layout and file conventions for both tracks
+  - `lesson-content.md` — how to write README.md lesson guides
+  - `manifest-standards.md` — YAML manifest conventions and patterns
+  - `k8s-to-openshift.md` — how to frame K8s→OpenShift comparisons
 
-### Platform Track Lessons
+### Content creation rules
+- Every lesson's primary deliverable is its `README.md`. Follow the format in `.claude/rules/lesson-content.md`.
+- All YAML manifests go in the lesson's `manifests/` directory. Follow `.claude/rules/manifest-standards.md`.
+- All files must exist on disk — scripts reference them via `oc apply -f` or `sed` + pipe. Never embed file contents inline in scripts.
+- Platform track: always start from the K8s concept the reader already knows, then show the OpenShift way.
+- AI tracks: assume the reader completed the Platform track and knows OpenShift.
 
-Each lesson is a self-contained directory with a flat numbering scheme:
-```
-LNN_lesson_name/
-  README.md             # Lesson guide with explanation, steps, expected output
-  manifests/            # YAML manifests (Deployments, Routes, BuildConfigs, etc.)
-  scripts/              # Shell scripts for setup, teardown, demos
-```
+### Naming conventions
+- Platform track lesson dirs: `L<NN>_snake_case_name/`
+- AI track module dirs: `M<N>_snake_case_name/`
+- AI track lesson dirs: `<N>_snake_case_name/`
+- Manifest files: descriptive names (`deployment.yaml`, `route-edge-tls.yaml`, `k8s-ingress.yaml`)
 
-### AI Track Lessons
-
-AI lessons use a three-level structure with modules:
-```
-level_N/
-  M<N>_module_name/
-    <N>_lesson_name/
-      README.md
-      manifests/
-      scripts/
-      app/              # Optional application code
-```
-
-## Environment Setup
-
-### Platform Track — Red Hat Developer Sandbox (recommended)
-1. Sign up at sandbox.redhat.com and launch your sandbox
-2. Web console → username (top-right) → **Copy login command** → **Display Token**
-3. `oc login --token=sha256~XXXXX --server=https://api.sandbox-xxx.openshiftapps.com:6443`
-
-Tokens expire daily. Some lessons (L05, L08, L09, L10) need cluster-admin — use CRC for those.
-
-### Platform Track — OpenShift Local (CRC)
-```bash
-crc setup
-crc start
-eval $(crc oc-env)
-oc login -u developer -p developer https://api.crc.testing:6443
-```
-
-#### Key URLs (CRC)
-| Service | URL |
-|---------|-----|
-| API Server | https://api.crc.testing:6443 |
-| Web Console | https://console-openshift-console.apps-crc.testing |
-| OAuth | https://oauth-openshift.apps-crc.testing |
-
-#### Default Users (CRC)
-- `kubeadmin` / `<password from crc start>` — cluster admin
-- `developer` / `developer` — regular user
-
-### AI Track — Red Hat Demo Platform
-The OpenShift AI track requires the [Red Hat Demo Platform](https://catalog.demo.redhat.com/) — a pre-configured cluster with GPUs and full admin access. The Developer Sandbox lacks cluster-admin (can't install operators), and CRC has no GPU.
-
-## Key Commands
-
-- `crc setup` — initial CRC setup
-- `crc start` — start the local OpenShift cluster
-- `crc stop` — stop the cluster (preserves state)
-- `crc delete` — remove the cluster entirely
-- `oc login` — authenticate to the cluster
-- `oc new-project <name>` — create a project (namespace)
-- `oc new-app` — deploy an application
-- `oc apply -f <manifest.yaml>` — apply YAML (same as kubectl)
-- `oc get routes` — list exposed routes
-- `oc debug <pod>` — debug a running pod
-- `oc adm` — administrative commands
-
-## Rules
-
-Modular instructions are in `.claude/rules/`. They cover:
-- `tutorial-structure.md` — three-level layout and file conventions
-- `lesson-content.md` — how to write README.md lesson guides
-- `manifest-standards.md` — YAML manifest conventions and patterns
-- `k8s-to-openshift.md` — how to frame K8s→OpenShift comparisons
+### Environment assumptions
+- Platform track: Red Hat Developer Sandbox (recommended) or OpenShift Local (CRC). Some lessons need cluster-admin — note this in prerequisites.
+- AI tracks: Red Hat Demo Platform (GPU cluster with admin access).
