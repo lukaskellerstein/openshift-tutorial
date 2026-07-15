@@ -10,7 +10,7 @@ This repo contains three tutorial tracks that build on each other:
 
 | Track | Directory | Lessons | Duration | What It Covers |
 |-------|-----------|---------|----------|----------------|
-| **OpenShift Platform** | [`tutorial/`](tutorial/) | 10 | ~8 hrs | Routes, Service Mesh, CI/CD, GitOps, monitoring, serverless — one app (ShopInsights) across all lessons |
+| **OpenShift Platform** | [`tutorial/`](tutorial/) | 13 | ~10 hrs | Routes, Service Mesh, CI/CD, GitOps, monitoring, serverless — one app (ShopInsights) across all lessons |
 | **Red Hat AI Ecosystem** | [`tutorial_ai/01_redhat_ai/`](tutorial_ai/01_redhat_ai/) | 17 | ~14-18 hrs | Podman AI Lab, RHEL AI, Granite models, model optimization, cross-tier workflows — the full Red Hat AI stack |
 | **OpenShift AI** | [`tutorial_ai/02_openshift_ai/`](tutorial_ai/02_openshift_ai/) | 66 | ~56-67 hrs | Model serving (KServe/vLLM), fine-tuning, RAG, pipelines, agents, evaluation — on the OpenShift AI platform |
 
@@ -19,7 +19,7 @@ Start with the **Platform** track if you're new to OpenShift. The **AI** tracks 
 ## Features
 
 - **K8s-first approach** — every topic bridges from what you know in vanilla Kubernetes to the OpenShift way
-- **Project-based** — the Platform track builds one application (ShopInsights) across all 10 lessons; the AI track deploys and serves real models
+- **Project-based** — the Platform track builds one application (ShopInsights) across all 13 lessons; the AI track deploys and serves real models
 - **Fully hands-on** — every lesson includes manifests, CLI commands, and verification steps
 - **Self-contained lessons** — each lesson has its own README, manifests, scripts, and cleanup instructions
 - **Desktop to cluster** — the Red Hat AI track covers the full journey from Podman AI Lab (laptop) through RHEL AI (server) to OpenShift AI (cluster)
@@ -79,6 +79,9 @@ graph TD
     L07 --> L08[L08: CI/CD]
     L08 --> L09[L09: GitOps]
     L09 --> L10[L10: Serverless]
+    L04 --> L11[L11: Keycloak Auth]
+    L07 --> L12[L12: Grafana Dashboards]
+    L08 --> L13[L13: GitHub Actions CI/CD]
 ```
 
 ## Quick Start
@@ -140,8 +143,11 @@ oc login -u developer -p developer https://api.crc.testing:6443
 | 08 | [CI/CD Pipeline](tutorial/L08_cicd_pipeline/) | 1 hr 15 min | Tekton pipeline: GitHub → test → build → push to GHCR → deploy. |
 | 09 | [GitOps with ArgoCD](tutorial/L09_gitops/) | 1 hr | ArgoCD, Kustomize overlays, drift detection, auto-heal. |
 | 10 | [Serverless](tutorial/L10_serverless/) | 45 min | Knative, scale-to-zero, cold starts, eventing. |
+| 11 | [App Auth with Keycloak](tutorial/L11_app_auth_keycloak/) | 75 min | Keycloak SSO for ShopInsights — OIDC, token-based API auth, OpenShift integration. |
+| 12 | [Grafana Dashboards](tutorial/L12_monitoring_and_logging_grafana/) | 45 min | Custom Grafana dashboards for application monitoring and observability. |
+| 13 | [CI/CD with GitHub Actions](tutorial/L13_cicd_pipeline_github_actions/) | 45 min | External CI/CD — GitHub Actions workflows deploying to OpenShift. |
 
-**Total:** ~8 hours
+**Total:** ~10 hours
 
 ## K8s vs OpenShift at a Glance
 
@@ -163,7 +169,7 @@ For the full 85+ resource comparison, see [`k8s_vs_openshift.md`](k8s_vs_openshi
 ## Project Structure
 
 ```
-├── tutorial/                              # Platform track (10 lessons, ~8 hrs)
+├── tutorial/                              # Platform track (13 lessons, ~10 hrs)
 │   ├── shared_app/                        #   ShopInsights application source
 │   │   ├── products-service/              #     FastAPI + DuckDB
 │   │   ├── orders-service/                #     FastAPI + DuckDB
@@ -172,7 +178,7 @@ For the full 85+ resource comparison, see [`k8s_vs_openshift.md`](k8s_vs_openshi
 │   ├── L01_projects/                      #   Lesson directories (each with
 │   ├── L02_builds_and_images/             #     README.md, manifests/, scripts/)
 │   ├── ...
-│   └── L10_serverless/
+│   └── L13_cicd_pipeline_github_actions/
 ├── tutorial_ai/
 │   ├── 01_redhat_ai/                      # Red Hat AI Ecosystem track (17 lessons, ~14-18 hrs)
 │   │   ├── syllabus.md                    #   2 levels: ecosystem → deep dives
